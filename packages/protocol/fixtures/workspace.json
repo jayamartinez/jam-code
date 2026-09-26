@@ -1,0 +1,711 @@
+{
+  "workspace": {
+    "protocolVersion": 1,
+    "runtimeId": "fixture-runtime",
+    "sequence": 0,
+    "projects": [
+      {
+        "id": "project-jam",
+        "name": "jam-code",
+        "initials": "JC",
+        "branch": "feat/resource-lifetime"
+      },
+      {
+        "id": "project-atlas",
+        "name": "atlas-web",
+        "initials": "AW",
+        "branch": "main"
+      },
+      {
+        "id": "project-forge",
+        "name": "forge-cli",
+        "initials": "FC",
+        "branch": "fix/shortcuts"
+      },
+      {
+        "id": "project-orbit",
+        "name": "orbit-api",
+        "initials": "OA",
+        "branch": "main"
+      }
+    ],
+    "resources": [
+      {
+        "id": "conv-pane-lifetime",
+        "kind": "conversation",
+        "title": "Pane restore keeps PTY alive",
+        "projectId": "project-jam",
+        "sessionId": "session-pane-lifetime",
+        "pinned": true,
+        "updatedAt": "2026-09-25T18:42:00.000Z"
+      },
+      {
+        "id": "conv-navigation",
+        "kind": "conversation",
+        "title": "Refine resource navigation",
+        "projectId": "project-jam",
+        "sessionId": "session-navigation",
+        "pinned": true,
+        "updatedAt": "2026-09-25T17:42:00.000Z"
+      },
+      {
+        "id": "conv-layout",
+        "kind": "conversation",
+        "title": "Persist workspace layout",
+        "projectId": "project-atlas",
+        "sessionId": "session-layout",
+        "pinned": true,
+        "updatedAt": "2026-09-25T16:42:00.000Z"
+      },
+      {
+        "id": "conv-browser",
+        "kind": "conversation",
+        "title": "Browser annotation flow",
+        "projectId": "project-jam",
+        "sessionId": "session-browser",
+        "pinned": false,
+        "updatedAt": "2026-09-25T15:42:00.000Z"
+      },
+      {
+        "id": "conv-shortcuts",
+        "kind": "conversation",
+        "title": "Fix keyboard shortcuts",
+        "projectId": "project-forge",
+        "sessionId": "session-shortcuts",
+        "pinned": false,
+        "updatedAt": "2026-09-25T14:42:00.000Z"
+      },
+      {
+        "id": "conv-tokens",
+        "kind": "conversation",
+        "title": "Review token contrast",
+        "projectId": "project-jam",
+        "sessionId": "session-tokens",
+        "pinned": false,
+        "updatedAt": "2026-09-25T13:42:00.000Z"
+      },
+      {
+        "id": "conv-search",
+        "kind": "conversation",
+        "title": "Local search indexing",
+        "projectId": "project-orbit",
+        "sessionId": "session-search",
+        "pinned": false,
+        "updatedAt": "2026-09-25T12:42:00.000Z"
+      },
+      {
+        "id": "conv-composer",
+        "kind": "conversation",
+        "title": "Composer attachment states",
+        "projectId": "project-atlas",
+        "sessionId": "session-composer",
+        "pinned": false,
+        "updatedAt": "2026-09-25T11:42:00.000Z"
+      },
+      {
+        "id": "conv-window",
+        "kind": "conversation",
+        "title": "Tauri window lifecycle",
+        "projectId": "project-jam",
+        "sessionId": "session-window",
+        "pinned": false,
+        "updatedAt": "2026-09-25T10:42:00.000Z"
+      },
+      {
+        "id": "diff-pane",
+        "kind": "diff",
+        "title": "Review changes",
+        "projectId": "project-jam",
+        "pinned": false,
+        "updatedAt": "2026-09-25T18:42:00.000Z"
+      },
+      {
+        "id": "terminal-pane",
+        "kind": "terminal",
+        "title": "Terminal",
+        "projectId": "project-jam",
+        "pinned": false,
+        "updatedAt": "2026-09-25T18:42:00.000Z"
+      },
+      {
+        "id": "file-pane",
+        "kind": "file",
+        "title": "SessionManager.ts",
+        "projectId": "project-jam",
+        "pinned": false,
+        "updatedAt": "2026-09-25T18:42:00.000Z"
+      },
+      {
+        "id": "browser-pane",
+        "kind": "browser",
+        "title": "localhost:5173",
+        "projectId": "project-jam",
+        "pinned": false,
+        "updatedAt": "2026-09-25T18:42:00.000Z"
+      },
+      {
+        "id": "settings",
+        "kind": "settings",
+        "title": "Settings",
+        "pinned": false,
+        "updatedAt": "2026-09-25T18:42:00.000Z"
+      }
+    ],
+    "sessions": [
+      {
+        "id": "session-pane-lifetime",
+        "resourceId": "conv-pane-lifetime",
+        "providerId": "mock",
+        "presentation": "claude",
+        "status": "idle",
+        "model": "Demo model"
+      },
+      {
+        "id": "session-navigation",
+        "resourceId": "conv-navigation",
+        "providerId": "mock",
+        "presentation": "codex",
+        "status": "idle",
+        "model": "Demo model"
+      },
+      {
+        "id": "session-layout",
+        "resourceId": "conv-layout",
+        "providerId": "mock",
+        "presentation": "claude",
+        "status": "idle",
+        "model": "Demo model"
+      },
+      {
+        "id": "session-browser",
+        "resourceId": "conv-browser",
+        "providerId": "mock",
+        "presentation": "claude",
+        "status": "idle",
+        "model": "Demo model"
+      },
+      {
+        "id": "session-shortcuts",
+        "resourceId": "conv-shortcuts",
+        "providerId": "mock",
+        "presentation": "codex",
+        "status": "idle",
+        "model": "Demo model"
+      },
+      {
+        "id": "session-tokens",
+        "resourceId": "conv-tokens",
+        "providerId": "mock",
+        "presentation": "claude",
+        "status": "idle",
+        "model": "Demo model"
+      },
+      {
+        "id": "session-search",
+        "resourceId": "conv-search",
+        "providerId": "mock",
+        "presentation": "codex",
+        "status": "idle",
+        "model": "Demo model"
+      },
+      {
+        "id": "session-composer",
+        "resourceId": "conv-composer",
+        "providerId": "mock",
+        "presentation": "claude",
+        "status": "idle",
+        "model": "Demo model"
+      },
+      {
+        "id": "session-window",
+        "resourceId": "conv-window",
+        "providerId": "mock",
+        "presentation": "codex",
+        "status": "idle",
+        "model": "Demo model"
+      }
+    ],
+    "providers": [
+      {
+        "id": "mock",
+        "name": "Demo provider",
+        "installation": "builtin",
+        "authentication": "not-required",
+        "enabled": true,
+        "isDefault": true,
+        "running": false,
+        "capabilities": {
+          "create": {
+            "status": "supported"
+          },
+          "resume": {
+            "status": "supported"
+          },
+          "fork": {
+            "status": "unsupported",
+            "reason": "Not implemented by the foundation demo."
+          },
+          "interrupt": {
+            "status": "supported"
+          },
+          "streaming": {
+            "status": "supported"
+          },
+          "toolApproval": {
+            "status": "unsupported",
+            "reason": "Not implemented by the foundation demo."
+          },
+          "userInput": {
+            "status": "unsupported",
+            "reason": "Not implemented by the foundation demo."
+          },
+          "images": {
+            "status": "unsupported",
+            "reason": "Not implemented by the foundation demo."
+          },
+          "steering": {
+            "status": "unsupported",
+            "reason": "Not implemented by the foundation demo."
+          }
+        }
+      },
+      {
+        "id": "claude",
+        "name": "Claude Code",
+        "installation": "unknown",
+        "authentication": "unknown",
+        "enabled": false,
+        "isDefault": false,
+        "running": false,
+        "capabilities": {
+          "create": {
+            "status": "conditional",
+            "reason": "Live adapter and subscription eligibility are not established."
+          },
+          "resume": {
+            "status": "conditional",
+            "reason": "Live adapter and subscription eligibility are not established."
+          },
+          "fork": {
+            "status": "conditional",
+            "reason": "Live adapter and subscription eligibility are not established."
+          },
+          "interrupt": {
+            "status": "conditional",
+            "reason": "Live adapter and subscription eligibility are not established."
+          },
+          "streaming": {
+            "status": "conditional",
+            "reason": "Live adapter and subscription eligibility are not established."
+          },
+          "toolApproval": {
+            "status": "conditional",
+            "reason": "Live adapter and subscription eligibility are not established."
+          },
+          "userInput": {
+            "status": "conditional",
+            "reason": "Live adapter and subscription eligibility are not established."
+          },
+          "images": {
+            "status": "conditional",
+            "reason": "Live adapter and subscription eligibility are not established."
+          },
+          "steering": {
+            "status": "conditional",
+            "reason": "Live adapter and subscription eligibility are not established."
+          }
+        }
+      },
+      {
+        "id": "codex",
+        "name": "Codex",
+        "installation": "unknown",
+        "authentication": "unknown",
+        "enabled": false,
+        "isDefault": false,
+        "running": false,
+        "capabilities": {
+          "create": {
+            "status": "unknown",
+            "reason": "Live adapter is not connected in this foundation."
+          },
+          "resume": {
+            "status": "unknown",
+            "reason": "Live adapter is not connected in this foundation."
+          },
+          "fork": {
+            "status": "unknown",
+            "reason": "Live adapter is not connected in this foundation."
+          },
+          "interrupt": {
+            "status": "unknown",
+            "reason": "Live adapter is not connected in this foundation."
+          },
+          "streaming": {
+            "status": "unknown",
+            "reason": "Live adapter is not connected in this foundation."
+          },
+          "toolApproval": {
+            "status": "unknown",
+            "reason": "Live adapter is not connected in this foundation."
+          },
+          "userInput": {
+            "status": "unknown",
+            "reason": "Live adapter is not connected in this foundation."
+          },
+          "images": {
+            "status": "unknown",
+            "reason": "Live adapter is not connected in this foundation."
+          },
+          "steering": {
+            "status": "unknown",
+            "reason": "Live adapter is not connected in this foundation."
+          }
+        }
+      }
+    ]
+  },
+  "conversations": [
+    {
+      "resourceId": "conv-pane-lifetime",
+      "sessionId": "session-pane-lifetime",
+      "cursor": {
+        "runtimeId": "fixture-runtime",
+        "sequence": 0
+      },
+      "messages": [
+        {
+          "id": "message-pane-user",
+          "role": "user",
+          "createdAt": "2026-09-25T18:38:00.000Z",
+          "blocks": [
+            {
+              "type": "text",
+              "text": "Closing a pane kills the PTY underneath it. Panes should be views — closing one should detach, and restoring should reattach to the same session. Start with terminal and chat panes."
+            }
+          ]
+        },
+        {
+          "id": "message-pane-assistant",
+          "role": "assistant",
+          "createdAt": "2026-09-25T18:39:00.000Z",
+          "blocks": [
+            {
+              "type": "text",
+              "text": "The pane currently owns the process lifetime, so its cleanup kills the PTY. I’ll move ownership into the session manager so panes only hold a handle, then restore by session ID."
+            },
+            {
+              "type": "tool",
+              "id": "tool-pane-read",
+              "kind": "read",
+              "title": "Read 4 files",
+              "detail": "SessionManager.ts, TerminalPane.tsx, +2 · demo only; no files were read.",
+              "status": "completed"
+            },
+            {
+              "type": "tool",
+              "id": "tool-pane-search",
+              "kind": "search",
+              "title": "Searched",
+              "detail": "\"process.kill\" · 3 matches · demo only; no search was executed.",
+              "status": "completed"
+            },
+            {
+              "type": "tool",
+              "id": "tool-pane-edit",
+              "kind": "edit",
+              "title": "Updated 3 files",
+              "detail": "Representative changes for the design preview. These files have not been modified.",
+              "status": "completed",
+              "files": [
+                {
+                  "path": "src/runtime/SessionManager.ts",
+                  "added": 42,
+                  "removed": 12
+                },
+                {
+                  "path": "src/components/TerminalPane.tsx",
+                  "added": 18,
+                  "removed": 26
+                },
+                {
+                  "path": "src/runtime/session.test.ts",
+                  "added": 31,
+                  "removed": 0
+                }
+              ]
+            },
+            {
+              "type": "tool",
+              "id": "tool-pane-test",
+              "kind": "command",
+              "title": "pnpm test — session lifecycle",
+              "detail": "Demo result: 8 tests passed.\nCovers detach, reattach and explicit session termination.\nNo test command was executed by this conversation.",
+              "status": "completed"
+            },
+            {
+              "type": "text",
+              "text": "Detach and reattach are covered in the example. The remaining case is window reload — restore the layout after the runtime session is ready, then attach to its output instead of spawning a new process."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resourceId": "conv-navigation",
+      "sessionId": "session-navigation",
+      "cursor": {
+        "runtimeId": "fixture-runtime",
+        "sequence": 0
+      },
+      "messages": [
+        {
+          "id": "message-1-user",
+          "role": "user",
+          "createdAt": "2026-09-25T17:42:00.000Z",
+          "blocks": [
+            {
+              "type": "text",
+              "text": "Can resource navigation stay consistent between Single and Tiles?"
+            }
+          ]
+        },
+        {
+          "id": "message-1-assistant",
+          "role": "assistant",
+          "createdAt": "2026-09-25T17:42:00.000Z",
+          "blocks": [
+            {
+              "type": "text",
+              "text": "The resource owns the content; each view owns only its position and focus. This demo keeps that distinction visible in both layouts."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resourceId": "conv-layout",
+      "sessionId": "session-layout",
+      "cursor": {
+        "runtimeId": "fixture-runtime",
+        "sequence": 0
+      },
+      "messages": [
+        {
+          "id": "message-2-user",
+          "role": "user",
+          "createdAt": "2026-09-25T16:42:00.000Z",
+          "blocks": [
+            {
+              "type": "text",
+              "text": "Save the workspace layout without making views own sessions."
+            }
+          ]
+        },
+        {
+          "id": "message-2-assistant",
+          "role": "assistant",
+          "createdAt": "2026-09-25T16:42:00.000Z",
+          "blocks": [
+            {
+              "type": "text",
+              "text": "Persist resource identities independently from the presentation layout. Restoring a view should reconnect to its resource. This is a simulated planning note."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resourceId": "conv-browser",
+      "sessionId": "session-browser",
+      "cursor": {
+        "runtimeId": "fixture-runtime",
+        "sequence": 0
+      },
+      "messages": [
+        {
+          "id": "message-3-user",
+          "role": "user",
+          "createdAt": "2026-09-25T15:42:00.000Z",
+          "blocks": [
+            {
+              "type": "text",
+              "text": "How should browser selections reach the composer?"
+            }
+          ]
+        },
+        {
+          "id": "message-3-assistant",
+          "role": "assistant",
+          "createdAt": "2026-09-25T15:42:00.000Z",
+          "blocks": [
+            {
+              "type": "text",
+              "text": "Stage a context item with the selected element’s provenance and an opaque screenshot asset. Only explicit Send attaches it to a turn. Browser capture is not implemented in this demo."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resourceId": "conv-shortcuts",
+      "sessionId": "session-shortcuts",
+      "cursor": {
+        "runtimeId": "fixture-runtime",
+        "sequence": 0
+      },
+      "messages": [
+        {
+          "id": "message-4-user",
+          "role": "user",
+          "createdAt": "2026-09-25T14:42:00.000Z",
+          "blocks": [
+            {
+              "type": "text",
+              "text": "Check keyboard shortcuts on Windows and macOS."
+            }
+          ]
+        },
+        {
+          "id": "message-4-assistant",
+          "role": "assistant",
+          "createdAt": "2026-09-25T14:42:00.000Z",
+          "blocks": [
+            {
+              "type": "text",
+              "text": "Use Control on Windows and Command on macOS for application shortcuts. Keep native key handling behind the desktop service. This is representative demo content."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resourceId": "conv-tokens",
+      "sessionId": "session-tokens",
+      "cursor": {
+        "runtimeId": "fixture-runtime",
+        "sequence": 0
+      },
+      "messages": [
+        {
+          "id": "message-5-user",
+          "role": "user",
+          "createdAt": "2026-09-25T13:42:00.000Z",
+          "blocks": [
+            {
+              "type": "text",
+              "text": "Review the Nightglass token contrast."
+            }
+          ]
+        },
+        {
+          "id": "message-5-assistant",
+          "role": "assistant",
+          "createdAt": "2026-09-25T13:42:00.000Z",
+          "blocks": [
+            {
+              "type": "text",
+              "text": "Keep cool near-black surfaces, restrained blue accents and clear text roles. The shell uses semantic design tokens. This simulated conversation made no visual measurements."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resourceId": "conv-search",
+      "sessionId": "session-search",
+      "cursor": {
+        "runtimeId": "fixture-runtime",
+        "sequence": 0
+      },
+      "messages": [
+        {
+          "id": "message-6-user",
+          "role": "user",
+          "createdAt": "2026-09-25T12:42:00.000Z",
+          "blocks": [
+            {
+              "type": "text",
+              "text": "Make local history search fast and searchable by project."
+            }
+          ]
+        },
+        {
+          "id": "message-6-assistant",
+          "role": "assistant",
+          "createdAt": "2026-09-25T12:42:00.000Z",
+          "blocks": [
+            {
+              "type": "text",
+              "text": "SQLite stores the records and FTS5 indexes message text, titles and tool details. Index updates belong in the same transaction as their source records. This is demo planning text."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resourceId": "conv-composer",
+      "sessionId": "session-composer",
+      "cursor": {
+        "runtimeId": "fixture-runtime",
+        "sequence": 0
+      },
+      "messages": [
+        {
+          "id": "message-7-user",
+          "role": "user",
+          "createdAt": "2026-09-25T11:42:00.000Z",
+          "blocks": [
+            {
+              "type": "text",
+              "text": "Keep attachments staged until the user sends the message."
+            }
+          ]
+        },
+        {
+          "id": "message-7-assistant",
+          "role": "assistant",
+          "createdAt": "2026-09-25T11:42:00.000Z",
+          "blocks": [
+            {
+              "type": "text",
+              "text": "Draft context remains in the composer until Send. Removing an attachment changes the draft only. No capture or model request runs from this preview."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resourceId": "conv-window",
+      "sessionId": "session-window",
+      "cursor": {
+        "runtimeId": "fixture-runtime",
+        "sequence": 0
+      },
+      "messages": [
+        {
+          "id": "message-8-user",
+          "role": "user",
+          "createdAt": "2026-09-25T10:42:00.000Z",
+          "blocks": [
+            {
+              "type": "text",
+              "text": "What happens when the window closes?"
+            }
+          ]
+        },
+        {
+          "id": "message-8-assistant",
+          "role": "assistant",
+          "createdAt": "2026-09-25T10:42:00.000Z",
+          "blocks": [
+            {
+              "type": "text",
+              "text": "Pane closure is a presentation change. Application shutdown is a separate lifecycle event and can interrupt active work. The runtime owns those decisions. This conversation is simulated."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

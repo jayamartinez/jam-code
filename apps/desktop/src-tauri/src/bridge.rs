@@ -1,0 +1,50 @@
+use crate::Host;
+use jam_runtime::{
+    JamError,
+    protocol::{Event, Request, SubscriptionScope},
+};
+use serde_json::Value;
+use std::sync::Arc;
+use tauri::{State, ipc::Channel};
+
+#[tauri::command]
+pub async fn jam_request(request: Value, host: State<'_, Host>) -> Result<Value, JamError> {
+    let request: Request = serde_json::from_value(request)
+        .map_err(|_| JamError::invalid("Invalid JAM request envelope."))?;
+    let runtime = Arc::clone(&host.runtime);
+    // SQLite does not run on the window event loop or block Tokio's async workers.
+    tauri::async_runtime::spawn_blocking(move || runtime.request(request))
+        .await
+        .map_err(|_| JamError::new("internal", "The runtime request could not complete."))?
+}
+
+#[tauri::command]
+pub fn jam_subscribe(
+    scope: Value,
+    on_event: Channel<Event>,
+    host: State<'_, Host>,
+) -> Result<String, JamError> {
+    if scope.get("resourceId").is_some_and(Value::is_null) {
+        return Err(JamError::invalid("Optional scope fields must be omitted."));
+    }
+    let scope: SubscriptionScope = serde_json::from_value(scope)
+        .map_err(|_| JamError::invalid("Invalid subscription scope."))?;
+    let subscription = host.runtime.subscribe(scope)?;
+    let id = subscription.id.clone();
+    let runtime = Arc::clone(&host.runtime);
+    tauri::async_runtime::spawn(async move {
+        let mut receiver = subscription.receiver;
+        while let Some(event) = receiver.recv().await {
+            if on_event.send(event).is_err() {
+                break;
+            }
+        }
+        let _ = runtime.unsubscribe(&subscription.id);
+    });
+    Ok(id)
+}
+
+#[tauri::command]
+pub fn jam_unsubscribe(subscription_id: String, host: State<'_, Host>) -> Result<(), JamError> {
+    host.runtime.unsubscribe(&subscription_id)
+}

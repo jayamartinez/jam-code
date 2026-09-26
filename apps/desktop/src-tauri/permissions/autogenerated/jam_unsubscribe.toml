@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-jam-unsubscribe"
+description = "Enables the jam_unsubscribe command without any pre-configured scope."
+commands.allow = ["jam_unsubscribe"]
+
+[[permission]]
+identifier = "deny-jam-unsubscribe"
+description = "Denies the jam_unsubscribe command without any pre-configured scope."
+commands.deny = ["jam_unsubscribe"]

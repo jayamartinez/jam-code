@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-jam-request"
+description = "Enables the jam_request command without any pre-configured scope."
+commands.allow = ["jam_request"]
+
+[[permission]]
+identifier = "deny-jam-request"
+description = "Denies the jam_request command without any pre-configured scope."
+commands.deny = ["jam_request"]
