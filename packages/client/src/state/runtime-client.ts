@@ -33,6 +33,7 @@ export class RuntimeClient {
   private recent: JamEvent[] = [];
   private loading = new Map<string, symbol>();
   private metadataPending = false;
+  private metadataAgain = false;
   private bufferOverflow = false;
   private providersChecked?: Promise<void>;
 
@@ -191,8 +192,14 @@ export class RuntimeClient {
   }
 
   private refreshMetadata() {
-    if (this.metadataPending) return;
+    // A change after an in-flight read started (a title set by the first
+    // Send) must not be lost: read once more when that read finishes.
+    if (this.metadataPending) {
+      this.metadataAgain = true;
+      return;
+    }
     this.metadataPending = true;
+    this.metadataAgain = false;
     const generation = this.generation;
     const revision = this.readRevision;
     void this.transport
@@ -213,6 +220,7 @@ export class RuntimeClient {
       )
       .finally(() => {
         this.metadataPending = false;
+        if (this.metadataAgain && generation === this.generation) this.refreshMetadata();
       });
   }
 

@@ -636,6 +636,13 @@
   border-color: var(--color-accent-border);
   color: var(--color-accent-strong);
 }
+.interaction-button.allow:hover:not(:disabled) {
+  background: var(--color-accent-strong);
+}
+.interaction-button.allow ~ .interaction-button.allow:hover:not(:disabled) {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+}
 .interaction-button.deny:hover:not(:disabled) {
   color: var(--color-danger);
   border-color: var(--color-danger);

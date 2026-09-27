@@ -137,8 +137,9 @@ function ProviderDetail({
   const live = provider.id !== 'mock';
   const defaults = provider.defaults ?? {};
   const models = provider.models ?? [];
-  const model =
-    models.find((item) => item.id === defaults.model) ?? models.find((item) => item.isDefault);
+  const chosenModel = models.find((item) => item.id === defaults.model);
+  // Effort levels follow the chosen model, else the one the provider lists first.
+  const model = chosenModel ?? models.find((item) => item.isDefault) ?? models[0];
   const efforts = model?.efforts ?? [];
   const [executable, setExecutable] = useState(provider.executableOverride ?? '');
   const saveDefault = (key: string, value: string | undefined) => {
@@ -184,8 +185,8 @@ function ProviderDetail({
       </header>
 
       <div className="sv-status-strip">
-        {statusCells(provider).map((cell) => (
-          <div key={cell.label + cell.detail} className="sv-status-cell">
+        {statusCells(provider).map((cell, index) => (
+          <div key={index} className="sv-status-cell">
             <strong>
               <span className={`sv-dot ${cell.tone}`} />
               {cell.label}
@@ -227,13 +228,18 @@ function ProviderDetail({
               >
                 <Select
                   label="Model"
-                  value={model?.id ?? 'none'}
+                  value={models.length ? (chosenModel?.id ?? '') : 'none'}
                   options={
                     models.length
-                      ? models.map((item) => ({ value: item.id, label: item.label }))
+                      ? [
+                          { value: '', label: 'Provider default' },
+                          ...models.map((item) => ({ value: item.id, label: item.label })),
+                        ]
                       : [{ value: 'none', label: 'Not reported' }]
                   }
-                  {...(models.length ? { onChange: (value) => saveDefault('model', value) } : {})}
+                  {...(models.length
+                    ? { onChange: (value) => saveDefault('model', value || undefined) }
+                    : {})}
                 />
               </Row>
               {efforts.length > 0 && (

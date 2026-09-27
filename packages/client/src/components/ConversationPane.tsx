@@ -194,7 +194,11 @@ export function Composer(props: ComposerProps) {
   const descriptor = props.providers.find((provider) => provider.id === providerId);
   const demo = providerId === 'mock';
   const name = descriptor?.name ?? sessionProviderName(props.session);
-  const choices = composerChoices(descriptor, props.options);
+  const reported =
+    props.session?.model && props.session.model !== 'Default model'
+      ? props.session.model
+      : undefined;
+  const choices = composerChoices(descriptor, props.options, reported);
   const blocked = demo
     ? null
     : !props.project?.paths?.length
@@ -299,6 +303,7 @@ export function Composer(props: ComposerProps) {
                 disabled={props.busy}
                 onChange={(value) => {
                   const next: Record<string, string> = { ...props.options, model: value };
+                  if (!value) delete next.model;
                   // An effort the new model does not offer is dropped.
                   if (
                     next.effort &&

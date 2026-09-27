@@ -244,18 +244,20 @@ fn options_view(key: &str, value: &str) -> BTreeMap<String, String> {
 }
 
 /// A display label for the session's model: the provider's own label for
-/// the chosen or default model, else a neutral placeholder.
+/// the chosen model. With none chosen the provider decides (its own config
+/// may differ from its listed default), so the label says so until the
+/// provider reports the model it actually used.
 pub(crate) fn model_label(
     descriptor: Option<&ProviderDescriptor>,
     options: &BTreeMap<String, String>,
 ) -> String {
     let models = descriptor.and_then(|d| d.models.as_deref()).unwrap_or(&[]);
-    let chosen = match options.get("model") {
-        Some(id) => models.iter().find(|m| &m.id == id),
-        None => models.iter().find(|m| m.is_default),
-    };
-    chosen
-        .map(|m| m.label.clone())
-        .or_else(|| options.get("model").cloned())
-        .unwrap_or_else(|| "Default model".into())
+    match options.get("model") {
+        Some(id) => models
+            .iter()
+            .find(|m| &m.id == id)
+            .map(|m| m.label.clone())
+            .unwrap_or_else(|| id.clone()),
+        None => "Default model".into(),
+    }
 }

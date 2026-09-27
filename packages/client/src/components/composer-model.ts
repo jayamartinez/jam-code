@@ -30,19 +30,29 @@ export const effortLabel = (value: string) => EFFORT_NAMES[value] ?? capitalize(
 export function composerChoices(
   descriptor: ProviderDescriptor | undefined,
   options: Record<string, string>,
+  /** The model the provider last reported using, for the "default" choice. */
+  current?: string,
 ): ComposerChoices {
   const models = descriptor?.models ?? [];
-  const chosen =
-    models.find((model) => model.id === options.model) ??
-    models.find((model) => model.isDefault) ??
-    models[0];
-  const efforts = chosen?.efforts ?? [];
+  // With no model chosen the provider decides, and its own configuration can
+  // differ from the model it lists as default, so "default" is its own choice.
+  const chosen = models.find((model) => model.id === options.model);
+  const efforts = (chosen ?? models.find((model) => model.isDefault) ?? models[0])?.efforts ?? [];
   return {
-    models: models.map((model) => ({
-      value: model.id,
-      label: model.label,
-      ...(model.description ? { description: model.description } : {}),
-    })),
+    models: models.length
+      ? [
+          {
+            value: '',
+            label: current ? `Default · ${current}` : 'Default model',
+            description: 'Whatever the provider’s own configuration selects.',
+          },
+          ...models.map((model) => ({
+            value: model.id,
+            label: model.label,
+            ...(model.description ? { description: model.description } : {}),
+          })),
+        ]
+      : [],
     model: chosen?.id ?? '',
     efforts: efforts.length
       ? [

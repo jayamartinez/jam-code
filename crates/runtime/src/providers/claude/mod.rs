@@ -746,7 +746,7 @@ async fn run(adapter: &ClaudeAdapter, turn: ProviderTurn, io: TurnIo) -> Result<
                                     let name = block.get("name").and_then(Value::as_str).unwrap_or_default().to_string();
                                     let tool = tools::tool_block(&id, &name, &json!({}), "running", cwd_ref);
                                     if let MessageBlock::Tool { kind, .. } = &tool { tool_kinds.insert(id.clone(), kind.clone()); }
-                                    if !transcript.contains(&id) { transcript.upsert(&id, tool); }
+                                    if !transcript.contains(&id) && !tools::hidden(&name) { transcript.upsert(&id, tool); }
                                     tool_calls.insert(index, ToolCall { id, name, json: String::new() });
                                 }
                             }
@@ -953,6 +953,9 @@ fn update_tool_input(
     input: &Value,
     cwd: Option<&Path>,
 ) {
+    if tools::hidden(name) {
+        return;
+    }
     let fresh = tools::tool_block(id, name, input, "running", cwd);
     match (transcript.get_mut(id), fresh) {
         (

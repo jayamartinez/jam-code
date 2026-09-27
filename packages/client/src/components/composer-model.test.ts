@@ -33,7 +33,10 @@ const descriptor = (overrides: Partial<ProviderDescriptor> = {}): ProviderDescri
 describe('composer choices', () => {
   it('come only from what the provider reported', () => {
     const choices = composerChoices(descriptor(), {});
-    expect(choices.model).toBe('a');
+    // Unchosen means the provider's own default, not the one it lists.
+    expect(choices.model).toBe('');
+    expect(choices.models.map((m) => m.value)).toEqual(['', 'a', 'b']);
+    expect(composerChoices(descriptor(), {}, 'gpt-x').models[0]?.label).toBe('Default · gpt-x');
     expect(choices.efforts.map((e) => e.value)).toEqual(['', 'low', 'high']);
     expect(choices.options[0]?.value).toBe('workspace-write');
     expect(policyLabel(choices)).toBe('Workspace write');

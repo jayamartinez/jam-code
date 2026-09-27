@@ -62,6 +62,12 @@ fn edits(name: &str, input: &Value, cwd: Option<&Path>) -> Option<Vec<FileChange
     }])
 }
 
+/// Tools that exist only to ask the reader. Their interaction card is the
+/// whole record, so no separate tool row repeats them.
+pub(crate) fn hidden(name: &str) -> bool {
+    matches!(name, "AskUserQuestion" | "ExitPlanMode")
+}
+
 /// A tool call as JAM presents it. `input` may still be partial while it
 /// streams; the final assistant message replaces it.
 pub(crate) fn tool_block(

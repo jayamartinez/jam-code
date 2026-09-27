@@ -592,16 +592,37 @@ with `crates/runtime/tests/live_providers.rs`:
   was still stopping became part of the interrupted turn. Turns now wait
   (bounded) for the previous turn's provider work to end.
 
-Visual QA: the browser preview was driven in an offscreen WebKit view (a local
-Swift script using `WKWebView.takeSnapshot`; no screen recording) through the
-demo provider's `/approval` and `/question`, New Chat, a transcript with every
-block type and Settings → Providers, including a run with provider data shaped
-like the live descriptors. This found and fixed a composer overflow that hid
-Send and a serif fallback in interaction details. The native QA bundle
-(`dev.jamcode.desktop.providers-qa`, its own database) built and launched, but
-computer-use screenshots were refused in this session, so the native
-conversation and Settings screens were not inspected by eye; native behaviour
-is covered by the live runtime tests above.
+Visual QA, browser preview: driven in an offscreen WebKit view (a local Swift
+script using `WKWebView.takeSnapshot`) through the demo provider's `/approval`
+and `/question`, New Chat, a transcript with every block type and Settings →
+Providers with live-shaped provider data. Found and fixed a composer overflow
+that hid Send and a serif fallback in interaction details.
+
+Native QA, macOS, computer use, on a debug bundle with its own identifier and
+database (`dev.jamcode.desktop.providers-qa`) and a scratch Git repository as
+the project folder:
+
+- Settings → Providers showed Claude Code 2.1.283 and Codex 0.157.1 as
+  installed and signed in, the plans each CLI reported, their models, effort
+  levels and permission options, capabilities and the detected executables.
+- Claude Code: a real edit asked for permission (Claude's own reason shown),
+  "Allow once" applied it to disk, and the reply rendered as Markdown with a
+  highlighted code block and context usage. After the app was killed and
+  relaunched, the chat resumed Claude's session with its context; an
+  AskUserQuestion was answered in JAM and a second edit was allowed for the
+  session.
+- Codex: with approval mode Untrusted, Deny declined a command (Codex retried
+  a narrower one); Stop while an approval was pending left the session
+  interrupted and the request cancelled. Closing a running chat's tab did not
+  stop its turn: it finished and was complete when reopened. Explicit Quit
+  ended JAM's `codex app-server`; the user's own Codex and ChatGPT processes
+  were untouched.
+- Found and fixed natively: a stale status cell from duplicate React keys, a
+  new chat's title arriving only at the end of its first turn (a dropped
+  metadata refresh), an unchosen model shown as the provider's listed default
+  rather than what its own configuration selected, "· Interrupted" on tools
+  with no output, an unreadable hovered Allow button, a redundant
+  AskUserQuestion tool row, and outdated "folders are not read" copy.
 
 Not verified: Windows (`.cmd` shims, process groups), provider versions other
 than those listed, Claude sub-agent text, Codex questions (experimental API,

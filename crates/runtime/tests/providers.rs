@@ -352,7 +352,10 @@ async fn real_providers_bind_native_ids_and_resume_with_them() {
             created["session"]["presentation"], "claude",
             "a real provider presents as itself"
         );
-        assert_eq!(created["session"]["model"], "Fast");
+        assert_eq!(
+            created["session"]["model"], "Default model",
+            "the provider decides until it reports"
+        );
         let resource = created["resource"]["id"].as_str().unwrap().to_string();
 
         // Agents run in the project's folder; without one nothing is saved.

@@ -351,7 +351,11 @@ impl Store {
                 match block {
                     MessageBlock::Tool { status, detail, .. } if status == "running" => {
                         *status = "failed".into();
-                        detail.push_str(" · Interrupted");
+                        detail.push_str(if detail.is_empty() {
+                            "Interrupted"
+                        } else {
+                            " · Interrupted"
+                        });
                         interrupted = true;
                     }
                     MessageBlock::Interaction { interaction }
