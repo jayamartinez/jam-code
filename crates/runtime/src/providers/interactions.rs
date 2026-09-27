@@ -167,6 +167,7 @@ mod tests {
             questions: None,
             status: InteractionStatus::Pending,
             outcome: None,
+            tool_id: None,
         }
     }
 

@@ -3,6 +3,7 @@
 //!
 //! The runtime owns every adapter and every process an adapter starts. A
 //! turn is driven by a runtime task (`turns.rs`), never by a view.
+mod access;
 mod claude;
 mod codex;
 pub(crate) mod discovery;
@@ -55,6 +56,8 @@ pub struct ProviderTurn {
     /// Session options (`model`, `effort`, provider-specific ids).
     pub options: BTreeMap<String, String>,
     pub config: ProviderConfig,
+    /// Compact the provider's context instead of sending a message.
+    pub compact: bool,
 }
 
 /// What an adapter reports while a turn runs.

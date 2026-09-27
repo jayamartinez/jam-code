@@ -237,7 +237,11 @@ pub(crate) fn permission(id: String, request: &Value, cwd: Option<&Path>) -> Int
         questions: None,
         status: InteractionStatus::Pending,
         outcome: None,
+        tool_id: None,
     };
+    interaction.tool_id = text(request, "tool_use_id")
+        .filter(|_| !hidden(name))
+        .map(str::to_owned);
     match name {
         "AskUserQuestion" => {
             interaction.kind = "question".into();

@@ -143,6 +143,7 @@ export const CAPABILITY_LABELS: Record<ProviderCapability, string> = {
   effort: 'Effort',
   permissionModes: 'Permission modes',
   usage: 'Usage',
+  compact: 'Compact',
 };
 
 export const CAPABILITY_STATUS: Record<CapabilitySupport['status'], string> = {

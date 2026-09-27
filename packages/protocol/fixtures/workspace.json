@@ -290,6 +290,10 @@
           "usage": {
             "status": "unknown",
             "reason": "Checked by the jam desktop app."
+          },
+          "compact": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
           }
         },
         "runningCount": 0,
@@ -362,6 +366,10 @@
           "usage": {
             "status": "unknown",
             "reason": "Checked by the jam desktop app."
+          },
+          "compact": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
           }
         },
         "runningCount": 0,
@@ -428,6 +436,10 @@
             "reason": "Not implemented by the demo provider."
           },
           "usage": {
+            "status": "unsupported",
+            "reason": "Not implemented by the demo provider."
+          },
+          "compact": {
             "status": "unsupported",
             "reason": "Not implemented by the demo provider."
           }

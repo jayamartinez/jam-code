@@ -1,31 +1,20 @@
 import {
   ArrowUp,
-  Bot,
-  Brain,
   ChevronDown,
-  CircleAlert,
   File,
-  FileText,
   FolderOpen,
   GitBranch,
-  Globe,
-  Info,
-  Pencil,
   Plus,
-  Search,
   Shield,
   Square,
-  Terminal,
   TriangleAlert,
-  Wrench,
 } from 'lucide-react';
-import { Suspense, lazy, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type {
   ContextItem,
   JamTransport,
   Conversation,
   Message,
-  MessageBlock,
   Presentation,
   Project,
   ProviderDescriptor,
@@ -38,11 +27,11 @@ import { PaneChrome, type PaneChromeProps } from './PaneChrome';
 import { ProviderIcon, sessionProviderName } from './icons';
 import { ContextChip } from './ContextChip';
 import { ProjectBadge } from './ProjectBadge';
-import { InteractionCard, type InteractionAnswer } from './InteractionCard';
+import type { InteractionAnswer } from './InteractionCard';
+import { AgentBlocks } from './TranscriptBlocks';
+import { ContextMeter } from './ContextMeter';
 import { unavailableReason } from '../state/chat-draft';
-import { composerChoices, contextShare } from './composer-model';
-
-const AgentMarkdown = lazy(() => import('./AgentMarkdown'));
+import { composerChoices } from './composer-model';
 
 interface ConversationProps extends Pick<
   PaneChromeProps,
@@ -60,10 +49,13 @@ interface ConversationProps extends Pick<
   providers: ProviderDescriptor[];
   /** The session's options with any change the reader made since the last Send. */
   options: Record<string, string>;
+  /** Reveal agent replies as they stream (General settings). */
+  streamReplies: boolean;
   onOptions(options: Record<string, string>): void;
   onDraft(text: string): void;
   onSend(): void;
   onStop(): void;
+  onCompact(): Promise<void>;
   onOpenReview(): void;
   onAddContext(): void;
   onPreviewContext(item: ContextItem): void;
@@ -76,14 +68,23 @@ interface ConversationProps extends Pick<
 export function ConversationPane(props: ConversationProps) {
   const { resource, project, session, conversation } = props;
   const transcript = useRef<HTMLDivElement>(null);
+  const column = useRef<HTMLDivElement>(null);
   const follow = useRef(true);
+  // Follow the thread's height, not its messages: a reply also grows while
+  // it is revealed and when a finished turn shows its text.
   useEffect(() => {
-    if (follow.current && transcript.current)
-      transcript.current.scrollTop = transcript.current.scrollHeight;
-  }, [conversation?.messages]);
+    const element = column.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() => {
+      if (follow.current && transcript.current)
+        transcript.current.scrollTop = transcript.current.scrollHeight;
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const demo = session?.providerId === 'mock';
   const name = sessionProviderName(session);
-  const share = contextShare(session?.usage);
+  const messages = conversation?.messages ?? [];
   return (
     <PaneChrome
       className="conversation-pane"
@@ -114,11 +115,6 @@ export function ConversationPane(props: ConversationProps) {
           <span className="subtle">
             {session?.needsInput ? 'needs input' : (session?.status ?? 'idle')}
           </span>
-          {share && (
-            <span className="subtle context-share" title={share.title}>
-              {share.label}
-            </span>
-          )}
           {demo && <span className="demo-label">Demo</span>}
         </span>
       }
@@ -132,11 +128,22 @@ export function ConversationPane(props: ConversationProps) {
             follow.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
         }}
       >
-        <div className="thread-column">
+        <div className="thread-column" ref={column}>
           {conversation ? (
-            conversation.messages.length ? (
-              conversation.messages.map((message) => (
-                <MessageView key={message.id} message={message} session={session} {...props} />
+            messages.length ? (
+              messages.map((message, index) => (
+                <MessageView
+                  key={message.id}
+                  message={message}
+                  session={session}
+                  live={
+                    session?.status === 'running' &&
+                    message.role === 'assistant' &&
+                    index === messages.length - 1
+                  }
+                  streamReplies={props.streamReplies}
+                  actions={props}
+                />
               ))
             ) : (
               <div className="empty-conversation">
@@ -186,7 +193,11 @@ type ComposerProps = Pick<
   presentation?: Presentation;
   /** New chats only: choose the agent before the first Send. */
   onProvider?(providerId: ProviderId): void;
+  onCompact?(): Promise<void>;
 };
+
+/** Options shown as composer pills; the rest live where they belong. */
+const PILL_OPTIONS = new Set(['access']);
 
 export function Composer(props: ComposerProps) {
   const running = props.session?.status === 'running';
@@ -199,6 +210,7 @@ export function Composer(props: ComposerProps) {
       ? props.session.model
       : undefined;
   const choices = composerChoices(descriptor, props.options, reported);
+  const pills = choices.options.filter((option) => PILL_OPTIONS.has(option.id));
   const blocked = demo
     ? null
     : !props.project?.paths?.length
@@ -210,6 +222,12 @@ export function Composer(props: ComposerProps) {
   const switchable = props.isNew
     ? props.providers.filter((provider) => provider.enabled || provider.id === providerId)
     : [];
+  const glyph = (
+    <ProviderIcon
+      providerId={providerId}
+      presentation={props.session?.presentation ?? props.presentation}
+    />
+  );
   return (
     <div className="composer-area">
       <form
@@ -262,7 +280,7 @@ export function Composer(props: ComposerProps) {
                 <Plus size={15} />
               </IconButton>
             )}
-            {switchable.length > 1 ? (
+            {switchable.length > 1 && (
               <div className="provider-switch" role="radiogroup" aria-label="Agent">
                 {switchable.map((provider) => {
                   const reason = unavailableReason(provider);
@@ -282,22 +300,17 @@ export function Composer(props: ComposerProps) {
                   );
                 })}
               </div>
-            ) : (
-              <span className="model-label">
-                <ProviderIcon
-                  providerId={providerId}
-                  presentation={props.session?.presentation ?? props.presentation}
-                />
-                {demo
-                  ? 'Demo model'
-                  : choices.models.length
-                    ? null
-                    : (props.session?.model ?? name)}
-              </span>
             )}
-            {!demo && choices.models.length > 0 && (
+            {demo ? (
+              <span className="composer-pill static">
+                {glyph}
+                Demo model
+              </span>
+            ) : choices.models.length ? (
               <OptionSelect
                 label="Model"
+                className="composer-pill strong"
+                icon={switchable.length > 1 ? undefined : glyph}
                 value={choices.model}
                 values={choices.models}
                 disabled={props.busy}
@@ -313,10 +326,18 @@ export function Composer(props: ComposerProps) {
                   props.onOptions(next);
                 }}
               />
+            ) : (
+              switchable.length <= 1 && (
+                <span className="composer-pill static strong">
+                  {glyph}
+                  {props.session?.model ?? name}
+                </span>
+              )
             )}
             {!demo && choices.efforts.length > 0 && (
               <OptionSelect
                 label="Effort"
+                className="composer-pill"
                 value={choices.effort}
                 values={choices.efforts}
                 disabled={props.busy}
@@ -329,21 +350,21 @@ export function Composer(props: ComposerProps) {
               />
             )}
             {demo ? (
-              <span className="composer-policy">
+              <span className="composer-pill static policy">
                 <Shield size={12} />
                 No tools execute
               </span>
             ) : (
-              // A new chat shows these in its footer, as in the design.
+              // A new chat shows access in its footer, as in the design.
               !props.isNew &&
-              choices.options.map((option) => (
+              pills.map((option) => (
                 <OptionSelect
                   key={option.id}
                   label={option.label}
                   value={option.value}
                   values={option.values}
                   disabled={props.busy}
-                  className="composer-policy"
+                  className="composer-pill policy"
                   icon={<Shield size={12} />}
                   onChange={(value) => set(option.id, value)}
                 />
@@ -351,6 +372,16 @@ export function Composer(props: ComposerProps) {
             )}
           </div>
           <span className="composer-spacer" />
+          {!props.isNew && !demo && props.onCompact && (
+            <ContextMeter
+              usage={props.session?.usage}
+              provider={descriptor}
+              options={props.options}
+              running={running}
+              onOptions={props.onOptions}
+              onCompact={props.onCompact}
+            />
+          )}
           {running ? (
             <button
               type="button"
@@ -359,7 +390,7 @@ export function Composer(props: ComposerProps) {
               aria-label={`Stop ${name}`}
               title={`Stop this turn. The ${name} session stays resumable.`}
             >
-              <Square size={10} fill="currentColor" />
+              <Square size={9} fill="currentColor" />
             </button>
           ) : (
             <button
@@ -387,7 +418,7 @@ export function Composer(props: ComposerProps) {
               <span className="new-run-choices">
                 <FolderOpen size={11} />
                 <span className="mono truncate">{props.project?.paths?.[0]}</span>
-                {choices.options.map((option) => (
+                {pills.map((option) => (
                   <OptionSelect
                     key={option.id}
                     label={option.label}
@@ -415,7 +446,7 @@ function OptionSelect({
   values,
   onChange,
   disabled,
-  className = 'composer-option',
+  className,
   icon,
 }: {
   label: string;
@@ -423,7 +454,7 @@ function OptionSelect({
   values: { value: string; label: string; description?: string }[];
   onChange(value: string): void;
   disabled?: boolean;
-  className?: string;
+  className: string;
   icon?: React.ReactNode;
 }) {
   const current = values.find((item) => item.value === value);
@@ -431,7 +462,7 @@ function OptionSelect({
     <label className={`${className} composer-select`} title={current?.description ?? label}>
       {icon}
       <span className="composer-select-value">{current?.label ?? label}</span>
-      <ChevronDown size={10} />
+      <ChevronDown size={10} className="composer-chevron" />
       <select
         aria-label={label}
         value={value}
@@ -451,11 +482,16 @@ function OptionSelect({
 function MessageView({
   message,
   session,
-  ...props
+  live,
+  streamReplies,
+  actions,
 }: {
   message: Message;
   session?: Session;
-} & Pick<ConversationProps, 'onOpenReview' | 'onRespond' | 'onOpenUrl' | 'onOpenFile'>) {
+  live: boolean;
+  streamReplies: boolean;
+  actions: Pick<ConversationProps, 'onOpenReview' | 'onRespond' | 'onOpenUrl' | 'onOpenFile'>;
+}) {
   if (message.role === 'user')
     return (
       <article className="user-message">
@@ -484,147 +520,37 @@ function MessageView({
       <header className="agent-heading">
         <ProviderIcon presentation={session?.presentation} providerId={session?.providerId} />
         <strong>{sessionProviderName(session)}</strong>
-        <span>{demo ? 'Demonstration' : session?.model}</span>
+        <span>
+          {live ? <Working since={message.createdAt} /> : demo ? 'Demonstration' : session?.model}
+        </span>
         <span className="agent-rule" />
       </header>
       <div className="agent-content">
-        {message.blocks.map((block, index) => (
-          <Block key={block.type === 'tool' ? block.id : index} block={block} {...props} />
-        ))}
+        <AgentBlocks blocks={message.blocks} live={live} stream={streamReplies} actions={actions} />
       </div>
     </article>
   );
 }
 
-const SUMMARY_ICONS = {
-  read: FileText,
-  search: Search,
-  tool: Wrench,
-  web: Globe,
-  agent: Bot,
-} as const;
-
-function Block({
-  block,
-  onOpenReview,
-  onRespond,
-  onOpenUrl,
-  onOpenFile,
-}: { block: MessageBlock } & Pick<
-  ConversationProps,
-  'onOpenReview' | 'onRespond' | 'onOpenUrl' | 'onOpenFile'
->) {
-  switch (block.type) {
-    case 'text':
-      return (
-        <Suspense fallback={<p className="message-text">{block.text}</p>}>
-          <AgentMarkdown text={block.text} onOpenUrl={onOpenUrl} onOpenFile={onOpenFile} />
-        </Suspense>
-      );
-    case 'reasoning':
-      return block.text.trim() ? (
-        <details className="reasoning-block">
-          <summary>
-            <Brain size={12} />
-            <span>Thinking</span>
-          </summary>
-          <p>{block.text}</p>
-        </details>
-      ) : null;
-    case 'notice': {
-      const Icon =
-        block.tone === 'error' ? CircleAlert : block.tone === 'warning' ? TriangleAlert : Info;
-      return (
-        <p
-          className={`notice-block ${block.tone}`}
-          role={block.tone === 'error' ? 'alert' : undefined}
-        >
-          <Icon size={12} />
-          <span>{block.text}</span>
-        </p>
-      );
-    }
-    case 'interaction':
-      return (
-        <InteractionCard
-          interaction={block.interaction}
-          onRespond={(answer) => onRespond(block.interaction.id, answer)}
-        />
-      );
-    case 'context':
-      return (
-        <div className="sent-context">
-          {block.items.map((item) => (
-            <span key={item.id}>
-              <File size={11} />
-              {item.label}
-            </span>
-          ))}
-        </div>
-      );
-  }
-  if (block.kind === 'edit') {
-    const added = block.files?.reduce((sum, file) => sum + file.added, 0) ?? 0;
-    const removed = block.files?.reduce((sum, file) => sum + file.removed, 0) ?? 0;
-    return (
-      <div className={`edit-block ${block.status}`}>
-        <div className="tool-block-header">
-          <Pencil size={12} />
-          <strong className="truncate">{block.title}</strong>
-          <span className="success">+{added}</span>
-          <span className="danger">−{removed}</span>
-          {block.status !== 'completed' && (
-            <span className={`tool-state ${block.status === 'failed' ? 'danger' : ''}`}>
-              <span className={`status-dot ${block.status === 'running' ? 'running' : ''}`} />
-              {block.detail || block.status}
-            </span>
-          )}
-          <button type="button" onClick={onOpenReview}>
-            Review changes →
-          </button>
-        </div>
-        {block.files &&
-          block.files.length > 1 &&
-          block.files.map((file) => (
-            <button key={file.path} type="button" className="changed-file" onClick={onOpenReview}>
-              <code className="truncate">{file.path}</code>
-              <span className="file-count mono">
-                +{file.added} −{file.removed}
-              </span>
-            </button>
-          ))}
-      </div>
-    );
-  }
-  if (block.kind === 'command')
-    return (
-      <div className="command-block">
-        <div className="tool-block-header">
-          <Terminal size={12} />
-          <strong className="mono truncate">{block.title}</strong>
-          <span className={`tool-state ${block.status === 'failed' ? 'danger' : ''}`}>
-            <span className={`status-dot ${block.status === 'running' ? 'running' : ''}`} />
-            {block.status}
-          </span>
-        </div>
-        {block.detail && <pre>{block.detail}</pre>}
-      </div>
-    );
-  const Icon = SUMMARY_ICONS[block.kind];
+/** "Working for 1m 12s", ticking only while a turn runs. */
+function Working({ since }: { since: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const seconds = Math.max(0, Math.floor((now - Date.parse(since)) / 1000));
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
   return (
-    <details className={`tool-summary ${block.status}`}>
-      <summary>
-        <Icon size={12} />
-        <span className="truncate">{block.title}</span>
-        {block.status !== 'completed' && (
-          <span className={`tool-state ${block.status === 'failed' ? 'danger' : ''}`}>
-            <span className={`status-dot ${block.status === 'running' ? 'running' : ''}`} />
-            {block.status}
-          </span>
-        )}
-      </summary>
-      {block.detail ? <pre>{block.detail}</pre> : <pre className="subtle">No output.</pre>}
-    </details>
+    <>
+      Working for{' '}
+      {hours
+        ? `${hours}h ${minutes % 60}m`
+        : minutes
+          ? `${minutes}m ${seconds % 60}s`
+          : `${seconds}s`}
+    </>
   );
 }
 

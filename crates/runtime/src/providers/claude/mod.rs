@@ -11,7 +11,7 @@ mod tools;
 
 use super::{
     Answer, ProbeFuture, ProviderAdapter, ProviderConfig, ProviderFuture, ProviderTurn,
-    ProviderUpdate, Transcript, TurnIo, descriptor, discovery,
+    ProviderUpdate, Transcript, TurnIo, access, descriptor, discovery,
     process::{LaunchSpec, Output, StdioChild},
     set_capability,
     transcript::until,
@@ -49,6 +49,7 @@ struct Process {
     lines: tokio::sync::Mutex<mpsc::Receiver<Output>>,
     native_id: String,
     effort: Option<String>,
+    auto_compact: bool,
     model: Mutex<Option<String>>,
     mode: Mutex<String>,
     next_request: AtomicU64,
@@ -89,34 +90,45 @@ fn options() -> Vec<ProviderOption> {
         label: label.into(),
         description: Some(description.into()),
     };
-    vec![ProviderOption {
-        id: "permissionMode".into(),
-        label: "Permissions".into(),
-        description: Some("What Claude may do without asking.".into()),
-        values: vec![
-            value(
-                "default",
-                "Ask before edits",
-                "Claude asks before tools its settings do not allow.",
+    vec![
+        access::option(
+            "Claude asks before tools its settings do not already allow.",
+            "File edits are applied without asking; other tools still ask.",
+            "Every tool runs without asking (Claude Code's bypass permissions mode).",
+        ),
+        ProviderOption {
+            id: AUTO_COMPACT.into(),
+            label: "Auto-compact".into(),
+            description: Some(
+                "Claude Code summarizes the conversation when its context fills.".into(),
             ),
-            value(
-                "acceptEdits",
-                "Accept edits",
-                "File edits are allowed; other tools still ask.",
-            ),
-            value(
-                "plan",
-                "Plan only",
-                "Claude plans without changing anything until you approve.",
-            ),
-            value(
-                "bypassPermissions",
-                "Bypass permissions",
-                "Every tool runs without asking.",
-            ),
-        ],
-        default: "default".into(),
-    }]
+            values: vec![
+                value(
+                    "on",
+                    "On",
+                    "Compact automatically when the context is nearly full.",
+                ),
+                value("off", "Off", "Only compact when you ask."),
+            ],
+            default: "on".into(),
+        },
+    ]
+}
+
+const AUTO_COMPACT: &str = "autoCompact";
+
+/// Claude Code's permission mode for a JAM access level.
+fn permission_mode(options: &std::collections::BTreeMap<String, String>) -> String {
+    match access::chosen(options) {
+        access::FULL => "bypassPermissions",
+        access::EDITS => "acceptEdits",
+        _ => "default",
+    }
+    .into()
+}
+
+fn auto_compact(options: &std::collections::BTreeMap<String, String>) -> bool {
+    options.get(AUTO_COMPACT).map(String::as_str) != Some("off")
 }
 
 fn base_args(mode: &str) -> Vec<String> {
@@ -441,6 +453,7 @@ async fn probe(mut d: ProviderDescriptor, config: ProviderConfig) -> ProviderDes
         "images",
         "permissionModes",
         "usage",
+        "compact",
     ] {
         set_capability(&mut d, key, "supported", None);
     }
@@ -486,12 +499,16 @@ async fn spawn(
     native_id: Option<&str>,
     turn: &ProviderTurn,
 ) -> Result<Arc<Process>, JamError> {
-    let mode = turn
-        .options
-        .get("permissionMode")
-        .cloned()
-        .unwrap_or_else(|| "default".into());
+    let mode = permission_mode(&turn.options);
     let mut args = base_args(&mode);
+    let compacts = auto_compact(&turn.options);
+    if !compacts {
+        // A per-session setting; the user's own settings files are untouched.
+        args.extend([
+            "--settings".into(),
+            r#"{"autoCompactEnabled":false}"#.into(),
+        ]);
+    }
     let native = match native_id {
         Some(id) => {
             args.push(format!("--resume={id}"));
@@ -559,6 +576,7 @@ async fn spawn(
         lines: tokio::sync::Mutex::new(lines),
         native_id: native,
         effort,
+        auto_compact: compacts,
         model: Mutex::new(model),
         mode: Mutex::new(mode),
         next_request: AtomicU64::new(1),
@@ -592,6 +610,7 @@ async fn run(adapter: &ClaudeAdapter, turn: ProviderTurn, io: TurnIo) -> Result<
         p.child.exited().is_none()
             && Some(&p.native_id) == turn.native_id.as_ref()
             && p.effort == turn.options.get("effort").cloned()
+            && p.auto_compact == auto_compact(&turn.options)
     });
     if existing.is_none()
         && let Some(stale) = adapter.take(&turn.session_id)
@@ -609,11 +628,7 @@ async fn run(adapter: &ClaudeAdapter, turn: ProviderTurn, io: TurnIo) -> Result<
                     .await?;
                 *process.model.lock().expect("model lock") = Some(model.clone());
             }
-            let mode = turn
-                .options
-                .get("permissionMode")
-                .cloned()
-                .unwrap_or_else(|| "default".into());
+            let mode = permission_mode(&turn.options);
             if *process.mode.lock().expect("mode lock") != mode {
                 process
                     .control("set_permission_mode", json!({"mode": mode}))
@@ -655,7 +670,12 @@ async fn run(adapter: &ClaudeAdapter, turn: ProviderTurn, io: TurnIo) -> Result<
             }})
         })
         .collect();
-    content.push(json!({"type": "text", "text": turn.text}));
+    if turn.compact {
+        content.clear();
+        content.push(json!({"type": "text", "text": "/compact"}));
+    } else {
+        content.push(json!({"type": "text", "text": turn.text}));
+    }
     let message_uuid = uuid::Uuid::new_v4().to_string();
     process
         .child
@@ -667,6 +687,10 @@ async fn run(adapter: &ClaudeAdapter, turn: ProviderTurn, io: TurnIo) -> Result<
             "message": {"role": "user", "content": content},
         }))
         .await?;
+    if turn.compact {
+        transcript.compacting();
+        transcript.flush().await;
+    }
 
     let mut lines = process.lines.lock().await;
     let cwd_ref = Some(cwd.as_path());
@@ -830,7 +854,7 @@ async fn run(adapter: &ClaudeAdapter, turn: ProviderTurn, io: TurnIo) -> Result<
                                 transcript.send(ProviderUpdate::Model(model.to_string())).await;
                             }
                         }
-                        "compact_boundary" => transcript.notice("info", "Claude Code compacted this conversation's context."),
+                        "compact_boundary" => transcript.compacted("Claude Code compacted this conversation's context."),
                         "api_retry" if !retry_noted => {
                             retry_noted = true;
                             transcript.notice("info", "Claude Code is retrying a request.");
@@ -912,6 +936,43 @@ async fn run(adapter: &ClaudeAdapter, turn: ProviderTurn, io: TurnIo) -> Result<
             }
         }
     };
+    // Claude Code's own account of the context window, which also covers
+    // what a compaction freed.
+    if outcome == SessionStatus::Idle
+        && let Ok(id) = process.control("get_context_usage", json!({})).await
+    {
+        let read = async {
+            while let Some(output) = lines.recv().await {
+                let Output::Line(line) = output else { continue };
+                let Ok(message) = serde_json::from_str::<Value>(&line) else {
+                    continue;
+                };
+                if message
+                    .pointer("/response/request_id")
+                    .and_then(Value::as_str)
+                    == Some(id.as_str())
+                {
+                    return message.pointer("/response/response").cloned();
+                }
+            }
+            None
+        };
+        if let Ok(Some(usage)) = tokio::time::timeout(Duration::from_secs(3), read).await
+            && let (Some(used), Some(window)) = (
+                usage.get("totalTokens").and_then(Value::as_u64),
+                usage.get("maxTokens").and_then(Value::as_u64),
+            )
+        {
+            transcript
+                .send(ProviderUpdate::Usage(SessionUsage {
+                    context_tokens: Some(used),
+                    context_window: Some(window),
+                    input_tokens: None,
+                    output_tokens: None,
+                }))
+                .await;
+        }
+    }
     drop(lines);
     for (id, (request_id, _)) in asked.drain() {
         interactions.withdraw(&id);
@@ -930,6 +991,11 @@ async fn run(adapter: &ClaudeAdapter, turn: ProviderTurn, io: TurnIo) -> Result<
             "Failed"
         });
     }
+    transcript.end_compaction(if outcome == SessionStatus::Idle {
+        "Claude Code finished without reporting a compaction."
+    } else {
+        "The context was not compacted."
+    });
     transcript.flush().await;
     if process.child.exited().is_none() {
         adapter.keep(&turn.session_id, Arc::clone(&process));

@@ -46,6 +46,9 @@ export interface SettingsPageProps {
   platform: DesktopServices['platform'];
   idleThreadDays: number | null;
   onIdleThreadDays(next: number | null): void;
+  /** Reveal agent replies as they stream. */
+  streamReplies: boolean;
+  onStreamReplies(next: boolean): void;
   onUpdateProject(projectId: string, changes: ProjectChanges): Promise<void>;
   /** Moves to another Settings page, e.g. from a "Providers ›" link. */
   onNavigate(page: SettingsPageId): void;

@@ -17,10 +17,14 @@ use tokio::sync::{mpsc, watch};
 const INTERRUPT_DRAIN: Duration = Duration::from_secs(10);
 
 impl Runtime {
+    /// Starts a turn. With `compact`, the turn asks the provider to compact
+    /// its context instead of sending a message: nothing is added to the
+    /// transcript except what the provider reports.
     pub(crate) fn start_turn(
         self: &Arc<Self>,
         mut input: StartTurn,
         fingerprint: String,
+        compact: bool,
     ) -> Result<Value, JamError> {
         // Provider checks run before the database lock is taken.
         let provider_id = {
@@ -82,10 +86,30 @@ impl Runtime {
                     ),
                 ));
             }
+            let known = |key: &str| {
+                key == "model"
+                    || key == "effort"
+                    || descriptor
+                        .options
+                        .as_ref()
+                        .is_some_and(|o| o.iter().any(|option| option.id == key))
+            };
+            options.retain(|key, _| known(key));
             options.extend(input.options.clone());
             crate::providers::validate_option(descriptor, &options)?;
         } else if !input.options.is_empty() {
             return Err(JamError::invalid("The demo provider has no options."));
+        }
+        if compact
+            && descriptor
+                .as_ref()
+                .and_then(|d| d.capabilities.get("compact"))
+                .is_none_or(|c| c.status != "supported")
+        {
+            return Err(JamError::new(
+                "unsupported",
+                "This provider cannot compact its context from JAM.",
+            ));
         }
         let cwd = if provider_id == "mock" {
             None
@@ -162,7 +186,7 @@ impl Runtime {
         resource.updated_at = now();
         // Continuing a closed thread is the clearest sign it is in use again.
         resource.closed_at = None;
-        if resource.title == "New conversation" {
+        if resource.title == "New conversation" && !compact {
             resource.title = if input.text.trim().is_empty() {
                 "Context conversation".into()
             } else {
@@ -187,7 +211,8 @@ impl Runtime {
             created_at: now(),
             blocks,
         };
-        if descriptor.is_some() {
+        // Compaction keeps the chat's model and options as they are.
+        if descriptor.is_some() && !compact {
             session.model = crate::provider_requests::model_label(descriptor.as_ref(), &options);
             session.options = options.clone();
         }
@@ -201,18 +226,22 @@ impl Runtime {
                 .attach_snapshots(&mut attached_context, &resource.id, true)?;
             state.store.save_resource(&resource)?;
             state.store.save_session(&session)?;
-            state.store.save_message(&resource, &user_message)?;
+            if !compact {
+                state.store.save_message(&resource, &user_message)?;
+            }
             state
                 .store
                 .save_receipt(&input.request_id, &fingerprint, &receipt)
         })?;
-        self.publish(
-            &mut state,
-            &resource.id,
-            EventPayload::MessageUpserted {
-                message: user_message,
-            },
-        );
+        if !compact {
+            self.publish(
+                &mut state,
+                &resource.id,
+                EventPayload::MessageUpserted {
+                    message: user_message,
+                },
+            );
+        }
         self.publish(
             &mut state,
             &resource.id,
@@ -228,6 +257,7 @@ impl Runtime {
             images,
             options,
             config: settings.config(&provider_id),
+            compact,
         };
         let version = descriptor.as_ref().and_then(|d| d.version.clone());
         let (cancel, cancelled) = watch::channel(false);

@@ -119,6 +119,8 @@ export class BrowserPreviewTransport implements JamTransport {
         return { ...this.getConversation(request.params.resourceId), cursor: this.cursor() };
       case 'conversation.create':
         return this.createConversation(request.params);
+      case 'session.compact':
+        throw new JamError('unsupported', 'The demo provider has no context to compact.');
       case 'provider.list':
         return { providers: this.workspace.providers };
       case 'provider.configure':

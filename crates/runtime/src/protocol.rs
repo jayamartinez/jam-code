@@ -216,6 +216,10 @@ pub struct Interaction {
     pub status: InteractionStatus,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub outcome: Option<String>,
+    /// The tool block this request is about, when there is one: the
+    /// approval is shown inside that block rather than as its own card.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -444,7 +448,7 @@ pub struct ProviderDescriptor {
 }
 
 /// Every capability JAM describes, in display order.
-pub const CAPABILITIES: [&str; 14] = [
+pub const CAPABILITIES: [&str; 15] = [
     "create",
     "resume",
     "fork",
@@ -459,6 +463,7 @@ pub const CAPABILITIES: [&str; 14] = [
     "effort",
     "permissionModes",
     "usage",
+    "compact",
 ];
 
 #[derive(Debug, Deserialize)]

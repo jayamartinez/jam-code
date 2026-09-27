@@ -227,7 +227,24 @@ impl Runtime {
                 let fingerprint = serde_json::to_string(&request.params)?;
                 let input: StartTurn = parse(request.params)?;
                 input.validate()?;
-                self.start_turn(input, fingerprint)
+                self.start_turn(input, fingerprint, false)
+            }
+            "session.compact" => {
+                let fingerprint = format!("compact:{}", serde_json::to_string(&request.params)?);
+                let input: CompactSession = parse(request.params)?;
+                validate_id(&input.resource_id)?;
+                validate_id(&input.request_id)?;
+                self.start_turn(
+                    StartTurn {
+                        resource_id: input.resource_id,
+                        text: String::new(),
+                        context: Vec::new(),
+                        request_id: input.request_id,
+                        options: Default::default(),
+                    },
+                    fingerprint,
+                    true,
+                )
             }
             "turn.interrupt" => {
                 let input: InterruptTurn = parse(request.params)?;

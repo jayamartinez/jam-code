@@ -75,12 +75,38 @@ What this means for JAM:
 
 Version 1 of `@jam/protocol`, extended additively:
 
-- `ProviderDescriptor`: installation, authentication, enabled, default and running (with `runningCount`) stay independent. Optional fields appear only when known: version, executable and how it was found, a provider-reported `account {method, plan}`, discovered `models` (with effort levels and image support), provider-specific `options` (Claude `permissionMode`; Codex `approvalPolicy`, `sandbox`), saved `defaults`, a status note and `checkedAt`.
-- Capabilities: `create, resume, fork, interrupt, streaming, toolApproval, userInput, images, steering, queue, modelSelection, effort, permissionModes, usage`, each `supported | unsupported | conditional | unknown` with a reason.
+- `ProviderDescriptor`: installation, authentication, enabled, default and running (with `runningCount`) stay independent. Optional fields appear only when known: version, executable and how it was found, a provider-reported `account {method, plan}`, discovered `models` (with effort levels and image support), provider-specific `options` (both: `access`; Claude also `autoCompact`), saved `defaults`, a status note and `checkedAt`.
+- Capabilities: `create, resume, fork, interrupt, streaming, toolApproval, userInput, images, steering, queue, modelSelection, effort, permissionModes, usage, compact`, each `supported | unsupported | conditional | unknown` with a reason.
 - `Session`: `providerId` is the adapter actually running it; `options`, `needsInput` and provider-reported `usage` are optional. A real session presents as its own provider; only the demo provider may present as another.
 - Blocks: `text` (Markdown, rendered through `markdown/render.tsx`), `reasoning`, `tool` (`read | search | edit | command | tool | web | agent`), `context`, `notice` and `interaction`.
-- `Interaction`: a JAM ID, kind (`command | file-change | tool | question | plan`), title, detail, reason, exactly the choices the provider offers, optional questions, and a status (`pending | resolved | cancelled | expired`) with an outcome. Provider request IDs never leave the adapter.
-- Requests: `provider.list {refresh?}`, `provider.configure {providerId, enabled?, isDefault?, executable?, defaults?}`, `interaction.respond {resourceId, interactionId, choiceId | answers}`, `conversation.create {…, providerId?, options?}`, `turn.start {…, options?}`.
+- `Interaction`: a JAM ID, kind (`command | file-change | tool | question | plan`), title, detail, reason, the `toolId` of the tool block it gates when there is one (so the approval renders inside that card), exactly the choices the provider offers, optional questions, and a status (`pending | resolved | cancelled | expired`) with an outcome. Provider request IDs never leave the adapter.
+- Requests: `provider.list {refresh?}`, `provider.configure {providerId, enabled?, isDefault?, executable?, defaults?}`, `interaction.respond {resourceId, interactionId, choiceId | answers}`, `conversation.create {…, providerId?, options?}`, `turn.start {…, options?}`, `session.compact {resourceId, requestId}`.
+
+### Access
+
+Every agent offers the same three access levels, mapped to its own settings at
+the adapter:
+
+| JAM               | Claude Code `--permission-mode` | Codex approval / sandbox         |
+| ----------------- | ------------------------------- | -------------------------------- |
+| Ask for approval  | `default`                       | `untrusted` / `read-only`        |
+| Auto-accept edits | `acceptEdits`                   | `on-request` / `workspace-write` |
+| Full access       | `bypassPermissions`             | `never` / `danger-full-access`   |
+
+Options saved by earlier builds (`permissionMode`, `approvalPolicy`,
+`sandbox`) are dropped when a turn starts, so those chats fall back to Ask.
+
+### Context and compaction
+
+The context ring shows only what the provider reported after its last turn
+(Codex token usage; Claude `get_context_usage`). `session.compact` asks the
+provider to compact now: Codex `thread/compact/start`, Claude a `/compact`
+message. It runs as a turn with no user message, keeps the chat's model and
+options, and shows "Compacting context…" until the provider's own compaction
+notice replaces it. Claude's `autoCompact` option starts its process with
+`--settings {"autoCompactEnabled":false}` when off (verified through
+`get_context_usage`) and applies from the next message; Codex manages its own
+automatic compaction.
 
 Answers are validated against the offered choices and questions and delivered exactly once; a second answer, an answer after the provider withdrew its request, or an answer after a restart is `stale`.
 

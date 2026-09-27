@@ -95,6 +95,13 @@ pub struct StartTurn {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CompactSession {
+    pub resource_id: String,
+    pub request_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ListProviders {
     #[serde(default)]
     pub refresh: bool,

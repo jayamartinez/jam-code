@@ -15,6 +15,10 @@ pub(crate) const FLUSH_INTERVAL: Duration = Duration::from_millis(80);
 const MAX_BLOCKS: usize = 900;
 pub(crate) const MAX_TEXT: usize = 190_000;
 pub(crate) const MAX_DETAIL: usize = 60_000;
+/// One compaction notice per turn: shown when it starts, then replaced by
+/// what the provider reports.
+const COMPACTION: &str = "compaction";
+const COMPACTING: &str = "Compacting context…";
 
 pub(crate) struct Transcript {
     blocks: Vec<MessageBlock>,
@@ -124,6 +128,35 @@ impl Transcript {
             text: bounded(text, 4_000),
         });
         self.dirty = true;
+    }
+
+    /// Shows a requested compaction as under way, so the turn has a visible
+    /// message before the provider reports anything.
+    pub fn compacting(&mut self) {
+        self.compaction_notice(COMPACTING);
+    }
+
+    /// The provider's report of a compaction, requested or automatic.
+    pub fn compacted(&mut self, text: &str) {
+        self.compaction_notice(text);
+    }
+
+    /// Replaces a compaction notice the provider never followed up on.
+    pub fn end_compaction(&mut self, text: &str) {
+        if matches!(self.get_mut(COMPACTION), Some(MessageBlock::Notice { text, .. }) if text == COMPACTING)
+        {
+            self.compaction_notice(text);
+        }
+    }
+
+    fn compaction_notice(&mut self, text: &str) {
+        self.upsert(
+            COMPACTION,
+            MessageBlock::Notice {
+                tone: "info".into(),
+                text: bounded(text, 4_000),
+            },
+        );
     }
 
     pub fn interaction(&mut self, interaction: Interaction) {
@@ -249,5 +282,27 @@ mod tests {
         };
         assert_eq!(status, "failed");
         assert_eq!(detail, "Interrupted");
+    }
+
+    #[test]
+    fn a_compaction_notice_is_replaced_not_repeated() {
+        let notice = |transcript: &mut Transcript| match transcript.get_mut(COMPACTION) {
+            Some(MessageBlock::Notice { text, .. }) => text.clone(),
+            _ => panic!("compaction notice"),
+        };
+        let (sender, _receiver) = mpsc::channel(8);
+        let mut transcript = Transcript::new(sender);
+        transcript.compacting();
+        assert_eq!(notice(&mut transcript), COMPACTING);
+        transcript.compacted("Compacted.");
+        transcript.end_compaction("Not reported.");
+        assert_eq!(notice(&mut transcript), "Compacted.");
+        assert_eq!(transcript.blocks.len(), 1);
+
+        let (sender, _receiver) = mpsc::channel(8);
+        let mut unreported = Transcript::new(sender);
+        unreported.compacting();
+        unreported.end_compaction("Not reported.");
+        assert_eq!(notice(&mut unreported), "Not reported.");
     }
 }

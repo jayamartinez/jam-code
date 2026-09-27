@@ -200,6 +200,19 @@ pub(crate) fn diff_counts(diff: &str) -> (u32, u32) {
     (added, removed)
 }
 
+/// A change's line counts. Codex sends an added or deleted file's content
+/// rather than a unified diff, so every line of it counts.
+fn change_counts(change: &Value) -> (u32, u32) {
+    let diff = text(change, "diff").unwrap_or_default();
+    let hunks = diff.starts_with("@@") || diff.contains("\n@@");
+    let lines = || u32::try_from(diff.lines().count()).unwrap_or(u32::MAX);
+    match change.pointer("/kind/type").and_then(Value::as_str) {
+        Some("add") if !hunks => (lines(), 0),
+        Some("delete") if !hunks => (0, lines()),
+        _ => diff_counts(diff),
+    }
+}
+
 fn display_path(path: &str, cwd: Option<&Path>) -> String {
     cwd.and_then(|cwd| Path::new(path).strip_prefix(cwd).ok())
         .map(|relative| relative.to_string_lossy().into_owned())
@@ -214,7 +227,7 @@ pub(crate) fn changes(item: &Value, cwd: Option<&Path>) -> Vec<FileChange> {
                 .iter()
                 .take(1000)
                 .map(|change| {
-                    let (added, removed) = diff_counts(text(change, "diff").unwrap_or_default());
+                    let (added, removed) = change_counts(change);
                     FileChange {
                         path: display_path(text(change, "path").unwrap_or_default(), cwd),
                         added,
@@ -281,7 +294,12 @@ pub(crate) fn interaction(
         questions: None,
         status: InteractionStatus::Pending,
         outcome: None,
+        tool_id: None,
     };
+    interaction.tool_id = params
+        .get("itemId")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
     match method {
         "item/commandExecution/requestApproval" => {
             interaction.kind = "command".into();
@@ -487,6 +505,19 @@ mod tests {
                 removed: 1
             }]
         );
+    }
+
+    #[test]
+    fn added_and_deleted_files_count_their_content() {
+        let change = json!({"changes":[
+            {"path":"/p/new.txt","kind":{"type":"add"},"diff":"hello\nworld\n"},
+            {"path":"/p/old.txt","kind":{"type":"delete"},"diff":"gone\n"}
+        ]});
+        let counts: Vec<(u32, u32)> = changes(&change, None)
+            .into_iter()
+            .map(|file| (file.added, file.removed))
+            .collect();
+        assert_eq!(counts, vec![(2, 0), (0, 1)]);
     }
 
     #[test]

@@ -77,6 +77,8 @@ export function SettingsPanel({
   desktop,
   idleThreadDays,
   onIdleThreadDays,
+  streamReplies,
+  onStreamReplies,
   onClose,
   onMode,
 }: {
@@ -90,6 +92,8 @@ export function SettingsPanel({
   desktop: DesktopServices;
   idleThreadDays: number | null;
   onIdleThreadDays(next: number | null): void;
+  streamReplies: boolean;
+  onStreamReplies(next: boolean): void;
   onClose(): void;
   onMode(): void;
 }) {
@@ -130,6 +134,8 @@ export function SettingsPanel({
           platform={desktop.platform}
           idleThreadDays={idleThreadDays}
           onIdleThreadDays={onIdleThreadDays}
+          streamReplies={streamReplies}
+          onStreamReplies={onStreamReplies}
           onUpdateProject={onUpdateProject}
           onNavigate={setPage}
           transport={transport}

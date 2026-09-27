@@ -322,6 +322,7 @@ const interaction: Check = (value) =>
       detail: text(100_000, true),
       reason: text(4096, true),
       outcome: text(4096, true),
+      toolId: text(256),
       questions: array(
         (question) =>
           shape(
@@ -650,6 +651,7 @@ const params: Record<RequestMethod, Check> = {
   'conversation.get': (value) => shape(value, { resourceId: id }),
   'conversation.create': (value) =>
     shape(value, { projectId: id, presentation }, { providerId, options: optionMap }),
+  'session.compact': (value) => shape(value, { resourceId: id, requestId: id }),
   'provider.list': (value) => shape(value, {}, { refresh: boolean }),
   'provider.configure': (value) =>
     shape(
@@ -763,6 +765,8 @@ const responses: Record<RequestMethod, Check> = {
   'conversation.get': conversation,
   'conversation.create': (value) => shape(value, { resource, session, conversation }),
   'turn.start': (value) => shape(value, { accepted: oneOf(true), sessionId: id, requestId: id }),
+  'session.compact': (value) =>
+    shape(value, { accepted: oneOf(true), sessionId: id, requestId: id }),
   'provider.list': (value) => shape(value, { providers: array(provider, 20) }),
   'provider.configure': (value) => shape(value, { providers: array(provider, 20) }),
   'interaction.respond': accepted,

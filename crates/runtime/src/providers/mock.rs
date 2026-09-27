@@ -148,6 +148,7 @@ async fn ask(
             }]),
             status: InteractionStatus::Pending,
             outcome: None,
+            tool_id: None,
         }
     } else {
         Interaction {
@@ -171,6 +172,7 @@ async fn ask(
             questions: None,
             status: InteractionStatus::Pending,
             outcome: None,
+            tool_id: None,
         }
     };
     let receiver = interactions.open(session_id, &interaction)?;

@@ -329,13 +329,23 @@ native folder access; the column says so instead of showing example paths.
 
 Deliberate deviations for live providers (no Paper frame exists for these):
 
-- **Approval and question card.** Inline in the transcript, warning edge and
-  "Needs your input" matching the theme sheet's "Needs input · approval" role;
-  buttons are exactly the provider's choices. Resolved cards keep their outcome.
+- **Approvals.** An approval that gates a tool renders as a footer inside that
+  tool's card (Edit, command or activity row): the provider's reason, then
+  exactly its choices, the first as the primary button. Once answered it
+  collapses to a quiet check or cross with the outcome. Questions, and
+  approvals with no tool, use a standalone card in the same type scale.
+- **Transcript.** Follows focus mode (frame 44U-0): "Working for …" beside the
+  agent name while a turn runs, 28px activity rows grouped between cards, and
+  the Edit and command cards' geometry.
 - **Composer.** New Chat follows frame 1a (agent switch, model, effort, the
-  project folder and permission in the footer). Existing chats show the model,
-  effort and provider options in the toolbar; options are native selects
-  styled as the design's pills. A Stop button replaces Send while running.
+  project folder and access in the footer). Existing chats show the model,
+  effort and access as the design's pills. A Stop button replaces Send while
+  running.
+- **Context.** The ring opens the popover designed in Paper frame
+  "8 · Context window popover" (Core flows): reported size, free tokens,
+  Auto-compact and Compact now, with a compacting state.
+- **Stream replies** (General) reveals text as it arrives; off, a reply shows
+  "Writing…" until the turn ends.
 - **Edited files.** The demo's "new" and "open diff" labels were positional;
   real edits show path and line counts only, and "Review changes" opens Review.
 - **Settings → Providers.** Frame 604-0 with live data: "Checked … ago" with a

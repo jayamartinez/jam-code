@@ -207,7 +207,7 @@ async fn codex_answers_and_asks_for_approval() {
     .await;
     turn(
         "codex",
-        json!({"approvalPolicy": "untrusted", "sandbox": "read-only"}),
+        json!({"access": "ask"}),
         "Run the shell command `ls` in the current directory and tell me the file names.",
         Some("accept"),
     )
@@ -229,7 +229,7 @@ async fn claude_answers_and_asks_for_approval() {
     .await;
     turn(
         "claude",
-        json!({"permissionMode": "default"}),
+        json!({"access": "ask"}),
         "Use the Write tool to create a file named hello.txt containing the single word hi. Do nothing else.",
         Some("allow"),
     )

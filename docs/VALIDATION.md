@@ -624,6 +624,28 @@ the project folder:
   with no output, an unreadable hovered Allow button, a redundant
   AskUserQuestion tool row, and outdated "folders are not read" copy.
 
+### Follow-up: chat refinement, access, context and streaming
+
+Automated: `pnpm check`, `pnpm check:rust` and the live suite with
+`JAM_LIVE_PROVIDERS=1 JAM_LIVE_TURNS=1` (access `ask`) pass. New tests cover
+the compaction notice lifecycle and Codex add/delete line counts.
+
+Native, macOS, computer use:
+
+- Claude: an Edit approval rendered inside the Edit card; Allow once collapsed
+  it to "Allowed once" and the reply followed. The context popover showed
+  Claude's reported 40,937 of 1,000,000 tokens; Compact now showed
+  "Compacting context…" at once, then Claude's own notice, and the ring fell
+  from 4% to 3%. Auto-compact switched off and back on.
+- Codex, Access = Ask: command, file-change and read approvals rendered inline
+  (including Codex's "Always allow" amendment); Compact now went from 18k to
+  5k tokens without changing the chat's model.
+- Stream replies off showed "Writing…" and then the complete reply.
+- Found and fixed natively: a compaction reused the previous reply's
+  "Working for" heading and reset the model label; the transcript stopped
+  following a reply that grew without a new message; a new Codex file showed
+  +0 −0 (Codex sends an added file's content, not a diff).
+
 Not verified: Windows (`.cmd` shims, process groups), provider versions other
 than those listed, Claude sub-agent text, Codex questions (experimental API,
 unsupported), and long-running sessions past the 15-minute idle stop.

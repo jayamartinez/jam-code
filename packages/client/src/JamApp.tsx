@@ -35,7 +35,7 @@ import {
   type SplitDirection,
 } from './state/layout';
 import { RuntimeClient } from './state/runtime-client';
-import { useIdleThreadDays } from './state/preferences';
+import { useIdleThreadDays, useStreamReplies } from './state/preferences';
 import { AppearanceContext, AppearanceStore } from './appearance/store';
 import { Brand, Dialog, IconButton } from './components/Controls';
 import { Sidebar } from './components/Sidebar';
@@ -145,6 +145,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [editingProject, setEditingProject] = useState<string | null>(null);
   const [idleThreadDays, setIdleThreadDays] = useIdleThreadDays();
+  const [streamReplies, setStreamReplies] = useStreamReplies();
   /**
    * Projects whose threads the sidebar lists. Any number can be open at once;
    * until the reader toggles one, the current project is shown open.
@@ -655,6 +656,17 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     shortcut,
     providers: workspace?.providers ?? [],
     options: optionsFor(resourceId, sessionId),
+    streamReplies,
+    onCompact: async () => {
+      try {
+        await transport.request('session.compact', {
+          resourceId,
+          requestId: crypto.randomUUID(),
+        });
+      } catch (cause) {
+        client.reportError(cause);
+      }
+    },
     onOptions: (options: Record<string, string>) => {
       if (newChats[resourceId])
         setNewChats((current) => {
@@ -737,6 +749,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       desktop={desktop}
       idleThreadDays={idleThreadDays}
       onIdleThreadDays={setIdleThreadDays}
+      streamReplies={streamReplies}
+      onStreamReplies={setStreamReplies}
       onClose={() => setSettingsMode(null)}
       onMode={() => {
         if (dedicated) {

@@ -165,7 +165,8 @@ export type ProviderCapability =
   | 'modelSelection'
   | 'effort'
   | 'permissionModes'
-  | 'usage';
+  | 'usage'
+  | 'compact';
 
 export const PROVIDER_CAPABILITIES = [
   'create',
@@ -182,6 +183,7 @@ export const PROVIDER_CAPABILITIES = [
   'effort',
   'permissionModes',
   'usage',
+  'compact',
 ] as const satisfies readonly ProviderCapability[];
 
 export interface CapabilitySupport {
@@ -314,6 +316,8 @@ export interface Interaction {
   status: 'pending' | 'resolved' | 'cancelled' | 'expired';
   /** What was answered, for the transcript. */
   outcome?: string;
+  /** The tool block this request is about; the approval is shown inside it. */
+  toolId?: string;
 }
 
 export type MessageBlock =
@@ -393,6 +397,11 @@ export interface RequestMap
       /** Changes model/effort/provider options from this turn on. */
       options?: Record<string, string>;
     };
+    result: { accepted: true; sessionId: string; requestId: string };
+  };
+  'session.compact': {
+    /** Asks the provider to compact this conversation's context. */
+    params: { resourceId: string; requestId: string };
     result: { accepted: true; sessionId: string; requestId: string };
   };
   'provider.list': {

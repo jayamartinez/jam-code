@@ -9,14 +9,14 @@ mod rpc;
 
 use super::{
     Answer, ProbeFuture, ProviderAdapter, ProviderConfig, ProviderFuture, ProviderTurn,
-    ProviderUpdate, Transcript, TurnIo, descriptor, discovery, process::LaunchSpec, set_capability,
-    transcript::until,
+    ProviderUpdate, Transcript, TurnIo, access, descriptor, discovery, process::LaunchSpec,
+    set_capability, transcript::until,
 };
 use crate::{
     error::JamError,
     protocol::{
-        InteractionStatus, OptionValue, ProviderAccount, ProviderDescriptor, ProviderModel,
-        ProviderOption, ProviderStatus, SessionStatus, SessionUsage,
+        InteractionStatus, ProviderAccount, ProviderDescriptor, ProviderModel, ProviderOption,
+        ProviderStatus, SessionStatus, SessionUsage,
     },
     runtime::new_id,
 };
@@ -66,51 +66,20 @@ fn launch(executable: PathBuf) -> LaunchSpec {
 }
 
 fn options() -> Vec<ProviderOption> {
-    let value = |value: &str, label: &str, description: &str| OptionValue {
-        value: value.into(),
-        label: label.into(),
-        description: Some(description.into()),
-    };
-    vec![
-        ProviderOption {
-            id: "approvalPolicy".into(),
-            label: "Approval mode".into(),
-            description: Some("When Codex asks before running commands.".into()),
-            values: vec![
-                value(
-                    "untrusted",
-                    "Untrusted",
-                    "Ask before anything that is not a known-safe read.",
-                ),
-                value("on-request", "On request", "Codex decides when to ask."),
-                value(
-                    "never",
-                    "Never",
-                    "Never ask. Failures are returned to Codex.",
-                ),
-            ],
-            default: "on-request".into(),
-        },
-        ProviderOption {
-            id: "sandbox".into(),
-            label: "Sandbox".into(),
-            description: Some("What commands Codex runs may touch.".into()),
-            values: vec![
-                value("read-only", "Read only", "Commands cannot write files."),
-                value(
-                    "workspace-write",
-                    "Workspace write",
-                    "Commands may write inside the project.",
-                ),
-                value(
-                    "danger-full-access",
-                    "Full access",
-                    "No sandbox. Commands can change anything.",
-                ),
-            ],
-            default: "workspace-write".into(),
-        },
-    ]
+    vec![access::option(
+        "Codex asks before anything that is not a known-safe read; commands run read-only.",
+        "Codex edits files in the project and decides when to ask; commands may write there.",
+        "Codex never asks and runs without a sandbox. Commands can change anything.",
+    )]
+}
+
+/// Codex's approval policy and sandbox for a JAM access level.
+fn codex_access(options: &BTreeMap<String, String>) -> (&'static str, &'static str) {
+    match access::chosen(options) {
+        access::FULL => ("never", "danger-full-access"),
+        access::EDITS => ("on-request", "workspace-write"),
+        _ => ("untrusted", "read-only"),
+    }
 }
 
 fn sandbox_policy(mode: &str) -> Value {
@@ -120,10 +89,6 @@ fn sandbox_policy(mode: &str) -> Value {
         _ => json!({"type": "workspaceWrite", "writableRoots": [], "networkAccess": false,
                      "excludeTmpdirEnvVar": false, "excludeSlashTmp": false}),
     }
-}
-
-fn option<'a>(options: &'a BTreeMap<String, String>, key: &str, default: &'a str) -> &'a str {
-    options.get(key).map(String::as_str).unwrap_or(default)
 }
 
 impl CodexAdapter {
@@ -396,6 +361,7 @@ async fn probe(mut d: ProviderDescriptor, config: ProviderConfig) -> ProviderDes
         "toolApproval",
         "permissionModes",
         "usage",
+        "compact",
     ] {
         set_capability(&mut d, key, "supported", None);
     }
@@ -465,8 +431,8 @@ async fn run(adapter: &CodexAdapter, turn: ProviderTurn, io: TurnIo) -> Result<(
     };
     let server = adapter.server(&turn.config).await?;
     let connection = Arc::clone(&server.connection);
-    let approval = option(&turn.options, "approvalPolicy", "on-request").to_string();
-    let sandbox = option(&turn.options, "sandbox", "workspace-write").to_string();
+    let (approval, sandbox) = codex_access(&turn.options);
+    let (approval, sandbox) = (approval.to_string(), sandbox.to_string());
     let model = turn.options.get("model").cloned();
     let effort = turn.options.get("effort").cloned();
 
@@ -529,35 +495,47 @@ async fn run(adapter: &CodexAdapter, turn: ProviderTurn, io: TurnIo) -> Result<(
     connection.route(&thread_id, route_tx.clone());
     let _unroute = Unroute(Arc::clone(&connection), thread_id.clone(), route_tx);
 
-    // Input: the reader's text first, then images they explicitly sent.
-    let mut input = vec![json!({"type": "text", "text": turn.text, "text_elements": []})];
-    for image in &turn.images {
-        input.push(match &image.path {
-            Some(path) => json!({"type": "localImage", "path": path.display().to_string()}),
-            None => json!({"type": "image", "url": format!(
-                "data:{};base64,{}",
-                image.media_type,
-                base64::engine::general_purpose::STANDARD.encode(image.bytes.as_slice())
-            )}),
-        });
-    }
-    let mut start = json!({"threadId": thread_id, "input": input, "approvalPolicy": approval});
-    if let Some(model) = &model {
-        start["model"] = json!(model);
-    }
-    if let Some(effort) = &effort {
-        start["effort"] = json!(effort);
-    }
-    if already.as_deref().is_some_and(|applied| applied != sandbox) {
-        start["sandboxPolicy"] = sandbox_policy(&sandbox);
-    }
-    let started = connection
-        .request("turn/start", start)
-        .await
-        .map_err(|e| e.into_jam("Codex did not start the turn"))?;
-    if let Ok(mut loaded) = server.loaded.lock() {
-        loaded.insert(thread_id.clone(), sandbox.clone());
-    }
+    let started = if turn.compact {
+        // Codex runs the compaction as a turn of its own on this thread.
+        connection
+            .request("thread/compact/start", json!({"threadId": thread_id}))
+            .await
+            .map_err(|e| e.into_jam("Codex could not compact this chat"))?;
+        transcript.compacting();
+        transcript.flush().await;
+        json!({})
+    } else {
+        // Input: the reader's text first, then images they explicitly sent.
+        let mut input = vec![json!({"type": "text", "text": turn.text, "text_elements": []})];
+        for image in &turn.images {
+            input.push(match &image.path {
+                Some(path) => json!({"type": "localImage", "path": path.display().to_string()}),
+                None => json!({"type": "image", "url": format!(
+                    "data:{};base64,{}",
+                    image.media_type,
+                    base64::engine::general_purpose::STANDARD.encode(image.bytes.as_slice())
+                )}),
+            });
+        }
+        let mut start = json!({"threadId": thread_id, "input": input, "approvalPolicy": approval});
+        if let Some(model) = &model {
+            start["model"] = json!(model);
+        }
+        if let Some(effort) = &effort {
+            start["effort"] = json!(effort);
+        }
+        if already.as_deref().is_some_and(|applied| applied != sandbox) {
+            start["sandboxPolicy"] = sandbox_policy(&sandbox);
+        }
+        let started = connection
+            .request("turn/start", start)
+            .await
+            .map_err(|e| e.into_jam("Codex did not start the turn"))?;
+        if let Ok(mut loaded) = server.loaded.lock() {
+            loaded.insert(thread_id.clone(), sandbox.clone());
+        }
+        started
+    };
     let turn_id = started
         .pointer("/turn/id")
         .and_then(Value::as_str)
@@ -673,6 +651,7 @@ async fn run(adapter: &CodexAdapter, turn: ProviderTurn, io: TurnIo) -> Result<(
                                         let keep = !completed && transcript.contains(&id);
                                         if !keep { transcript.upsert(&id, block); }
                                     }
+                                    ItemBlock::Notice(_, text) if completed && item.get("type").and_then(Value::as_str) == Some("contextCompaction") => transcript.compacted(&text),
                                     ItemBlock::Notice(tone, text) if completed => transcript.notice(tone, &text),
                                     _ => {}
                                 }
@@ -761,6 +740,11 @@ async fn run(adapter: &CodexAdapter, turn: ProviderTurn, io: TurnIo) -> Result<(
             "Failed"
         });
     }
+    transcript.end_compaction(if outcome == SessionStatus::Idle {
+        "Codex finished without reporting a compaction."
+    } else {
+        "The context was not compacted."
+    });
     transcript.flush().await;
     transcript.send(ProviderUpdate::Finished(outcome)).await;
     Ok(())
