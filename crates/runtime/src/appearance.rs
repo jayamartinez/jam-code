@@ -31,14 +31,18 @@ struct Limits {
     wallpaper_utf16: usize,
     wallpaper_name_utf16: usize,
     wallpaper_pixels: u32,
+    custom_themes: usize,
+    custom_theme_name_utf16: usize,
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct Fixture {
     themes: Vec<String>,
     accents: Vec<String>,
     backgrounds: Vec<String>,
     patterns: Vec<String>,
+    custom_theme_roles: Vec<String>,
     defaults: serde_json::Value,
     limits: Limits,
 }
@@ -91,6 +95,20 @@ pub struct Appearance {
     pub sidebar_opacity: Option<u32>,
     pub sidebar_blur: u32,
     pub auto_colors: bool,
+    pub custom_themes: Vec<CustomTheme>,
+}
+
+/// A theme the reader made or imported: anchor colours for a dark variant, a
+/// light one, or both. The runtime checks its shape and never derives colours.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CustomTheme {
+    pub id: String,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dark: Option<std::collections::BTreeMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub light: Option<std::collections::BTreeMap<String, String>>,
 }
 
 impl Appearance {
@@ -153,6 +171,63 @@ fn is_font_family(value: &str) -> bool {
             .all(|c| c.is_alphanumeric() || matches!(c, ' ' | '.' | '_' | '-'))
 }
 
+/// Lowercase letters, digits and hyphens, starting with a letter or digit.
+fn is_custom_theme_id(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    (1..=32).contains(&bytes.len())
+        && bytes[0] != b'-'
+        && bytes
+            .iter()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || *b == b'-')
+}
+
+impl CustomTheme {
+    fn validate(&self) -> Result<(), JamError> {
+        let fixture = fixture();
+        if !is_custom_theme_id(&self.id) {
+            return Err(JamError::invalid(
+                "A custom theme id must be lowercase letters, digits and hyphens.",
+            ));
+        }
+        if self.name.trim().is_empty()
+            || utf16(&self.name) > fixture.limits.custom_theme_name_utf16
+            || self.name.chars().any(char::is_control)
+        {
+            return Err(JamError::invalid("A custom theme needs a short name."));
+        }
+        if self.dark.is_none() && self.light.is_none() {
+            return Err(JamError::invalid(
+                "A custom theme needs a dark or a light variant.",
+            ));
+        }
+        let complete = |colours: &std::collections::BTreeMap<String, String>| {
+            colours.len() == fixture.custom_theme_roles.len()
+                && fixture
+                    .custom_theme_roles
+                    .iter()
+                    .all(|role| colours.get(role).is_some_and(|colour| is_hex_color(colour)))
+        };
+        if ![&self.dark, &self.light]
+            .into_iter()
+            .flatten()
+            .all(complete)
+        {
+            return Err(JamError::invalid(
+                "A custom theme variant must give every role as #rrggbb.",
+            ));
+        }
+        Ok(())
+    }
+
+    fn has(&self, scheme: &str) -> bool {
+        match scheme {
+            "dark" => self.dark.is_some(),
+            "light" => self.light.is_some(),
+            _ => false,
+        }
+    }
+}
+
 fn within(value: u32, [min, max]: [u32; 2]) -> bool {
     (min..=max).contains(&value)
 }
@@ -161,7 +236,29 @@ impl Appearance {
     pub fn validate(&self) -> Result<(), JamError> {
         let fixture = fixture();
         let limits = &fixture.limits;
-        if !fixture.themes.contains(&self.theme) {
+        if self.custom_themes.len() > limits.custom_themes {
+            return Err(JamError::invalid("Too many custom themes."));
+        }
+        for (index, theme) in self.custom_themes.iter().enumerate() {
+            theme.validate()?;
+            if self.custom_themes[..index]
+                .iter()
+                .any(|other| other.id == theme.id)
+            {
+                return Err(JamError::invalid("Custom theme ids must be unique."));
+            }
+        }
+        // A built-in, or `custom:<id>:<dark|light>` naming a variant that exists.
+        let custom = self
+            .theme
+            .strip_prefix("custom:")
+            .and_then(|rest| rest.rsplit_once(':'))
+            .is_some_and(|(id, scheme)| {
+                self.custom_themes
+                    .iter()
+                    .any(|theme| theme.id == id && theme.has(scheme))
+            });
+        if !fixture.themes.contains(&self.theme) && !custom {
             return Err(JamError::invalid("Unknown theme."));
         }
         if !fixture.accents.contains(&self.accent) {
@@ -315,6 +412,7 @@ mod tests {
             "sidebarBlur",
             "autoColors",
             "backgroundFade",
+            "customThemes",
         ] {
             object.remove(key);
         }
@@ -323,8 +421,59 @@ mod tests {
         assert_eq!(read.theme, "frost");
         assert_eq!(read.background_pattern, "none");
         assert!(!read.auto_colors);
+        assert!(read.custom_themes.is_empty());
         assert!(Appearance::from_stored(json!({ "theme": "neon" })).is_none());
         assert!(Appearance::from_stored(json!([])).is_none());
+    }
+
+    fn colours(value: &str) -> serde_json::Value {
+        let roles: Vec<String> = serde_json::from_value(
+            serde_json::from_str::<serde_json::Value>(include_str!(
+                "../../../packages/protocol/fixtures/appearance.json"
+            ))
+            .unwrap()["customThemeRoles"]
+                .clone(),
+        )
+        .unwrap();
+        serde_json::Value::Object(roles.into_iter().map(|role| (role, json!(value))).collect())
+    }
+
+    #[test]
+    fn custom_themes_are_bounded_and_the_active_one_must_exist() {
+        let harbour = json!({ "id": "harbour", "name": "Harbour", "dark": colours("#336699") });
+        assert!(appearance(json!({ "customThemes": [harbour.clone()] })).is_ok());
+        assert!(
+            appearance(
+                json!({ "customThemes": [harbour.clone()], "theme": "custom:harbour:dark" })
+            )
+            .is_ok()
+        );
+        assert!(
+            appearance(
+                json!({ "customThemes": [harbour.clone()], "theme": "custom:harbour:light" })
+            )
+            .is_err()
+        );
+        assert!(appearance(json!({ "theme": "custom:harbour:dark" })).is_err());
+        assert!(appearance(json!({ "customThemes": [harbour.clone(), harbour.clone()] })).is_err());
+        let with = |key: &str, value: serde_json::Value| {
+            let mut theme = harbour.clone();
+            theme[key] = value;
+            appearance(json!({ "customThemes": [theme] }))
+        };
+        assert!(with("id", json!("Harbour!")).is_err());
+        assert!(with("name", json!("")).is_err());
+        assert!(with("name", json!("line\nbreak")).is_err());
+        assert!(with("name", json!("a".repeat(49))).is_err());
+        assert!(with("dark", json!({ "canvas": "#000000" })).is_err());
+        let mut short = colours("#000000");
+        short["canvas"] = json!("red");
+        assert!(with("dark", short).is_err());
+        assert!(appearance(json!({ "customThemes": [{ "id": "a", "name": "A" }] })).is_err());
+        let many: Vec<_> = (0..33)
+            .map(|index| json!({ "id": format!("t{index}"), "name": "T", "light": colours("#eeeeee") }))
+            .collect();
+        assert!(appearance(json!({ "customThemes": many })).is_err());
     }
 
     #[test]

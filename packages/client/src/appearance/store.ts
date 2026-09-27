@@ -131,8 +131,13 @@ export class AppearanceStore {
     this.schedule(SAVE_DELAY_MS);
   }
 
+  /** Back to the defaults. The reader's own themes are kept; only the choice among them resets. */
   reset() {
-    this.update({ ...DEFAULT_APPEARANCE, paneOpacity: undefined });
+    this.update({
+      ...DEFAULT_APPEARANCE,
+      customThemes: this.snapshot.appearance.customThemes,
+      paneOpacity: undefined,
+    });
   }
 
   /** Stores a copy of the image in the runtime; the original file is never referenced. */

@@ -12,7 +12,7 @@ import { bracketMatching, syntaxHighlighting } from '@codemirror/language';
 import { jamHighlighter } from '../code/highlight';
 import { loadLanguage } from '../code/languages';
 import { useAppearance } from '../appearance/store';
-import { THEMES } from '../appearance/themes';
+import { themeOf } from '../appearance/resolve';
 
 /**
  * The CodeMirror instance.
@@ -95,7 +95,7 @@ export default function CodeMirrorEditor({
   const languageSlot = useRef(new Compartment());
   const schemeSlot = useRef(new Compartment());
   const { appearance } = useAppearance();
-  const dark = THEMES[appearance.theme].scheme === 'dark';
+  const dark = themeOf(appearance).scheme === 'dark';
   const darkRef = useRef(dark);
   darkRef.current = dark;
   const onChangeRef = useRef(onChange);

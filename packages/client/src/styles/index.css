@@ -9,6 +9,13 @@
 @import './terminal.css';
 @import './code.css';
 @import './appearance.css';
+@import './settings.css';
+@import './settings-general.css';
+@import './settings-projects.css';
+@import './settings-providers.css';
+@import './settings-tools.css';
+@import './settings-system.css';
+@import './settings-usage.css';
 
 :root {
   /*

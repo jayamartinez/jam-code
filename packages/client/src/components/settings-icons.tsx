@@ -15,9 +15,9 @@ import type { ReactNode } from 'react';
 export type SettingsIconName =
   | 'general'
   | 'appearance'
+  | 'projects'
   | 'providers'
-  | 'agent-defaults'
-  | 'permissions'
+  | 'usage'
   | 'browser'
   | 'terminal'
   | 'snapshots'
@@ -49,14 +49,15 @@ const GLYPHS: Record<SettingsIconName, ReactNode> = {
       <path d="M8 2.5v11a5.5 5.5 0 000-11z" fill="currentColor" />
     </>
   ),
-  providers: (
+  projects: (
     <path
-      d="M6 2v3M10 2v3M4.5 5h7v2.5a3.5 3.5 0 01-7 0V5zM8 11v3"
+      d="M2.5 4.5a1 1 0 011-1h2.8l1.4 1.5h4.8a1 1 0 011 1v5.5a1 1 0 01-1 1h-9a1 1 0 01-1-1z"
       {...line}
       strokeLinejoin="round"
     />
   ),
-  'agent-defaults': (
+  /** A small robot: agents are the providers' products, not plugs. */
+  providers: (
     <>
       <rect x="2.5" y="5" width="11" height="8" rx="2.5" {...line} />
       <path d="M8 2.5V5" {...line} />
@@ -64,12 +65,12 @@ const GLYPHS: Record<SettingsIconName, ReactNode> = {
       <circle cx="10" cy="9" r="0.9" fill="currentColor" />
     </>
   ),
-  permissions: (
-    <path
-      d="M8 1.8l5 2v4c0 3-2.2 5.2-5 6.4-2.8-1.2-5-3.4-5-6.4v-4l5-2z"
-      {...line}
-      strokeLinejoin="round"
-    />
+  /** A gauge: how much of an agent's allowance is spent. */
+  usage: (
+    <>
+      <path d="M2.6 11.8a5.6 5.6 0 1110.8 0" {...line} />
+      <path d="M8 10.2l2.6-3.2" {...line} />
+    </>
   ),
   browser: (
     <>

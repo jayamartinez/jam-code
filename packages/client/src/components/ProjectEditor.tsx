@@ -13,7 +13,7 @@ import { PRESET_GLYPHS, ProjectBadge, TONE_LABELS, squareProjectImage } from './
  */
 
 type IconKind = ProjectIcon['kind'];
-const QUICK_EMOJI = [
+export const QUICK_EMOJI = [
   '🚀',
   '⚡',
   '🔥',

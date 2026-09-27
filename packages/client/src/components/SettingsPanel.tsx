@@ -1,28 +1,27 @@
-import { AppWindow, Check, ChevronRight, Expand, Plug, Search, X, Zap } from 'lucide-react';
+import { AppWindow, Check, ChevronRight, Expand, Search, X } from 'lucide-react';
 import type { Project, ProviderDescriptor } from '@jam/protocol';
-import { Suspense, lazy, useState } from 'react';
+import { Suspense, lazy, useState, type ComponentType } from 'react';
 import type { DesktopServices } from '../desktop';
-import { ProjectBadge } from './ProjectBadge';
-import { IDLE_THREAD_OPTIONS } from '../state/preferences';
 import { useAppearance } from '../appearance/store';
 import { Brand, IconButton, TrafficLightInset, WindowControls } from './Controls';
 import { SettingsIcon, type SettingsIconName } from './settings-icons';
+import type { ProjectChanges, SettingsPageId, SettingsPageProps } from './settings/types';
 
-/** The Settings frames' grouping, in their order. */
-const groups: { title: string; items: [string, SettingsIconName][] }[] = [
+/** The Settings v2 frames' grouping, in their order. */
+const groups: { title: string; items: [SettingsPageId, SettingsIconName][] }[] = [
   {
     title: 'General',
     items: [
       ['General', 'general'],
       ['Appearance', 'appearance'],
+      ['Projects', 'projects'],
     ],
   },
   {
     title: 'Agents',
     items: [
       ['Providers', 'providers'],
-      ['Agent defaults', 'agent-defaults'],
-      ['Permissions', 'permissions'],
+      ['Usage', 'usage'],
     ],
   },
   {
@@ -44,14 +43,28 @@ const groups: { title: string; items: [string, SettingsIconName][] }[] = [
     ],
   },
 ];
-const IMPLEMENTED = new Set(['General', 'Appearance', 'Providers']);
-/** Loaded when the page is first opened, so the workspace never downloads it. */
-const AppearanceSettings = lazy(() => import('./AppearanceSettings'));
+
+/** Each page is its own chunk, fetched the first time it is opened. */
+const PAGES: Record<SettingsPageId, ComponentType<SettingsPageProps>> = {
+  General: lazy(() => import('./settings/pages/GeneralPage')),
+  Appearance: lazy(() => import('./AppearanceSettings')),
+  Projects: lazy(() => import('./settings/pages/ProjectsPage')),
+  Providers: lazy(() => import('./settings/pages/ProvidersPage')),
+  Usage: lazy(() => import('./settings/pages/UsagePage')),
+  Browser: lazy(() => import('./settings/pages/BrowserPage')),
+  Terminal: lazy(() => import('./settings/pages/TerminalPage')),
+  Snapshots: lazy(() => import('./settings/pages/SnapshotsPage')),
+  Skills: lazy(() => import('./settings/pages/SkillsPage')),
+  Keybindings: lazy(() => import('./settings/pages/KeybindingsPage')),
+  Storage: lazy(() => import('./settings/pages/StoragePage')),
+  Advanced: lazy(() => import('./settings/pages/AdvancedPage')),
+  About: lazy(() => import('./settings/pages/AboutPage')),
+};
 
 export function SettingsPanel({
   providers,
   projects,
-  onEditProject,
+  onUpdateProject,
   dedicated,
   desktop,
   idleThreadDays,
@@ -61,7 +74,7 @@ export function SettingsPanel({
 }: {
   providers: ProviderDescriptor[];
   projects: Project[];
-  onEditProject(projectId: string): void;
+  onUpdateProject(projectId: string, changes: ProjectChanges): Promise<void>;
   dedicated: boolean;
   desktop: DesktopServices;
   idleThreadDays: number | null;
@@ -69,7 +82,7 @@ export function SettingsPanel({
   onClose(): void;
   onMode(): void;
 }) {
-  const [page, setPage] = useState('Providers');
+  const [page, setPage] = useState<SettingsPageId>('General');
   const { error: appearanceError } = useAppearance();
   const navigation = (
     <nav className="settings-nav-sections" aria-label="Settings sections">
@@ -95,197 +108,21 @@ export function SettingsPanel({
       ))}
     </nav>
   );
-  const general = (
-    <div className="settings-content-scroll">
-      <div className="settings-content">
-        <header className="settings-heading">
-          <h2>General</h2>
-          <p>How threads and projects behave in the sidebar.</p>
-        </header>
-        <header className="settings-heading">
-          <h3>Threads</h3>
-          <p>
-            A project's chats, listed under it in the sidebar as open or closed. JAM only suggests
-            closing; a thread closes when you choose to, and sending to it reopens it.
-          </p>
-        </header>
-        <section className="settings-card">
-          <div className="settings-row appearance-row">
-            <div>
-              <strong>Suggest closing idle threads</strong>
-              <p>Ask about an open thread nobody has used for this long.</p>
-            </div>
-            <select
-              aria-label="Suggest closing idle threads"
-              value={idleThreadDays === null ? 'never' : String(idleThreadDays)}
-              onChange={(event) =>
-                onIdleThreadDays(event.target.value === 'never' ? null : Number(event.target.value))
-              }
-            >
-              {IDLE_THREAD_OPTIONS.map((option) => (
-                <option key={option.label} value={option.value === null ? 'never' : option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </section>
-        <header className="settings-heading project-icons-heading">
-          <h3>Projects</h3>
-          <p>
-            Name, folders and icon. You can also right-click a project in the sidebar and choose
-            Edit project details.
-          </p>
-        </header>
-        <section className="settings-card">
-          {projects.map((item) => (
-            <div className="settings-row appearance-row" key={item.id}>
-              <div className="project-icon-identity">
-                <ProjectBadge project={item} size={28} />
-                <div>
-                  <strong>{item.name}</strong>
-                  <p className="mono">
-                    {item.paths?.[0] ?? item.branch}
-                    {(item.paths?.length ?? 0) > 1 ? ` +${(item.paths?.length ?? 1) - 1}` : ''}
-                  </p>
-                </div>
-              </div>
-              <button type="button" className="button" onClick={() => onEditProject(item.id)}>
-                Edit…
-              </button>
-            </div>
-          ))}
-        </section>
-      </div>
+  const Page = PAGES[page];
+  const content = (
+    <div className="sv-scroll">
+      <Suspense fallback={null}>
+        <Page
+          providers={providers}
+          projects={projects}
+          platform={desktop.platform}
+          idleThreadDays={idleThreadDays}
+          onIdleThreadDays={onIdleThreadDays}
+          onUpdateProject={onUpdateProject}
+          onNavigate={setPage}
+        />
+      </Suspense>
     </div>
-  );
-  const planned = (
-    <div className="settings-content-scroll">
-      <div className="settings-content">
-        <header className="settings-heading">
-          <h2>{page}</h2>
-          <p>{page} settings are planned. Nothing on this page is configurable yet.</p>
-        </header>
-      </div>
-    </div>
-  );
-
-  const providersPage = (
-    <div className="settings-content-scroll">
-      <div className="settings-content">
-        <header className="settings-heading">
-          <h2>Providers</h2>
-          <p>
-            JAM connects to agents through a local runtime. This foundation uses a deterministic
-            mock; no models are called.
-          </p>
-        </header>
-        <div className="settings-default">
-          <div>
-            <strong>Default for new chats</strong>
-            <p>Mock is the only enabled provider. Real integrations are not connected.</p>
-          </div>
-          <span className="setting-value">
-            <Zap size={12} /> Mock
-          </span>
-        </div>
-        {providers.map((provider) => (
-          <section
-            className={`provider-card ${provider.enabled ? 'enabled' : ''}`}
-            key={provider.id}
-          >
-            <header>
-              <span className="provider-card-icon">
-                {provider.id === 'mock' ? <Zap size={19} /> : <Plug size={19} />}
-              </span>
-              <div>
-                <h3>
-                  {provider.name}
-                  {provider.isDefault && <span className="default-badge">Default</span>}
-                </h3>
-                <p>
-                  {provider.id === 'mock'
-                    ? 'Built-in demonstration · no external execution'
-                    : 'Live integration is not implemented in this foundation'}
-                </p>
-              </div>
-              <span
-                className={`toggle ${provider.enabled ? 'on' : ''}`}
-                role="img"
-                aria-label={provider.enabled ? 'Enabled' : 'Unavailable'}
-              />
-            </header>
-            <div className="provider-states">
-              <div>
-                <strong>
-                  {provider.installation === 'builtin' ? <Check size={12} /> : null}
-                  {provider.installation === 'builtin' ? 'Built in' : 'Not checked'}
-                </strong>
-                <small>Installation</small>
-              </div>
-              <div>
-                <strong>
-                  {provider.authentication === 'not-required' ? 'Not required' : 'Unknown'}
-                </strong>
-                <small>Authentication</small>
-              </div>
-              <div>
-                <strong>{provider.enabled ? 'Enabled' : 'Unavailable'}</strong>
-                <small>New chats</small>
-              </div>
-              <div>
-                <strong>
-                  <span className={`status-dot ${provider.running ? 'running' : ''}`} />
-                  {provider.running ? 'Running' : 'Idle'}
-                </strong>
-                <small>Runtime</small>
-              </div>
-            </div>
-            {provider.id === 'mock' && (
-              <div className="provider-details">
-                <div>
-                  <span>Model</span>
-                  <span className="setting-value">Demo model</span>
-                </div>
-                <div>
-                  <span>Streaming and stop</span>
-                  <span className="success">Available</span>
-                </div>
-                <div>
-                  <span>Repository tools and commands</span>
-                  <span className="muted">Simulated only</span>
-                </div>
-                <div>
-                  <span>Failure testing</span>
-                  <code>/fail</code>
-                </div>
-              </div>
-            )}
-            {provider.id !== 'mock' && (
-              <p className="provider-note">
-                JAM has not read credentials or verified a subscription. Provider-specific
-                capabilities and authentication will be added separately.
-              </p>
-            )}
-          </section>
-        ))}
-        <p className="settings-note">
-          Provider state is reported by the runtime. This page makes no changes to your installed
-          agents.
-        </p>
-      </div>
-    </div>
-  );
-  const content = !IMPLEMENTED.has(page) ? (
-    planned
-  ) : page === 'Appearance' ? (
-    <Suspense fallback={<div className="settings-content-scroll" />}>
-      <AppearanceSettings />
-    </Suspense>
-  ) : page === 'General' ? (
-    general
-  ) : (
-    providersPage
   );
   if (dedicated)
     return (
@@ -304,7 +141,7 @@ export function SettingsPanel({
           <div className="sidebar-search">
             <div className="search-trigger" title="Settings search is planned">
               <Search size={13} />
-              <span>{page}</span>
+              <span>Search settings</span>
             </div>
           </div>
           {navigation}
@@ -328,7 +165,13 @@ export function SettingsPanel({
               onMouseDown={(event) => {
                 if (event.button === 0) void desktop.startDragging();
               }}
-            />
+            >
+              <nav className="sv-breadcrumb" aria-label="Breadcrumb">
+                <span>Settings</span>
+                <span className="sep">/</span>
+                <strong>{page}</strong>
+              </nav>
+            </div>
             {desktop.platform !== 'macos' && <WindowControls desktop={desktop} />}
           </div>
           <div className="workspace">

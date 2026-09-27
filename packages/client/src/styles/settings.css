@@ -1,0 +1,321 @@
+/*
+ * Settings v2: the shared page grammar from the Paper "Settings v2" frames.
+ * A page is a header, then labelled sections of raised cards whose rows put
+ * text left and a control right. Page-specific pieces live in their own files
+ * and build on these classes rather than restyling them.
+ */
+.sv-scroll {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+}
+.sv-page {
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 28px 40px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.sv-page.wide {
+  max-width: 1100px;
+}
+.sv-page-header {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+}
+.sv-page-header > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.sv-page-header h2 {
+  color: var(--color-text-strong);
+  font-size: calc(20px * var(--ui-scale));
+  line-height: calc(24px * var(--ui-scale));
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+.sv-page-header p {
+  margin-top: 4px;
+  max-width: 560px;
+  color: var(--color-text-subtle);
+  font-size: calc(12.5px * var(--ui-scale));
+  line-height: calc(18px * var(--ui-scale));
+}
+.sv-page-aside {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sv-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sv-section-label {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding-left: 2px;
+}
+.sv-section-label h3 {
+  flex: 1;
+  color: var(--color-text-secondary);
+  font-size: calc(13px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
+  font-weight: 500;
+}
+.sv-section-label > span {
+  color: var(--color-text-faint);
+  font-size: calc(11px * var(--ui-scale));
+  line-height: calc(14px * var(--ui-scale));
+}
+.sv-card {
+  display: flex;
+  flex-direction: column;
+  padding: 0 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pane);
+  background: var(--color-surface-raised);
+}
+.sv-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 54px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.sv-row:last-child {
+  border-bottom: 0;
+}
+.sv-row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sv-row-text strong {
+  color: var(--color-text-primary);
+  font-size: calc(13px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
+  font-weight: 400;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sv-row-text p {
+  color: var(--color-text-subtle);
+  font-size: calc(11.5px * var(--ui-scale));
+  line-height: calc(14px * var(--ui-scale));
+}
+.sv-row-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.sv-row.disabled .sv-row-text strong {
+  color: var(--color-text-secondary);
+}
+.sv-mono {
+  font-family: var(--font-mono-stack);
+  font-size: calc(11px * var(--ui-scale));
+  color: var(--color-text-subtle);
+}
+.sv-link {
+  color: var(--color-accent-strong);
+}
+
+/* Toggle: a 30×18 track with a 14px knob. */
+.sv-toggle {
+  position: relative;
+  width: 30px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: var(--color-fill-strong);
+  transition: background 120ms ease;
+}
+.sv-toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-text-subtle);
+  transition: transform 120ms ease;
+}
+.sv-toggle.on {
+  background: var(--color-accent);
+}
+.sv-toggle.on::after {
+  transform: translateX(12px);
+  background: #fff;
+}
+.sv-toggle:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.sv-segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-fill-subtle);
+}
+.sv-segmented button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  font-size: calc(11.5px * var(--ui-scale));
+  line-height: calc(14px * var(--ui-scale));
+  white-space: nowrap;
+}
+.sv-segmented button.active {
+  background: var(--color-fill-strong);
+  color: var(--color-text-strong);
+  font-weight: 500;
+}
+.sv-segmented button:disabled:not(.active) {
+  color: var(--color-text-faint);
+}
+.sv-segmented button:disabled {
+  cursor: default;
+}
+
+.sv-select {
+  height: 28px;
+  padding: 0 26px 0 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background-color: var(--color-fill);
+  /* A chevron from two gradients so it follows the theme's text colour. */
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--color-text-subtle) 50%),
+    linear-gradient(135deg, var(--color-text-subtle) 50%, transparent 50%);
+  background-position:
+    calc(100% - 13px) 12px,
+    calc(100% - 9px) 12px;
+  background-size: 4px 4px;
+  background-repeat: no-repeat;
+  appearance: none;
+  color: var(--color-text-primary);
+  font-size: calc(12px * var(--ui-scale));
+}
+.sv-select:disabled {
+  color: var(--color-text-muted);
+  cursor: default;
+}
+
+.sv-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text-primary);
+  font-size: calc(12px * var(--ui-scale));
+  white-space: nowrap;
+}
+.sv-button:hover:not(:disabled) {
+  background: var(--color-fill);
+}
+.sv-button.primary {
+  border-color: transparent;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: 500;
+}
+.sv-button.danger {
+  color: var(--color-danger);
+}
+.sv-button.quiet {
+  border-color: transparent;
+  color: var(--color-text-secondary);
+}
+.sv-button:disabled {
+  color: var(--color-text-faint);
+  cursor: default;
+}
+
+.sv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--color-fill);
+  color: var(--color-text-subtle);
+  font-size: calc(10.5px * var(--ui-scale));
+  line-height: calc(13px * var(--ui-scale));
+  font-weight: 400;
+  white-space: nowrap;
+}
+.sv-chip.success {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+.sv-chip.warning {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.sv-keys {
+  display: inline-flex;
+  gap: 4px;
+}
+.sv-keys kbd {
+  min-width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 5px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-fill);
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono-stack);
+  font-size: calc(11px * var(--ui-scale));
+}
+
+/* The dedicated window's titlebar breadcrumb. */
+.sv-breadcrumb {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 36px;
+  font-size: calc(13px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
+  color: var(--color-text-subtle);
+  pointer-events: none;
+}
+.sv-breadcrumb .sep {
+  color: var(--color-text-ghost);
+}
+.sv-breadcrumb strong {
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+@media (max-width: 1100px) {
+  .sv-page {
+    padding: 24px;
+  }
+}

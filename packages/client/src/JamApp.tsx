@@ -579,10 +579,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     <SettingsPanel
       providers={workspace.providers}
       projects={workspace.projects}
-      onEditProject={(id) => {
-        setSettingsMode(null);
-        setEditingProject(id);
-      }}
+      onUpdateProject={updateProject}
       dedicated={dedicated}
       desktop={desktop}
       idleThreadDays={idleThreadDays}

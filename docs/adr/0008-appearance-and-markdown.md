@@ -35,6 +35,16 @@ repository's Markdown is untrusted content that JAM's own window now renders.
   record is read over the fixture's defaults, so fields added by a later
   version (per-surface blur, effects, auto colours) never make an earlier
   record unreadable.
+- **Custom themes.** The reader's own themes live in the same record
+  (`customThemes`, at most 32). Each stores only anchor colours — the fixed
+  role list in the fixture, every one `#rrggbb` — for a dark variant, a light
+  one or both, with a short name and a lowercase id. The active theme may be
+  `custom:<id>:<dark|light>`, and both validators reject one that names a
+  missing theme or variant. The client draws a custom theme with the same
+  builder as the editor-style themes, so contrast floors are applied when it
+  is drawn; the stored colours are never rewritten. Import and export are
+  files the reader chooses (bytes in, a downloaded JSON out); no path is
+  stored. Resetting appearance keeps the reader's themes.
 - **Tokens, not components.** Settings resolve to semantic custom properties
   (`appearance/resolve.ts`), written into one `<style>` element. Components,
   CodeMirror (through class names) and xterm (through the pane's roles) read

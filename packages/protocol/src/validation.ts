@@ -7,6 +7,7 @@ import {
   FONT_FAMILY,
   HEX_COLOR,
   WALLPAPER_PREFIX,
+  appearanceThemeProblem,
 } from './appearance';
 import type { TerminalStreamEvent } from './terminal';
 import type {
@@ -369,11 +370,13 @@ const fontFamily: Check = (value) => {
 const appearanceRanges = Object.fromEntries(
   Object.entries(APPEARANCE_RANGES).map(([key, [min, max]]) => [key, range(min, max)]),
 ) as Record<keyof typeof APPEARANCE_RANGES, Check>;
-const appearanceSettings: Check = (value) =>
+const appearanceSettings: Check = (value) => {
   shape(
     value,
     {
-      theme: oneOf(...APPEARANCE.themes),
+      // The theme is checked with the custom themes it may name, below.
+      theme: text(80),
+      customThemes: array(() => undefined, APPEARANCE.limits.customThemes),
       accent: oneOf(...APPEARANCE.accents),
       customAccent: hexColor,
       uiFont: fontFamily,
@@ -392,6 +395,10 @@ const appearanceSettings: Check = (value) =>
       sidebarOpacity: range(...APPEARANCE.limits.sidebarOpacity),
     },
   );
+  const record = object(value);
+  const problem = appearanceThemeProblem(record.theme, record.customThemes);
+  if (problem) invalid(problem);
+};
 const wallpaper: Check = (value) => {
   const { limits } = APPEARANCE;
   shape(value, {
