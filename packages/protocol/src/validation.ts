@@ -352,7 +352,48 @@ const terminalSession: Check = (value) =>
   );
 const accepted: Check = (value) => shape(value, { accepted: oneOf(true) });
 
+const nullableId: Check = (value) => {
+  if (value !== null) id(value);
+};
+const snapshotSettings: Check = (value) =>
+  shape(value, {
+    enabled: boolean,
+    shortcut: (shortcut) => {
+      if (object(shortcut).kind === 'doubleShift') shape(shortcut, { kind: oneOf('doubleShift') });
+      else shape(shortcut, { kind: oneOf('keyCombination'), accelerator: text(128) });
+    },
+    captureMode: oneOf('activeWindow', 'region', 'fullScreen'),
+    afterCapture: oneOf('stage', 'save', 'clipboard'),
+    flash: boolean,
+    sound: boolean,
+    toast: boolean,
+    copyToClipboard: boolean,
+    retentionDays: oneOf(1, 7, 30),
+  });
+const snapshot: Check = (value) =>
+  shape(value, {
+    id,
+    capturedAt: integer,
+    application: text(256, true),
+    windowTitle: text(512, true),
+    width: range(1, 4096),
+    height: range(1, 4096),
+    bytes: range(1, 9_000_000),
+    resourceId: nullableId,
+    note: text(2000, true),
+    sent: boolean,
+    context,
+  });
+
 const params: Record<RequestMethod, Check> = {
+  'snapshot.list': (v) => shape(v, {}),
+  'snapshot.settings.get': (v) => shape(v, {}),
+  'snapshot.settings.update': snapshotSettings,
+  'snapshot.focus': (v) => shape(v, { resourceId: id }),
+  'snapshot.stage': (v) => shape(v, { id, resourceId: nullableId, note: text(2000, true) }),
+  'snapshot.remove': (v) => shape(v, { id }),
+  'snapshot.asset': (v) => shape(v, { id, thumbnail: boolean }),
+  'snapshot.cleanup': (v) => shape(v, { all: boolean }),
   'workspace.get': (value) => shape(value, {}),
   'conversation.get': (value) => shape(value, { resourceId: id }),
   'conversation.create': (value) => shape(value, { projectId: id, presentation }),
@@ -413,6 +454,21 @@ const params: Record<RequestMethod, Check> = {
 };
 
 const responses: Record<RequestMethod, Check> = {
+  'snapshot.list': (v) => shape(v, { snapshots: array(snapshot, 500) }),
+  'snapshot.settings.get': snapshotSettings,
+  'snapshot.settings.update': snapshotSettings,
+  'snapshot.focus': accepted,
+  'snapshot.stage': snapshot,
+  'snapshot.remove': accepted,
+  'snapshot.asset': (v) =>
+    shape(v, {
+      dataUrl: (data) => {
+        text(12_000_000)(data);
+        if (!(data as string).startsWith('data:image/jpeg;base64,'))
+          invalid('Invalid snapshot image.');
+      },
+    }),
+  'snapshot.cleanup': (v) => shape(v, { removed: integer }),
   'workspace.get': workspace,
   'conversation.get': conversation,
   'conversation.create': (value) => shape(value, { resource, session, conversation }),

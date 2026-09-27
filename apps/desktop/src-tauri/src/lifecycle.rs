@@ -21,6 +21,7 @@ fn quit(app: &AppHandle) {
     if host.quitting.swap(true, Ordering::AcqRel) {
         return;
     }
+    crate::snapshots::stop();
     let runtime = std::sync::Arc::clone(&host.runtime);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {

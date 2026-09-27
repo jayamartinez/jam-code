@@ -36,6 +36,7 @@ pub(crate) struct State {
 
 /// The host owns one runtime. Views only subscribe; they never own provider tasks.
 pub struct Runtime {
+    pub(crate) snapshots: crate::snapshots::SnapshotManager,
     pub(crate) id: String,
     pub(crate) state: Mutex<State>,
     pub(crate) shutting_down: AtomicBool,
@@ -60,6 +61,9 @@ impl Runtime {
         store.seed_demo()?;
         Ok(Arc::new(Self {
             id: new_id("runtime"),
+            snapshots: crate::snapshots::SnapshotManager::new(
+                path.as_ref().parent().unwrap_or_else(|| Path::new(".")),
+            ),
             state: Mutex::new(State {
                 store,
                 sequence: 0,
@@ -99,6 +103,9 @@ impl Runtime {
             return Err(JamError::new("unavailable", "JAM is shutting down."));
         }
         match request.method.as_str() {
+            method if method.starts_with("snapshot.") => {
+                self.snapshot_request(method, request.params)
+            }
             "workspace.get" => {
                 let _: Empty = parse(request.params)?;
                 let state = self.lock()?;

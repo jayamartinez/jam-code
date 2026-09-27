@@ -12,7 +12,7 @@ use tokio::sync::{mpsc, watch};
 impl Runtime {
     pub(crate) fn start_turn(
         self: &Arc<Self>,
-        input: StartTurn,
+        mut input: StartTurn,
         fingerprint: String,
     ) -> Result<Value, JamError> {
         let mut state = self.lock()?;
@@ -47,6 +47,10 @@ impl Runtime {
                 input.text.trim().chars().take(80).collect()
             };
         }
+        state
+            .store
+            .attach_snapshots(&mut input.context, &resource.id, false)?;
+        let mut attached_context = input.context.clone();
         let mut blocks = Vec::new();
         if !input.context.is_empty() {
             blocks.push(MessageBlock::Context {
@@ -67,6 +71,9 @@ impl Runtime {
         session.status = SessionStatus::Running;
         let receipt = json!({"accepted":true,"sessionId":session.id,"requestId":input.request_id});
         state.store.transaction(|| {
+            state
+                .store
+                .attach_snapshots(&mut attached_context, &resource.id, true)?;
             state.store.save_resource(&resource)?;
             state.store.save_session(&session)?;
             state.store.save_message(&resource, &user_message)?;

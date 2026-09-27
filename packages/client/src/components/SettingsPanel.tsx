@@ -16,7 +16,8 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import type { Project, ProviderDescriptor } from '@jam/protocol';
+import { SnapshotSettings } from './SnapshotSettings';
+import type { JamTransport, Project, ProviderDescriptor } from '@jam/protocol';
 import { useState } from 'react';
 import type { DesktopServices } from '../desktop';
 import { ProjectBadge } from './ProjectBadge';
@@ -65,6 +66,8 @@ const groups = [
 ] as const;
 
 export function SettingsPanel({
+  transport,
+  initialPage = 'Providers',
   providers,
   projects,
   onEditProject,
@@ -77,6 +80,8 @@ export function SettingsPanel({
   onClose,
   onMode,
 }: {
+  transport: JamTransport;
+  initialPage?: 'Providers' | 'Snapshots';
   providers: ProviderDescriptor[];
   projects: Project[];
   onEditProject(projectId: string): void;
@@ -89,8 +94,9 @@ export function SettingsPanel({
   onClose(): void;
   onMode(): void;
 }) {
-  const [page, setPage] = useState<'Providers' | 'Appearance'>('Providers');
-  const implemented = (name: string) => name === 'Providers' || name === 'Appearance';
+  const [page, setPage] = useState<'Providers' | 'Appearance' | 'Snapshots'>(initialPage);
+  const implemented = (name: string) =>
+    name === 'Providers' || name === 'Appearance' || name === 'Snapshots';
   const navigation = (
     <nav className="settings-nav-sections" aria-label="Settings sections">
       {groups.map((group) => (
@@ -103,7 +109,8 @@ export function SettingsPanel({
               disabled={!implemented(name as string)}
               title={implemented(name as string) ? undefined : `${name} settings are planned`}
               onClick={() =>
-                implemented(name as string) && setPage(name as 'Providers' | 'Appearance')
+                implemented(name as string) &&
+                setPage(name as 'Providers' | 'Appearance' | 'Snapshots')
               }
             >
               <Icon size={14} />
@@ -357,7 +364,14 @@ export function SettingsPanel({
       </div>
     </div>
   );
-  const content = page === 'Appearance' ? appearance : providersPage;
+  const content =
+    page === 'Snapshots' ? (
+      <SnapshotSettings transport={transport} host={desktop.snapshots} />
+    ) : page === 'Appearance' ? (
+      appearance
+    ) : (
+      providersPage
+    );
   if (dedicated)
     return (
       <div className={`jam-app dedicated-settings platform-${desktop.platform}`}>

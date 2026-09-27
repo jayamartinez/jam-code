@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { JamApp } from '@jam/client';
+import { JamApp, SnapshotToast } from '@jam/client';
 import type { DesktopServices } from '@jam/client';
 import type { JamTransport } from '@jam/protocol';
 import { isTauri } from '@tauri-apps/api/core';
@@ -35,6 +35,13 @@ async function bootstrap() {
 
   const root = document.getElementById('root');
   if (!root) throw new Error('The application root is missing.');
+  if (isTauri() && window.location.hash === '#snapshot-toast') {
+    const { createSnapshotHost, snapshotToastTransport } = await import('./snapshot-host');
+    createRoot(root).render(
+      <SnapshotToast transport={snapshotToastTransport} host={createSnapshotHost()} />,
+    );
+    return;
+  }
   createRoot(root).render(
     <StrictMode>
       <JamApp transport={transport} desktop={desktop} />

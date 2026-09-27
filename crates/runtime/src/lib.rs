@@ -6,6 +6,7 @@ mod files;
 pub mod protocol;
 pub mod providers;
 mod runtime;
+pub mod snapshots;
 mod storage;
 pub mod terminal;
 mod turns;

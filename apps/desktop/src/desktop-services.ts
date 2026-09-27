@@ -1,5 +1,6 @@
 import type { DesktopServices } from '@jam/client';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { createSnapshotHost } from './snapshot-host';
 import { createBrowserHost } from './browser-host';
 
 /**
@@ -29,5 +30,6 @@ export function createDesktopServices(): DesktopServices {
     close: () => nativeWindow.close(),
     startDragging: () => nativeWindow.startDragging(),
     browser: createBrowserHost(),
+    snapshots: createSnapshotHost(),
   };
 }

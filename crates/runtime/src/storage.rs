@@ -4,7 +4,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use std::{path::Path, time::Duration};
 
-pub(crate) const SCHEMA_VERSION: i64 = 2;
+pub(crate) const SCHEMA_VERSION: i64 = 3;
 
 pub(crate) struct Store {
     pub connection: Connection,
@@ -30,9 +30,10 @@ impl Store {
         }
         // Numbered, transactional, additive. A failed migration leaves the
         // previous version intact rather than resetting anything.
-        const MIGRATIONS: [&str; 2] = [
+        const MIGRATIONS: [&str; 3] = [
             include_str!("migrations/001-foundation.sql"),
             include_str!("migrations/002-file-edits.sql"),
+            include_str!("migrations/003-snapshots.sql"),
         ];
         for (index, migration) in MIGRATIONS.iter().enumerate() {
             let target = index as i64 + 1;

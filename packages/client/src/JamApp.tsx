@@ -36,6 +36,8 @@ import { Sidebar } from './components/Sidebar';
 import { Composer } from './components/ConversationPane';
 import { ConversationResource } from './components/ConversationResource';
 import { SearchDialog } from './components/SearchDialog';
+import { SnapshotImage } from './components/SnapshotImage';
+import { useSnapshots, snapshotFocus } from './state/snapshots';
 import { SettingsPanel } from './components/SettingsPanel';
 import { NewResourceLauncher } from './components/NewResourceLauncher';
 import { NewChat } from './components/NewChat';
@@ -103,6 +105,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     client.getSnapshot,
     client.getSnapshot,
   );
+  const snapshots = useSnapshots(transport, desktop.snapshots);
+  const focusQueue = useRef(Promise.resolve());
   const [layout, dispatch] = useReducer(layoutReducer, initialLayout);
   const [projectId, setProjectId] = useState('');
   const [projectFilter, setProjectFilter] = useState('');
@@ -110,6 +114,9 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [contextTarget, setContextTarget] = useState<string | null>(null);
   const [launcher, setLauncher] = useState<LauncherTarget>(null);
+  const [settingsStartPage, setSettingsStartPage] = useState<'Providers' | 'Snapshots'>(
+    'Providers',
+  );
   const [settingsMode, setSettingsMode] = useState<'dedicated' | null>(null);
   const [newChats, setNewChats] = useState<
     Record<string, { projectId: string; presentation: Presentation }>
@@ -158,12 +165,50 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     (item) => item.id === (activeResource?.projectId ?? newChats[activeId]?.projectId ?? projectId),
   );
 
+  const conversationFocus = workspace ? snapshotFocus(layout, workspace.resources) : null;
   useEffect(() => {
-    if (activeResource?.kind === 'conversation') lastConversation.current = activeResource.id;
-    const focused = focusedPane(layout)?.resourceId;
-    const kind = workspace?.resources.find((item) => item.id === focused)?.kind;
-    if (focused && kind === 'conversation') lastConversation.current = focused;
-  }, [activeResource, layout, workspace]);
+    if (!conversationFocus) return;
+    lastConversation.current = conversationFocus;
+    if (desktop.snapshots) {
+      focusQueue.current = focusQueue.current
+        .then(async () => {
+          await transport.request('snapshot.focus', { resourceId: conversationFocus });
+        })
+        .catch(client.reportError);
+    }
+  }, [conversationFocus, desktop.snapshots, transport, client]);
+
+  useEffect(() => {
+    if (!desktop.snapshots) return;
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    void desktop.snapshots
+      .onOpen((id) => {
+        void transport
+          .request('snapshot.list', {})
+          .then(({ snapshots: records }) => {
+            if (disposed) return;
+            const target = records.find((s) => s.id === id)?.resourceId;
+            if (target) {
+              setSettingsMode(null);
+              dispatch({ type: 'openTab', resourceId: target });
+            } else {
+              setSettingsStartPage('Snapshots');
+              setSettingsMode('dedicated');
+            }
+          })
+          .catch(client.reportError);
+      })
+      .then((fn) => {
+        if (disposed) fn();
+        else unlisten = fn;
+      })
+      .catch(client.reportError);
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [desktop.snapshots, transport, client]);
 
   useEffect(() => {
     void client.connect();
@@ -373,6 +418,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   );
 
   const openSettings = useCallback(() => {
+    setSettingsStartPage('Providers');
     setSettingsMode('dedicated');
     setOverlay(null);
     setLauncher(null);
@@ -437,9 +483,23 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     settingsMode,
   ]);
 
+  function contextFor(resourceId: string) {
+    return [
+      ...(context[resourceId] ?? emptyContext),
+      ...snapshots.snapshots.filter((s) => s.resourceId === resourceId).map((s) => s.context),
+    ];
+  }
   async function send(sendId: string) {
     const text = layout.drafts[sendId] ?? '';
-    const staged = context[sendId] ?? emptyContext;
+    const staged = contextFor(sendId);
+    if (staged.length > 16) {
+      client.reportError(
+        new Error(
+          'Send at most 16 context items at once. Remove some snapshots to the inbox first.',
+        ),
+      );
+      return;
+    }
     const sendSession = workspace?.sessions.find(
       (session) => session.id === workspace.resources.find((item) => item.id === sendId)?.sessionId,
     );
@@ -481,6 +541,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         context: staged,
         requestId,
       });
+      snapshots.refresh();
       requests.current.delete(resourceId);
       dispatch({ type: 'draft', resourceId, text: '' });
       setContext((current) => ({ ...current, [resourceId]: [] }));
@@ -495,7 +556,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
 
   const composerFor = (resourceId: string, sessionId?: string) => ({
     draft: layout.drafts[resourceId] ?? '',
-    context: context[resourceId] ?? emptyContext,
+    context: contextFor(resourceId),
+    snapshotTransport: desktop.snapshots ? transport : undefined,
     busy: busy.has(resourceId),
     shortcut,
     onDraft: (text: string) => dispatch({ type: 'draft', resourceId, text }),
@@ -506,11 +568,20 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     },
     onAddContext: () => setContextTarget(resourceId),
     onPreviewContext: setPreviewContext,
-    onRemoveContext: (id: string) =>
+    onRemoveContext: (id: string) => {
+      const snapshot = snapshots.snapshots.find((s) => s.id === id);
+      if (snapshot) {
+        void transport
+          .request('snapshot.stage', { id, resourceId: null, note: snapshot.note })
+          .then(snapshots.refresh)
+          .catch(client.reportError);
+        return;
+      }
       setContext((current) => ({
         ...current,
         [resourceId]: (current[resourceId] ?? emptyContext).filter((item) => item.id !== id),
-      })),
+      }));
+    },
     onOpenDemo: () => void openKind('diff'),
   });
 
@@ -541,6 +612,9 @@ export function JamApp({ transport, desktop }: JamAppProps) {
 
   const settings = (dedicated: boolean) => (
     <SettingsPanel
+      key={settingsStartPage}
+      initialPage={settingsStartPage}
+      transport={transport}
       providers={workspace.providers}
       projects={workspace.projects}
       onEditProject={(id) => {
@@ -1014,7 +1088,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             <Folder size={13} />
             registry.ts
           </button>
-          <p>Native files, browser selections and snapshots are planned.</p>
+          <p>Native file context is planned. Snapshots can be captured in the desktop app.</p>
         </Dialog>
       )}
       {previewContext && (
@@ -1024,9 +1098,16 @@ export function JamApp({ transport, desktop }: JamAppProps) {
           onClose={() => setPreviewContext(null)}
         >
           <h2>{previewContext.label}</h2>
+          {previewContext.kind === 'snapshot' && previewContext.assetId && (
+            <div className="snapshot-preview">
+              <SnapshotImage id={previewContext.assetId} transport={transport} thumbnail={false} />
+            </div>
+          )}
           <code>{previewContext.source.uri ?? previewContext.source.resourceId}</code>
           <p>
-            Staged reference · demonstration only. It will be included in your next explicit Send.
+            {previewContext.kind === 'snapshot'
+              ? 'Local snapshot. Included only when you explicitly Send to the mock conversation.'
+              : 'Staged reference · demonstration only. It will be included in your next explicit Send.'}
           </p>
           <button className="button" onClick={() => setPreviewContext(null)}>
             Done

@@ -6,6 +6,7 @@ export interface DesktopServices {
   startDragging(): Promise<void>;
   /** Native Browser views. Absent where the host cannot embed one. */
   browser?: BrowserHost;
+  snapshots?: SnapshotHost;
 }
 
 /** A rectangle in the interface's CSS pixels, relative to the window. */
@@ -78,4 +79,18 @@ export interface BrowserHost {
   navigate(resourceId: string, url: string): Promise<void>;
   action(resourceId: string, action: BrowserAction): Promise<void>;
   close(resourceId: string): Promise<void>;
+}
+
+export interface SnapshotShortcutStatus {
+  state: 'registered' | 'disabled' | 'unavailable' | 'conflict';
+  message: string;
+  latestId: string | null;
+}
+export interface SnapshotHost {
+  action(
+    action: 'status' | 'retry' | 'permissions' | 'capture' | 'dismiss' | 'open',
+    id?: string,
+  ): Promise<SnapshotShortcutStatus>;
+  subscribe(listener: () => void): Promise<() => void>;
+  onOpen(listener: (id: string | null) => void): Promise<() => void>;
 }

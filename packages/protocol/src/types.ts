@@ -236,7 +236,9 @@ export interface SearchResult {
   updatedAt: string;
 }
 
-export interface RequestMap extends TerminalRequestMap {
+import type { SnapshotRequestMap } from './snapshots';
+
+export interface RequestMap extends TerminalRequestMap, SnapshotRequestMap {
   'workspace.get': { params: Record<string, never>; result: WorkspaceSnapshot };
   'conversation.get': { params: { resourceId: string }; result: Conversation };
   'conversation.create': {

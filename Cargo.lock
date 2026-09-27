@@ -1791,6 +1791,8 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 name = "jam-desktop"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
+ "cc",
  "jam-runtime",
  "serde",
  "serde_json",
@@ -1804,6 +1806,8 @@ dependencies = [
 name = "jam-runtime"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
+ "libc",
  "portable-pty",
  "rusqlite",
  "serde",
