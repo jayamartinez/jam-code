@@ -506,13 +506,12 @@ so rather than being disabled, which kept the navigation identical to Paper.
 
 The page follows the Paper "Settings v2 · Snapshots" frame with two deliberate
 changes. The shortcut is a picker, not a fixed double-tap with Change: Both
-Shift keys (the default, as in T3 Code), ⌘⇧2, ⌃⇧2, ⌥⇧2, and double-tap Shift
-labelled as needing Input Monitoring. A setup card, not yet drawn in Paper,
-appears when Snapshots is turned on without the permissions the chosen shortcut
-needs: one step per permission with why it is needed, Allow (macOS's prompt)
-and Open System Settings, and a check once allowed. Turn on Snapshots stays
-disabled until every step is allowed, and the header toggle shows the effective
-state. A healthy page carries no status text; only a problem the user can act on
+Shift keys (the default, as in T3 Code), ⌘⇧2, ⌃⇧2 and ⌥⇧2. No option needs
+Input Monitoring, and the page never asks for it. A setup card, not yet drawn in
+Paper, appears when Snapshots is turned on without Screen Recording: one step
+with why it is needed, Allow and Open System Settings, and a check once allowed.
+Turn on Snapshots stays disabled until it is allowed, and the header toggle
+shows the effective state. A healthy page carries no status text; only a problem the user can act on
 is shown, in the danger role under the header.
 
 ## Verification

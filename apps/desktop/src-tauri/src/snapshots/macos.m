@@ -3,46 +3,7 @@
 #import <ImageIO/ImageIO.h>
 #import <Carbon/Carbon.h> // RegisterEventHotKey: global hotkeys without a keyboard permission
 
-typedef void (*KeyCallback)(int, uint64_t);
 typedef void (*CaptureCallback)(uint64_t, const char *);
-static CFMachPortRef tap;
-static CFRunLoopSourceRef tapSource;
-static KeyCallback keyCallback;
-
-static CGEventRef onKey(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *info) {
-    (void)proxy; (void)info;
-    if (type == kCGEventTapDisabledByTimeout || type == kCGEventTapDisabledByUserInput) {
-        if (keyCallback) keyCallback(3, 0);
-        if (tap) CGEventTapEnable(tap, true);
-        return event;
-    }
-    int kind = 3;
-    CGEventFlags flags = CGEventGetFlags(event);
-    int64_t code = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
-    if (type == kCGEventFlagsChanged && (code == 56 || code == 60) &&
-        !(flags & (kCGEventFlagMaskCommand | kCGEventFlagMaskControl | kCGEventFlagMaskAlternate | kCGEventFlagMaskSecondaryFn | kCGEventFlagMaskAlphaShift))) {
-        kind = (flags & kCGEventFlagMaskShift) ? 1 : 2;
-    }
-    if (keyCallback) keyCallback(kind, CGEventGetTimestamp(event) / 1000000);
-    return event; // Listen-only: never suppress or replace user input.
-}
-void jam_snapshot_stop(void) {
-    if (tapSource) { CFRunLoopRemoveSource(CFRunLoopGetMain(), tapSource, kCFRunLoopCommonModes); CFRelease(tapSource); tapSource=NULL; }
-    if (tap) { CGEventTapEnable(tap,false); CFMachPortInvalidate(tap); CFRelease(tap); tap=NULL; }
-    keyCallback=NULL;
-}
-int jam_snapshot_start(KeyCallback callback) {
-    jam_snapshot_stop();
-    if (!CGPreflightListenEventAccess()) return 1;
-    CGEventMask mask=CGEventMaskBit(kCGEventFlagsChanged)|CGEventMaskBit(kCGEventKeyDown)|CGEventMaskBit(kCGEventKeyUp)|CGEventMaskBit(kCGEventLeftMouseDown)|CGEventMaskBit(kCGEventRightMouseDown)|CGEventMaskBit(kCGEventOtherMouseDown)|CGEventMaskBit(kCGEventScrollWheel);
-    tap=CGEventTapCreate(kCGSessionEventTap,kCGTailAppendEventTap,kCGEventTapOptionListenOnly,mask,onKey,NULL);
-    if (!tap) return 2;
-    keyCallback=callback;
-    tapSource=CFMachPortCreateRunLoopSource(kCFAllocatorDefault,tap,0);
-    CFRunLoopAddSource(CFRunLoopGetMain(),tapSource,kCFRunLoopCommonModes);
-    CGEventTapEnable(tap,true);
-    return 0;
-}
 typedef void (*TriggerCallback)(void);
 
 // Both Shift keys held together. Reading the current modifier state needs no
@@ -105,19 +66,31 @@ int jam_snapshot_hotkey_start(uint32_t keyCode,uint32_t modifiers,TriggerCallbac
     return 0;
 }
 
-// 0 is Screen Recording, 1 is Input Monitoring.
-bool jam_snapshot_permission(int which) {
-    return which==0 ? CGPreflightScreenCaptureAccess() : CGPreflightListenEventAccess();
+// Screen Recording is the only permission Snapshots uses. JAM never listens
+// to key events, so it never needs Input Monitoring.
+bool jam_snapshot_screen_recording(void) {
+    return CGPreflightScreenCaptureAccess();
 }
-// Shows macOS's own prompt the first time; afterwards macOS answers without
-// asking, so the Settings page is the way to change a previous decision.
-void jam_snapshot_request_permission(int which) {
-    if (which==0) CGRequestScreenCaptureAccess(); else CGRequestListenEventAccess();
-}
-void jam_snapshot_open_permission_settings(int which) {
-    NSString *pane=which==0 ? @"Privacy_ScreenCapture" : @"Privacy_ListenEvent";
-    NSURL *url=[NSURL URLWithString:[@"x-apple.systempreferences:com.apple.preference.security?" stringByAppendingString:pane]];
+static void openScreenRecordingSettings(void) {
+    NSURL *url=[NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"];
     if (url) [NSWorkspace.sharedWorkspace openURL:url];
+}
+void jam_snapshot_open_screen_recording_settings(void) {
+    openScreenRecordingSettings();
+}
+// macOS shows its own prompt only once per app. Asking ScreenCaptureKit for
+// shareable content is what reliably registers JAM in the Screen Recording
+// list; if access is still off after that, open the page where it can be
+// turned on.
+void jam_snapshot_request_screen_recording(void) {
+    if (CGPreflightScreenCaptureAccess()) return;
+    CGRequestScreenCaptureAccess();
+    [SCShareableContent getShareableContentWithCompletionHandler:^(SCShareableContent *content, NSError *error) {
+        (void)content; (void)error;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (!CGPreflightScreenCaptureAccess()) openScreenRecordingSettings();
+        });
+    }];
 }
 static void reply(CaptureCallback callback,uint64_t token,NSDictionary *data) {
     NSData *json=[NSJSONSerialization dataWithJSONObject:data options:0 error:nil];

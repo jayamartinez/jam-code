@@ -3,11 +3,7 @@ use crate::{Host, lifecycle};
 use jam_runtime::{
     JamError,
     protocol::Request,
-    snapshots::{
-        AfterCapture, Shortcut,
-        gesture::{DoubleShift, GestureEvent},
-        timestamp_ms,
-    },
+    snapshots::{AfterCapture, Shortcut, timestamp_ms},
 };
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -27,21 +23,12 @@ pub struct Status {
     state: String,
     message: String,
     latest_id: Option<String>,
+    /// The one macOS permission Snapshots needs. JAM never listens to key
+    /// events, so Input Monitoring is never involved.
     screen_recording: bool,
-    input_monitoring: bool,
-    /// Only double-tap Shift listens to key events.
-    input_monitoring_required: bool,
-}
-/// The macOS privacy permissions Snapshots can need.
-#[derive(Clone, Copy)]
-#[repr(i32)]
-pub enum Permission {
-    ScreenRecording = 0,
-    InputMonitoring = 1,
 }
 pub struct SnapshotHost {
     status: Mutex<Status>,
-    gesture: Mutex<DoubleShift>,
     capturing: AtomicBool,
     retention: std::sync::Arc<tokio::sync::Notify>,
 }
@@ -53,10 +40,7 @@ impl Default for SnapshotHost {
                 message: String::new(),
                 latest_id: None,
                 screen_recording: false,
-                input_monitoring: false,
-                input_monitoring_required: false,
             }),
-            gesture: Mutex::new(DoubleShift::default()),
             capturing: AtomicBool::new(false),
             retention: Default::default(),
         }
@@ -77,29 +61,6 @@ fn status(app: &AppHandle, state: &str, message: &str) {
 /// Both Shift keys or a key combination: the shortcut itself is the trigger.
 extern "C" fn trigger() {
     if let Some(app) = APP.get() {
-        capture(app);
-    }
-}
-extern "C" fn key(kind: i32, ms: u64) {
-    let Some(app) = APP.get() else {
-        return;
-    };
-    let host = app.state::<SnapshotHost>();
-    let Ok(mut gesture) = host.gesture.lock() else {
-        return;
-    };
-    if ms == 0 {
-        gesture.reset();
-        return;
-    }
-    let event = match kind {
-        1 => GestureEvent::ShiftDown,
-        2 => GestureEvent::ShiftUp,
-        _ => GestureEvent::Other,
-    };
-    let trigger = gesture.event(event, ms);
-    drop(gesture);
-    if trigger {
         capture(app);
     }
 }
@@ -137,19 +98,10 @@ fn hotkey(accelerator: &str) -> Option<(u32, u32)> {
 /// permission that shortcut needs is granted.
 pub fn register(app: &AppHandle) {
     platform::stop();
-    if let Ok(mut gesture) = app.state::<SnapshotHost>().gesture.lock() {
-        gesture.reset();
-    }
     let settings = app.state::<Host>().runtime.snapshot_settings();
-    let screen = platform::granted(Permission::ScreenRecording);
-    let input = platform::granted(Permission::InputMonitoring);
-    let input_required = settings
-        .as_ref()
-        .is_ok_and(|s| s.shortcut.needs_input_monitoring());
+    let screen = platform::screen_recording();
     if let Ok(mut status) = app.state::<SnapshotHost>().status.lock() {
         status.screen_recording = screen;
-        status.input_monitoring = input;
-        status.input_monitoring_required = input_required;
     }
     let started = |code: i32, taken: &str| match code {
         0 => ("registered", String::new()),
@@ -173,22 +125,11 @@ pub fn register(app: &AppHandle) {
             "needsPermission",
             "Snapshots need Screen Recording to capture a window.".into(),
         ),
-        Ok(_) if input_required && !input => (
-            "needsPermission",
-            "Double-tap Shift needs Input Monitoring to hear the taps.".into(),
-        ),
         Ok(s) => match &s.shortcut {
             Shortcut::BothShift => started(
                 platform::start_pair(trigger),
                 "macOS could not start the Shift shortcut.",
             ),
-            Shortcut::DoubleShift => match platform::start(key) {
-                1 => (
-                    "needsPermission",
-                    "Double-tap Shift needs Input Monitoring to hear the taps.".into(),
-                ),
-                code => started(code, "macOS could not start the Shift listener."),
-            },
             Shortcut::KeyCombination { accelerator } => match hotkey(accelerator) {
                 Some((key_code, modifiers)) => started(
                     platform::start_hotkey(key_code, modifiers, trigger),
@@ -200,19 +141,15 @@ pub fn register(app: &AppHandle) {
     };
     status(app, state, &message);
 }
-/// Re-checks permissions, for when JAM regains focus after System Settings.
+/// Re-checks Screen Recording, for when JAM regains focus after System Settings.
 fn refresh(app: &AppHandle) {
     let current = app
         .state::<SnapshotHost>()
         .status
         .lock()
         .ok()
-        .map(|s| (s.screen_recording, s.input_monitoring));
-    let now = (
-        platform::granted(Permission::ScreenRecording),
-        platform::granted(Permission::InputMonitoring),
-    );
-    if current != Some(now) {
+        .map(|s| s.screen_recording);
+    if current != Some(platform::screen_recording()) {
         register(app);
     }
 }
@@ -370,19 +307,10 @@ pub async fn snapshot_host(
                 "status" => refresh(&handle),
                 "retry" => register(&handle),
                 "requestScreenRecording" => {
-                    platform::request(Permission::ScreenRecording);
+                    platform::request_screen_recording();
                     register(&handle);
                 }
-                "requestInputMonitoring" => {
-                    platform::request(Permission::InputMonitoring);
-                    register(&handle);
-                }
-                "openScreenRecordingSettings" => {
-                    platform::open_settings(Permission::ScreenRecording)
-                }
-                "openInputMonitoringSettings" => {
-                    platform::open_settings(Permission::InputMonitoring)
-                }
+                "openScreenRecordingSettings" => platform::open_screen_recording_settings(),
                 "capture" => capture(&handle),
                 "dismiss" => {
                     if let Some(w) = handle.get_webview_window("snapshot-toast") {

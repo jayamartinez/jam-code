@@ -1,47 +1,6 @@
 import type { SnapshotKeyCombination, SnapshotShortcut } from '@jam/protocol';
-import type { SnapshotShortcutStatus } from '../../desktop';
 
-export type SnapshotPermission = 'screenRecording' | 'inputMonitoring';
-
-/** Screen Recording always; Input Monitoring only to hear double-tapped Shift. */
-export function requiredPermissions(shortcut: SnapshotShortcut): SnapshotPermission[] {
-  return shortcut.kind === 'doubleShift'
-    ? ['screenRecording', 'inputMonitoring']
-    : ['screenRecording'];
-}
-
-export function missingPermissions(
-  shortcut: SnapshotShortcut,
-  status: Pick<SnapshotShortcutStatus, 'screenRecording' | 'inputMonitoring'>,
-): SnapshotPermission[] {
-  return requiredPermissions(shortcut).filter((permission) => !status[permission]);
-}
-
-export const PERMISSION_COPY: Record<
-  SnapshotPermission,
-  { title: string; why: string; request: 'requestScreenRecording' | 'requestInputMonitoring' }
-> = {
-  screenRecording: {
-    title: 'Screen Recording',
-    why: 'Lets JAM capture the window you’re looking at. Nothing is recorded continuously.',
-    request: 'requestScreenRecording',
-  },
-  inputMonitoring: {
-    title: 'Input Monitoring',
-    why: 'Only double-tap Shift needs it, to hear the two taps. Other shortcuts don’t.',
-    request: 'requestInputMonitoring',
-  },
-};
-
-export const SETTINGS_ACTION: Record<
-  SnapshotPermission,
-  'openScreenRecordingSettings' | 'openInputMonitoringSettings'
-> = {
-  screenRecording: 'openScreenRecordingSettings',
-  inputMonitoring: 'openInputMonitoringSettings',
-};
-
-type ShortcutValue = 'bothShift' | 'doubleShift' | SnapshotKeyCombination;
+type ShortcutValue = 'bothShift' | SnapshotKeyCombination;
 
 type ShortcutOption = {
   value: ShortcutValue;
@@ -50,7 +9,7 @@ type ShortcutOption = {
   hint: string;
 };
 
-/** The default: T3-style, no keyboard permission. */
+/** The default, as in T3 Code. Needs no keyboard permission. */
 const BOTH_SHIFT: ShortcutOption = {
   value: 'bothShift',
   label: 'Both Shift keys',
@@ -58,6 +17,7 @@ const BOTH_SHIFT: ShortcutOption = {
   hint: 'Press left and right Shift together.',
 };
 
+/** Every option needs only Screen Recording; none listens to key events. */
 export const SHORTCUT_OPTIONS: readonly ShortcutOption[] = [
   BOTH_SHIFT,
   {
@@ -78,12 +38,6 @@ export const SHORTCUT_OPTIONS: readonly ShortcutOption[] = [
     keys: ['⌥', '⇧', '2'],
     hint: 'A regular shortcut.',
   },
-  {
-    value: 'doubleShift',
-    label: 'Double-tap Shift · needs Input Monitoring',
-    keys: ['⇧ Shift', '⇧ Shift'],
-    hint: 'Tap Shift twice. macOS asks for Input Monitoring to hear the taps.',
-  },
 ];
 
 export function shortcutValue(shortcut: SnapshotShortcut): ShortcutValue {
@@ -91,9 +45,7 @@ export function shortcutValue(shortcut: SnapshotShortcut): ShortcutValue {
 }
 
 export function shortcutFromValue(value: ShortcutValue): SnapshotShortcut {
-  return value === 'bothShift' || value === 'doubleShift'
-    ? { kind: value }
-    : { kind: 'keyCombination', accelerator: value };
+  return value === 'bothShift' ? { kind: value } : { kind: 'keyCombination', accelerator: value };
 }
 
 export function shortcutOption(shortcut: SnapshotShortcut) {

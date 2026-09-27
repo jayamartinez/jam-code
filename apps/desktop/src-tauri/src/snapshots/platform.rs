@@ -23,8 +23,6 @@ mod mac {
     static PENDING: OnceLock<Mutex<HashMap<u64, mpsc::SyncSender<Reply>>>> = OnceLock::new();
     static TOKEN: AtomicU64 = AtomicU64::new(1);
     unsafe extern "C" {
-        fn jam_snapshot_start(callback: extern "C" fn(i32, u64)) -> i32;
-        fn jam_snapshot_stop();
         fn jam_snapshot_show_window(window: *mut std::ffi::c_void);
         fn jam_snapshot_pair_start(callback: extern "C" fn()) -> i32;
         fn jam_snapshot_pair_stop();
@@ -34,9 +32,9 @@ mod mac {
             callback: extern "C" fn(),
         ) -> i32;
         fn jam_snapshot_hotkey_stop();
-        fn jam_snapshot_permission(which: i32) -> bool;
-        fn jam_snapshot_request_permission(which: i32);
-        fn jam_snapshot_open_permission_settings(which: i32);
+        fn jam_snapshot_screen_recording() -> bool;
+        fn jam_snapshot_request_screen_recording();
+        fn jam_snapshot_open_screen_recording_settings();
         fn jam_snapshot_capture(token: u64, callback: extern "C" fn(u64, *const c_char));
         fn jam_snapshot_feedback(
             bytes: *const u8,
@@ -136,10 +134,6 @@ mod mac {
             capture().map(|r| r.window)
         }
     }
-    /// All lifecycle/feedback callers are Tauri main-thread closures.
-    pub fn start(callback: extern "C" fn(i32, u64)) -> i32 {
-        unsafe { jam_snapshot_start(callback) }
-    }
     pub fn show_window(window: &tauri::WebviewWindow) {
         if let Ok(pointer) = window.ns_window() {
             // SAFETY: the live Tauri window owns the NSWindow and this function
@@ -149,10 +143,10 @@ mod mac {
             }
         }
     }
-    /// Stops every shortcut listener; exactly one runs at a time.
+    /// Stops the shortcut listener; exactly one runs at a time. All
+    /// lifecycle/feedback callers are Tauri main-thread closures.
     pub fn stop() {
         unsafe {
-            jam_snapshot_stop();
             jam_snapshot_pair_stop();
             jam_snapshot_hotkey_stop();
         }
@@ -164,14 +158,14 @@ mod mac {
     pub fn start_hotkey(key_code: u32, modifiers: u32, callback: extern "C" fn()) -> i32 {
         unsafe { jam_snapshot_hotkey_start(key_code, modifiers, callback) }
     }
-    pub fn granted(permission: crate::snapshots::Permission) -> bool {
-        unsafe { jam_snapshot_permission(permission as i32) }
+    pub fn screen_recording() -> bool {
+        unsafe { jam_snapshot_screen_recording() }
     }
-    pub fn request(permission: crate::snapshots::Permission) {
-        unsafe { jam_snapshot_request_permission(permission as i32) }
+    pub fn request_screen_recording() {
+        unsafe { jam_snapshot_request_screen_recording() }
     }
-    pub fn open_settings(permission: crate::snapshots::Permission) {
-        unsafe { jam_snapshot_open_permission_settings(permission as i32) }
+    pub fn open_screen_recording_settings() {
+        unsafe { jam_snapshot_open_screen_recording_settings() }
     }
     pub fn feedback(image: &[u8], frame: [f64; 4], flash: bool, sound: bool, clipboard: bool) {
         // SAFETY: bytes remain borrowed for the call; native copies clipboard
@@ -215,9 +209,6 @@ mod unsupported {
     pub fn capture_window() -> Result<CapturedWindow, JamError> {
         WindowsCaptureBackend.capture_active_window()
     }
-    pub fn start(_: extern "C" fn(i32, u64)) -> i32 {
-        3
-    }
     pub fn show_window(window: &tauri::WebviewWindow) {
         let _ = window.show();
     }
@@ -228,11 +219,11 @@ mod unsupported {
     pub fn start_hotkey(_: u32, _: u32, _: extern "C" fn()) -> i32 {
         3
     }
-    pub fn granted(_: crate::snapshots::Permission) -> bool {
+    pub fn screen_recording() -> bool {
         false
     }
-    pub fn request(_: crate::snapshots::Permission) {}
-    pub fn open_settings(_: crate::snapshots::Permission) {}
+    pub fn request_screen_recording() {}
+    pub fn open_screen_recording_settings() {}
     pub fn feedback(_: &[u8], _: [f64; 4], _: bool, _: bool, _: bool) {}
 }
 #[cfg(not(target_os = "macos"))]

@@ -89,18 +89,14 @@ export interface SnapshotShortcutStatus {
   state: 'registered' | 'disabled' | 'needsPermission' | 'unavailable';
   message: string;
   latestId: string | null;
+  /** The one macOS permission Snapshots needs. */
   screenRecording: boolean;
-  inputMonitoring: boolean;
-  /** Only double-tap Shift listens to key events. */
-  inputMonitoringRequired: boolean;
 }
 export type SnapshotHostAction =
   | 'status'
   | 'retry'
   | 'requestScreenRecording'
-  | 'requestInputMonitoring'
   | 'openScreenRecordingSettings'
-  | 'openInputMonitoringSettings'
   | 'capture'
   | 'dismiss'
   | 'open';

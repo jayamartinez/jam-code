@@ -1,6 +1,5 @@
 //! Runtime-owned snapshot metadata, staged destinations, and private assets.
 mod assets;
-pub mod gesture;
 mod requests;
 use crate::{
     JamError, Runtime,
@@ -29,22 +28,16 @@ pub struct SnapshotSettings {
 #[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
 pub enum Shortcut {
     /// Left and right Shift held together. Read from the modifier state, so
-    /// it needs no keyboard permission.
+    /// it needs no keyboard permission. Records from earlier builds that chose
+    /// double-tap Shift read as this: JAM no longer listens to key events.
+    #[serde(alias = "doubleShift")]
     BothShift,
-    /// Two taps of one Shift key. Hearing taps means listening to key events,
-    /// which macOS gates behind Input Monitoring.
-    DoubleShift,
     /// An ordinary global hotkey from [`KEY_COMBINATIONS`].
     KeyCombination { accelerator: String },
 }
 /// The key combinations JAM offers. A fixed list: each is free of macOS's own
 /// screenshot shortcuts (⌘⇧3/4/5) and needs no permission to register.
 pub const KEY_COMBINATIONS: [&str; 3] = ["Command+Shift+2", "Control+Shift+2", "Option+Shift+2"];
-impl Shortcut {
-    pub fn needs_input_monitoring(&self) -> bool {
-        matches!(self, Self::DoubleShift)
-    }
-}
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum CaptureMode {

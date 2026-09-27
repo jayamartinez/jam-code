@@ -6,11 +6,7 @@ import { useSnapshots } from '../../../state/snapshots';
 import { SnapshotCard } from '../../SnapshotToast';
 import { Card, Keys, PageHeader, Planned, Row, Section, Select, Toggle } from '../controls';
 import {
-  PERMISSION_COPY,
-  SETTINGS_ACTION,
   SHORTCUT_OPTIONS,
-  missingPermissions,
-  requiredPermissions,
   shortcutFromValue,
   shortcutOption,
   shortcutValue,
@@ -158,8 +154,8 @@ export default function SnapshotsPage({ transport, snapshots: host }: SettingsPa
       </div>
     );
 
-  const missing = status ? missingPermissions(settings.shortcut, status) : [];
-  const ready = !!status && missing.length === 0;
+  /** Screen Recording is the only permission Snapshots needs. */
+  const ready = !!status?.screenRecording;
   /** On only when turned on and everything it needs is allowed. */
   const on = settings.enabled && ready;
   const paused = settings.enabled && !!status && !ready;
@@ -209,52 +205,47 @@ export default function SnapshotsPage({ transport, snapshots: host }: SettingsPa
             <strong>{paused ? 'Snapshots are paused' : 'Turn on Snapshots'}</strong>
             <p>
               {paused
-                ? 'macOS no longer allows something Snapshots needs. Allow it again to resume.'
-                : 'macOS asks you to allow this first. JAM captures only when you press the shortcut.'}
+                ? 'Screen Recording was turned off for JAM. Allow it again to resume.'
+                : 'macOS asks you to allow Screen Recording first. JAM captures only when you press the shortcut.'}
             </p>
           </header>
-          <ol>
-            {requiredPermissions(settings.shortcut).map((permission, index) => {
-              const granted = status[permission];
-              const copy = PERMISSION_COPY[permission];
-              return (
-                <li key={permission} className={granted ? 'granted' : ''}>
-                  <span className="tools-snapshot-step" aria-hidden="true">
-                    {granted ? <Check size={12} /> : index + 1}
-                  </span>
-                  <div>
-                    <strong>{copy.title}</strong>
-                    <p>{copy.why}</p>
-                  </div>
-                  {granted ? (
-                    <span className="tools-snapshot-allowed">Allowed</span>
-                  ) : (
-                    <span className="tools-snapshot-actions">
-                      <button
-                        type="button"
-                        className="sv-button quiet"
-                        onClick={() => void hostAction(SETTINGS_ACTION[permission])}
-                      >
-                        Open System Settings
-                      </button>
-                      <button
-                        type="button"
-                        className="sv-button primary"
-                        onClick={() => void hostAction(copy.request)}
-                      >
-                        Allow
-                      </button>
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
+          <div className={`tools-snapshot-permission ${ready ? 'granted' : ''}`}>
+            <span className="tools-snapshot-step" aria-hidden="true">
+              {ready ? <Check size={12} /> : 1}
+            </span>
+            <div>
+              <strong>Screen Recording</strong>
+              <p>
+                Lets JAM capture the window you’re looking at, only when you press the shortcut. JAM
+                never watches your keyboard.
+              </p>
+            </div>
+            {ready ? (
+              <span className="tools-snapshot-allowed">Allowed</span>
+            ) : (
+              <span className="tools-snapshot-actions">
+                <button
+                  type="button"
+                  className="sv-button quiet"
+                  onClick={() => void hostAction('openScreenRecordingSettings')}
+                >
+                  Open System Settings
+                </button>
+                <button
+                  type="button"
+                  className="sv-button primary"
+                  onClick={() => void hostAction('requestScreenRecording')}
+                >
+                  Allow
+                </button>
+              </span>
+            )}
+          </div>
           <footer>
             <p>
               {ready
-                ? 'Everything Snapshots needs is allowed.'
-                : 'After you allow Screen Recording, macOS may ask you to quit and reopen JAM.'}
+                ? 'Screen Recording is allowed.'
+                : 'Turn on JAM in the list System Settings opens. macOS may then ask to quit and reopen JAM.'}
             </p>
             {!settings.enabled && (
               <span className="tools-snapshot-actions">

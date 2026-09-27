@@ -12,14 +12,11 @@ export const SNAPSHOT_KEY_COMBINATIONS = [
 export type SnapshotKeyCombination = (typeof SNAPSHOT_KEY_COMBINATIONS)[number];
 
 /**
- * `bothShift` (left and right Shift together) and key combinations need no
- * keyboard permission. `doubleShift` listens to key events, which macOS gates
- * behind Input Monitoring.
+ * Both Shift keys held together, or one of the offered key combinations.
+ * Neither listens to key events, so Snapshots never needs Input Monitoring.
  */
 export type SnapshotShortcut =
-  | { kind: 'bothShift' }
-  | { kind: 'doubleShift' }
-  | { kind: 'keyCombination'; accelerator: SnapshotKeyCombination };
+  { kind: 'bothShift' } | { kind: 'keyCombination'; accelerator: SnapshotKeyCombination };
 
 export interface SnapshotSettings {
   enabled: boolean;

@@ -28,39 +28,37 @@ unsent capture. Dismiss only hides feedback. Closing a view changes none of this
 
 ## Global shortcut and permissions
 
-Snapshots start off. Turning them on opens a setup step for each macOS
-permission the chosen shortcut needs, and Snapshots stay off until every one is
-allowed: the header toggle shows the effective state, and the desktop host
-refuses to start a listener while a required permission is missing. If one is
-revoked later, Settings shows the same steps as "paused". Permission state is
-re-read when JAM regains focus, not polled. Permissions are requested only from
-an explicit Settings action, never by a background capture.
+Snapshots start off. Turning them on shows one setup step, Screen Recording,
+and Snapshots stay off until it is allowed: the header toggle shows the
+effective state, and the desktop host refuses to start a listener without it.
+If it is revoked later, Settings shows the same step as "paused". Its state is
+re-read when JAM regains focus, not polled. Allow asks ScreenCaptureKit for
+shareable content, which registers JAM in the Screen Recording list, and opens
+that list if access is still off; it runs only from an explicit Settings action,
+never from a background capture.
 
-Screen Recording is always required, for capture. The shortcut decides the rest:
+Screen Recording is the only permission. JAM never listens to key events, so it
+never needs Input Monitoring. An earlier build detected a double-tap of Shift
+with a listen-only event tap; that required Input Monitoring and was removed.
+Stored settings that chose it now read as both Shift keys.
 
 - **Both Shift keys (default).** Left and right Shift held together, the same
   default T3 Code uses. JAM reads the current modifier state
-  (`CGEventSourceFlagsState`), which macOS does not gate, so no keyboard
-  permission is needed. This means sampling: a 50 ms `dispatch_source` timer on
-  a utility queue, with 10 ms leeway so macOS can coalesce wakeups. It is a
-  deliberate exception to "idle should not poll" and runs only while Snapshots
-  is on with this shortcut. Keys already held when it starts do not count, and
-  Command, Control or Option held with them cancel the press.
+  (`CGEventSourceFlagsState`), which macOS does not gate. This means sampling:
+  a 50 ms `dispatch_source` timer on a utility queue, with 10 ms leeway so
+  macOS can coalesce wakeups. It is a deliberate exception to "idle should not
+  poll" and runs only while Snapshots is on with this shortcut. Keys already
+  held when it starts do not count, and Command, Control or Option held with
+  them cancel the press.
 - **⌘⇧2, ⌃⇧2 or ⌥⇧2.** Ordinary global hotkeys through
-  `RegisterEventHotKey`. They need no permission and never see other keys.
-  The list is fixed and avoids macOS's own ⌘⇧3/4/5. If another app already
-  holds the combination, Settings says so; JAM never replaces a registration.
-- **Double-tap Shift.** Hearing taps needs key events, so this uses a
-  listen-only `CGEventTap` and therefore Input Monitoring. It neither suppresses
-  input nor stores typed keys; only event category and timing reach the pure
-  Rust detector. Two presses must each last 25–220 ms, with 40–350 ms between
-  them. Other keys, mouse buttons or scrolling cancel the sequence, and a 400 ms
-  typing quiet period and 900 ms cooldown reject ordinary typing, holds, repeat
-  and bounce. Secure Input can prevent delivery.
+  `RegisterEventHotKey`, delivered by the system without seeing other keys and
+  with no timer. The list is fixed and avoids macOS's own ⌘⇧3/4/5. If another
+  app already holds the combination, Settings says so; JAM never replaces a
+  registration.
 
 Exactly one listener runs at a time. Disabling, changing the shortcut or quitting
-stops it. Modifier gestures have no conflict registry on macOS, so app-local
-bindings (for example JetBrains Search Everywhere on double Shift) can also fire.
+stops it. Modifier shortcuts have no conflict registry on macOS, so an app-local
+binding on both Shift keys could also fire.
 
 ## Capture and feedback
 

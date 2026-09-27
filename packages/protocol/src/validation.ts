@@ -370,7 +370,7 @@ const snapshotSettings: Check = (value) =>
     enabled: boolean,
     shortcut: (shortcut) => {
       const kind = object(shortcut).kind;
-      if (kind === 'bothShift' || kind === 'doubleShift') shape(shortcut, { kind: oneOf(kind) });
+      if (kind === 'bothShift') shape(shortcut, { kind: oneOf('bothShift') });
       else
         shape(shortcut, {
           kind: oneOf('keyCombination'),

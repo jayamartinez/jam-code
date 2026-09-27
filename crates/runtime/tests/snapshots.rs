@@ -379,8 +379,18 @@ fn snapshots_start_off_and_only_offered_shortcuts_are_accepted() {
     let defaults = SnapshotSettings::default();
     assert!(!defaults.enabled);
     assert_eq!(defaults.shortcut, Shortcut::BothShift);
-    assert!(!defaults.shortcut.needs_input_monitoring());
-    assert!(Shortcut::DoubleShift.needs_input_monitoring());
+    // Double-tap Shift is gone; a record that chose it reads as both Shift keys.
+    let legacy: SnapshotSettings = serde_json::from_value(json!({
+        "enabled": true, "shortcut": {"kind": "doubleShift"}, "captureMode": "activeWindow",
+        "afterCapture": "stage", "flash": true, "sound": true, "toast": true,
+        "copyToClipboard": false, "retentionDays": 7
+    }))
+    .unwrap();
+    assert_eq!(legacy.shortcut, Shortcut::BothShift);
+    assert_eq!(
+        serde_json::to_value(&legacy.shortcut).unwrap(),
+        json!({"kind": "bothShift"})
+    );
 
     let s = Sandbox::new();
     let r = s.open_as_stored();
