@@ -1,4 +1,5 @@
 import type { AppearanceSettings, Wallpaper } from '@jam/protocol';
+import type { WallpaperPalette } from './palette';
 import { appearanceTokens, normalizeAppearance, tokenStylesheet } from './resolve';
 
 /**
@@ -16,10 +17,17 @@ const CACHE_KEY = 'jam.appearance';
 
 let appliedWallpaper: string | undefined;
 
-export function applyAppearance(appearance: AppearanceSettings, wallpaper?: Wallpaper) {
+export function applyAppearance(
+  appearance: AppearanceSettings,
+  wallpaper?: Wallpaper,
+  palette?: WallpaperPalette,
+) {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
-  const { tokens, scheme, background } = appearanceTokens(appearance, !!wallpaper);
+  const { tokens, scheme, background } = appearanceTokens(appearance, {
+    present: !!wallpaper,
+    ...(palette ? { palette } : {}),
+  });
   let style = document.getElementById(STYLE_ID);
   if (!style) {
     style = document.createElement('style');

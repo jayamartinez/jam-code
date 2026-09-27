@@ -423,6 +423,21 @@ crate (2.12) and `@tauri-apps/api` (2.11); the QA bundle was built with
 `--ignore-version-mismatches`. The mismatch predates this branch and is not
 changed here.
 
+### Follow-up: editor themes, surfaces and effects (2026-09-27)
+
+`pnpm check` (134 tests) and `pnpm check:rust` pass. Tests add: every one of
+the 31 themes against the contrast floors; independent sidebar and pane
+opacity; backdrop blur emitted as `none` for opaque surfaces, zero blur or
+nothing to soften; effect layers and their sizes; wallpaper palette
+extraction; "Match colours to image" tinting surfaces and the accent only
+while an image is shown, never text or status; and a Rust check that a record
+saved before these fields existed still reads. Browser-preview QA (DevTools
+protocol, 1440×900): the Dark/Light theme list; eight editor themes across
+sidebar, tree, tabs and the TSX editor; Clear with a halftone pattern and fade
+over an image; Solid; Glass with matched colours. Not re-verified natively in
+this pass. The main chunk is 432 KB (136 KB gzip), up 6.8 KB gzip for the
+palette data.
+
 ## Performance measurement procedure
 
 Use release builds for product claims, fixed machine/window/corpus and five cold launches plus five warm launches. Record runtime startup timestamp and frontend `jam-bootstrap` to workspace-loaded mark. Record median/p95, OS/build, corpus size and installed WebView version.

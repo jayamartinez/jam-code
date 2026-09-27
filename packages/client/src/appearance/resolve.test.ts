@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { APPEARANCE, DEFAULT_APPEARANCE, type AppearanceSettings } from '@jam/protocol';
 import { contrast, mix } from './color';
+import { extractPalette } from './palette';
 import {
   backgroundTokens,
+  effectTokens,
   colorTokens,
   fontStack,
   MONO_STACK,
@@ -36,7 +38,10 @@ describe('theme tokens', () => {
       expect(ratio(theme.text.secondary), `${theme.id} secondary`).toBeGreaterThanOrEqual(4.5);
       expect(ratio(theme.text.muted), `${theme.id} muted`).toBeGreaterThanOrEqual(4.5);
       expect(ratio(theme.text.subtle), `${theme.id} subtle`).toBeGreaterThanOrEqual(3.5);
-      expect(ratio(theme.accent), `${theme.id} accent`).toBeGreaterThanOrEqual(4.5);
+      // The accent marks controls (3:1); links use accent-strong, which must read as text.
+      expect(ratio(theme.accent), `${theme.id} accent`).toBeGreaterThanOrEqual(3);
+      const strong = colorTokens(settings({ theme: theme.id }))['--color-accent-strong']!;
+      expect(ratio(strong), `${theme.id} accent-strong`).toBeGreaterThanOrEqual(4.5);
       for (const status of ['success', 'warning', 'danger'] as const)
         expect(ratio(theme.status[status]), `${theme.id} ${status}`).toBeGreaterThanOrEqual(4.5);
       for (const role of SYNTAX_ROLES) {
@@ -84,7 +89,12 @@ describe('theme tokens', () => {
     );
     const lighter = colorTokens(settings({ paneOpacity: 39 }));
     expect(lighter['--color-surface-pane']).toBe('rgb(12 13 19 / 39%)');
-    expect(lighter['--color-surface-sidebar']).toBe('rgb(9 10 15 / 31%)');
+    expect(lighter['--color-surface-pane-muted']).toBe('rgb(12 13 19 / 33%)');
+    // The sidebar is set on its own: a clear pane beside a solid sidebar.
+    expect(lighter['--color-surface-sidebar']).toBe('rgb(9 10 15 / 62%)');
+    const clear = colorTokens(settings({ paneOpacity: 0, sidebarOpacity: 100 }));
+    expect(clear['--color-surface-pane']).toBe('rgb(12 13 19 / 0%)');
+    expect(clear['--color-surface-sidebar']).toBe('rgb(9 10 15 / 100%)');
     expect(colorTokens(settings({ theme: 'graphite' }))['--color-surface-pane']).toBe(
       'rgb(20 20 21 / 100%)',
     );
@@ -116,10 +126,27 @@ describe('typography tokens', () => {
 describe('background tokens', () => {
   it('fall back to the theme background when an image mode has no stored image', () => {
     expect(backgroundTokens(settings({ background: 'image' }), false).mode).toBe('theme');
-    const withImage = backgroundTokens(settings({ background: 'image', paneBlur: 18 }), true);
+    const withImage = backgroundTokens(
+      settings({ background: 'image', paneBlur: 18, sidebarBlur: 6 }),
+      true,
+    );
     expect(withImage.mode).toBe('image');
     expect(withImage.tokens['--wallpaper-layer']).toBe('var(--wallpaper-image)');
-    expect(withImage.tokens['--pane-blur']).toBe('18px');
+    expect(withImage.tokens['--pane-backdrop']).toBe('blur(18px)');
+    expect(withImage.tokens['--sidebar-backdrop']).toBe('blur(6px)');
+    // An opaque surface or a zero blur composites nothing.
+    const opaque = backgroundTokens(
+      settings({ background: 'image', sidebarOpacity: 100, paneBlur: 0 }),
+      true,
+    );
+    expect(opaque.tokens['--sidebar-backdrop']).toBe('none');
+    expect(opaque.tokens['--pane-backdrop']).toBe('none');
+    // A pattern is detail worth softening even without an image.
+    expect(
+      backgroundTokens(settings({ backgroundPattern: 'halftone' }), false).tokens[
+        '--pane-backdrop'
+      ],
+    ).toBe('blur(24px)');
   });
 
   it('filter only the wallpaper layer, and blur panes only over an image', () => {
@@ -134,7 +161,7 @@ describe('background tokens', () => {
     ).tokens;
     expect(tokens['--wallpaper-filter']).toBe('brightness(80%) saturate(120%) blur(10px)');
     expect(tokens['--wallpaper-layer']).toBe('linear-gradient(160deg, #16213f, #07080c)');
-    expect(tokens['--pane-blur']).toBe('0px');
+    expect(tokens['--pane-backdrop']).toBe('none');
     expect(backgroundTokens(settings(), false).tokens['--wallpaper-filter']).toBe('none');
   });
 });
@@ -149,7 +176,10 @@ describe('normalizeAppearance', () => {
       codeLineHeight: 3,
       codeFont: "x'; }",
       gradientFrom: 'blue',
-      paneOpacity: 1,
+      paneOpacity: -5,
+      sidebarOpacity: 140,
+      backgroundPattern: 'plasma',
+      autoColors: 'yes',
       unknown: true,
     });
     expect(normalized.theme).toBe('nightglass');
@@ -158,7 +188,80 @@ describe('normalizeAppearance', () => {
     expect(normalized.codeLineHeight).toBe(APPEARANCE.limits.codeLineHeight[0]);
     expect(normalized.codeFont).toBe('');
     expect(normalized.gradientFrom).toBe(DEFAULT_APPEARANCE.gradientFrom);
-    expect(normalized.paneOpacity).toBe(APPEARANCE.limits.paneOpacity[0]);
+    expect(normalized.paneOpacity).toBe(0);
+    expect(normalized.sidebarOpacity).toBe(100);
+    expect(normalized.backgroundPattern).toBe('none');
+    expect(normalized.autoColors).toBe(false);
     expect('unknown' in normalized).toBe(false);
+  });
+});
+
+describe('background effects', () => {
+  it('are nothing at all by default', () => {
+    expect(effectTokens(settings())).toEqual({
+      '--wallpaper-effects': 'none',
+      '--wallpaper-effects-size': 'auto',
+    });
+  });
+
+  it('stack a vignette, a fade and a pattern as static layers with matching sizes', () => {
+    const tokens = effectTokens(
+      settings({
+        backgroundPattern: 'halftone',
+        patternSize: 5,
+        patternStrength: 40,
+        backgroundFade: 60,
+        backgroundVignette: 30,
+      }),
+    );
+    const layers = tokens['--wallpaper-effects']!;
+    expect(layers.match(/gradient\(/g)).toHaveLength(3);
+    expect(layers).toContain('var(--color-bg-base) 60%');
+    expect(tokens['--wallpaper-effects-size']).toBe('auto, auto, 5px 5px');
+    const grid = effectTokens(settings({ backgroundPattern: 'grid', patternSize: 4 }));
+    expect(grid['--wallpaper-effects-size']).toBe('24px 24px, 24px 24px');
+    const grain = effectTokens(settings({ backgroundPattern: 'grain' }));
+    expect(grain['--wallpaper-effects']).toMatch(/^url\("data:image\/svg\+xml;utf8,<svg /);
+    expect(effectTokens(settings({ backgroundPattern: 'scanlines', patternStrength: 0 }))).toEqual(
+      effectTokens(settings()),
+    );
+  });
+});
+
+describe('match colours to image', () => {
+  // A mostly dark-teal picture with a patch of vivid orange.
+  const pixels: number[] = [];
+  for (let index = 0; index < 400; index++)
+    pixels.push(
+      ...(index < 60
+        ? [240, 120, 30, 255]
+        : index < 300
+          ? [10, 40, 45, 255]
+          : [200, 225, 225, 255]),
+    );
+  const palette = extractPalette(pixels);
+
+  it('finds the vivid hue the image uses and its own dark and light tones', () => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(palette.accentDark.slice(i, i + 2), 16));
+    expect(r!).toBeGreaterThan(g!);
+    expect(g!).toBeGreaterThan(b!);
+    expect(contrast(palette.groundDark, '#000000')).toBeLessThan(1.6);
+    expect(contrast(palette.groundLight, '#ffffff')).toBeLessThan(1.2);
+  });
+
+  it('tints surfaces and sets the accent only while an image is shown with the option on', () => {
+    const on = settings({ background: 'image', autoColors: true });
+    const plain = colorTokens(on, { present: true });
+    const matched = colorTokens(on, { present: true, palette });
+    expect(matched['--color-surface-pane']).not.toBe(plain['--color-surface-pane']);
+    expect(matched['--color-accent']).not.toBe(plain['--color-accent']);
+    expect(matched['--color-text-body']).toBe(plain['--color-text-body']);
+    expect(matched['--color-success']).toBe(plain['--color-success']);
+    expect(colorTokens({ ...on, background: 'theme' }, { present: true, palette })).toEqual(
+      colorTokens({ ...on, background: 'theme' }),
+    );
+    expect(colorTokens({ ...on, autoColors: false }, { present: true, palette })).toEqual(
+      colorTokens({ ...on, autoColors: false }),
+    );
   });
 });

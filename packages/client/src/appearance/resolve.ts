@@ -6,8 +6,17 @@ import {
   HEX_COLOR,
   type AppearanceSettings,
 } from '@jam/protocol';
-import { alpha } from './color';
-import { ANSI_ROLES, SYNTAX_ROLES, THEMES, resolveAccent, type ThemeDefinition } from './themes';
+import { alpha, mix } from './color';
+import type { WallpaperPalette } from './palette';
+import {
+  ANSI_ROLES,
+  SYNTAX_ROLES,
+  THEMES,
+  accentRoles,
+  legible,
+  resolveAccent,
+  type ThemeDefinition,
+} from './themes';
 
 /**
  * Appearance settings → semantic tokens.
@@ -45,6 +54,8 @@ export function normalizeAppearance(value: unknown): AppearanceSettings {
   pick('theme', (item) => APPEARANCE.themes.includes(item as never));
   pick('accent', (item) => APPEARANCE.accents.includes(item as never));
   pick('background', (item) => APPEARANCE.backgrounds.includes(item as never));
+  pick('backgroundPattern', (item) => APPEARANCE.patterns.includes(item as never));
+  pick('autoColors', (item) => typeof item === 'boolean');
   for (const key of ['customAccent', 'backgroundColor', 'gradientFrom', 'gradientTo'] as const)
     pick(key, (item) => typeof item === 'string' && HEX_COLOR.test(item));
   for (const key of ['uiFont', 'codeFont', 'terminalFont'] as const)
@@ -63,35 +74,98 @@ export function normalizeAppearance(value: unknown): AppearanceSettings {
     if (typeof item === 'number' && Number.isFinite(item))
       result[key] = Math.round(Math.min(max, Math.max(min, item)));
   }
-  const opacity = input.paneOpacity;
-  if (typeof opacity === 'number' && Number.isFinite(opacity)) {
-    const [min, max] = APPEARANCE.limits.paneOpacity;
-    result.paneOpacity = Math.round(Math.min(max, Math.max(min, opacity)));
-  } else delete result.paneOpacity;
+  for (const key of ['paneOpacity', 'sidebarOpacity'] as const) {
+    const opacity = input[key];
+    if (typeof opacity === 'number' && Number.isFinite(opacity)) {
+      const [min, max] = APPEARANCE.limits[key];
+      result[key] = Math.round(Math.min(max, Math.max(min, opacity)));
+    } else delete result[key];
+  }
   return result;
+}
+
+/** What the resolver knows about the stored wallpaper. */
+export interface WallpaperContext {
+  present: boolean;
+  palette?: WallpaperPalette;
+}
+
+/** "Match colours to image" is in effect: an image is shown and its colours are known. */
+function matchesImage(appearance: AppearanceSettings, wallpaper: WallpaperContext) {
+  return (
+    appearance.autoColors &&
+    appearance.background === 'image' &&
+    wallpaper.present &&
+    !!wallpaper.palette
+  );
+}
+
+/**
+ * The theme with its grounds and surfaces pulled towards the wallpaper's own
+ * dark (or light) tone. Text, code and status colours are untouched, so the
+ * contrast floors still hold.
+ */
+function tintedTheme(theme: ThemeDefinition, palette: WallpaperPalette): ThemeDefinition {
+  const ground = theme.scheme === 'dark' ? palette.groundDark : palette.groundLight;
+  const tint = (hex: string, amount = 0.3) => mix(hex, ground, amount);
+  const surface = ([hex, own]: [string, number]): [string, number] => [tint(hex), own];
+  return {
+    ...theme,
+    base: tint(theme.base, 0.45),
+    surfaces: {
+      sidebar: surface(theme.surfaces.sidebar),
+      pane: surface(theme.surfaces.pane),
+      paneMuted: surface(theme.surfaces.paneMuted),
+      terminal: surface(theme.surfaces.terminal),
+    },
+    raised: tint(theme.raised, 0.22),
+    overlay: tint(theme.overlay, 0.22),
+    badgeRing: tint(theme.badgeRing),
+  };
 }
 
 export function themeOf(appearance: AppearanceSettings): ThemeDefinition {
   return THEMES[appearance.theme] ?? THEMES.nightglass;
 }
 
-/** Surface opacity: the theme's own, or every surface scaled by the reader's pane opacity. */
-function surfaceAlpha(theme: ThemeDefinition, own: number, paneOpacity?: number) {
+/**
+ * Surface opacity. The sidebar and the main pane are set independently; the
+ * pane's muted and terminal variants follow the pane in proportion, so they
+ * keep their relative weight.
+ */
+function paneAlpha(theme: ThemeDefinition, own: number, paneOpacity?: number) {
   if (paneOpacity === undefined) return own;
   return Math.min(100, (own * paneOpacity) / theme.surfaces.pane[1]);
 }
 
-export function colorTokens(appearance: AppearanceSettings): Record<string, string> {
-  const theme = themeOf(appearance);
+export function colorTokens(
+  appearance: AppearanceSettings,
+  wallpaper: WallpaperContext = { present: false },
+): Record<string, string> {
+  const matched = matchesImage(appearance, wallpaper);
+  const own = themeOf(appearance);
+  const theme = matched ? tintedTheme(own, wallpaper.palette!) : own;
   const { surfaces, text, status, diff, provider } = theme;
-  const surface = ([hex, own]: [string, number]) =>
-    alpha(hex, surfaceAlpha(theme, own, appearance.paneOpacity));
+  const pane = ([hex, alphaOwn]: [string, number]) =>
+    alpha(hex, paneAlpha(theme, alphaOwn, appearance.paneOpacity));
+  const [sidebarHex, sidebarOwn] = surfaces.sidebar;
+  const accent = matched
+    ? (() => {
+        const palette = wallpaper.palette!;
+        const main = legible(
+          theme.scheme === 'dark' ? palette.accentDark : palette.accentLight,
+          theme,
+        );
+        const secondary = mix(main, theme.scheme === 'dark' ? '#ffffff' : '#000000', 0.18);
+        return accentRoles(main, secondary, theme.scheme, surfaces.pane[0]);
+      })()
+    : resolveAccent(theme, appearance.accent, appearance.customAccent);
   const tokens: Record<string, string> = {
     '--color-bg-base': theme.base,
-    '--color-surface-sidebar': surface(surfaces.sidebar),
-    '--color-surface-pane': surface(surfaces.pane),
-    '--color-surface-pane-muted': surface(surfaces.paneMuted),
-    '--color-surface-terminal': surface(surfaces.terminal),
+    '--color-surface-sidebar': alpha(sidebarHex, appearance.sidebarOpacity ?? sidebarOwn),
+    '--color-surface-pane': pane(surfaces.pane),
+    '--color-surface-pane-muted': pane(surfaces.paneMuted),
+    '--color-surface-terminal': pane(surfaces.terminal),
     '--color-surface-raised': theme.raised,
     '--color-surface-overlay': theme.overlay,
     '--color-scrim': theme.scrim,
@@ -111,7 +185,7 @@ export function colorTokens(appearance: AppearanceSettings): Record<string, stri
     '--color-text-subtle': text.subtle,
     '--color-text-faint': text.faint,
     '--color-text-ghost': text.ghost,
-    ...resolveAccent(theme, appearance.accent, appearance.customAccent),
+    ...accent,
     '--color-success': status.success,
     '--color-success-soft': alpha(status.success, status.soft[0]),
     '--color-warning': status.warning,
@@ -153,10 +227,72 @@ export function typographyTokens(appearance: AppearanceSettings): Record<string,
   };
 }
 
+const shade = (percent: number) =>
+  `color-mix(in srgb, var(--color-bg-base) ${percent}%, transparent)`;
+
+/** Film grain: SVG turbulence, rasterised once as a small repeating tile. */
+function grain(strength: number) {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 ${((strength / 100) * 0.55).toFixed(3)} 0'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>`;
+  return `url("data:image/svg+xml;utf8,${svg}")`;
+}
+
+/**
+ * Static overlays between the background and the panes: a pattern (halftone
+ * dots, scanlines, a fine grid or film grain), a fade towards the bottom edge
+ * and a vignette. All are CSS gradients or one tiny SVG tile, painted once and
+ * composited; nothing animates and nothing is computed per frame. They darken
+ * towards the theme's ground, so on a light theme they lighten instead.
+ */
+export function effectTokens(appearance: AppearanceSettings): Record<string, string> {
+  const layers: [image: string, size: string][] = [];
+  const { patternStrength: strength, patternSize: size } = appearance;
+  if (appearance.backgroundVignette > 0)
+    layers.push([
+      `radial-gradient(ellipse at center, transparent 40%, ${shade(appearance.backgroundVignette)} 100%)`,
+      'auto',
+    ]);
+  if (appearance.backgroundFade > 0)
+    layers.push([
+      `linear-gradient(to bottom, transparent 20%, ${shade(appearance.backgroundFade)} 100%)`,
+      'auto',
+    ]);
+  if (strength > 0)
+    switch (appearance.backgroundPattern) {
+      case 'halftone':
+        layers.push([
+          `radial-gradient(circle at center, transparent 30%, ${shade(strength)} 64%)`,
+          `${size}px ${size}px`,
+        ]);
+        break;
+      case 'scanlines':
+        layers.push([
+          `repeating-linear-gradient(to bottom, ${shade(strength)} 0 1px, transparent 1px ${size}px)`,
+          'auto',
+        ]);
+        break;
+      case 'grid': {
+        const line = `color-mix(in srgb, var(--color-text-strong) ${Math.round(strength / 4)}%, transparent)`;
+        const cell = `${size * 6}px ${size * 6}px`;
+        layers.push([`linear-gradient(to right, ${line} 1px, transparent 1px)`, cell]);
+        layers.push([`linear-gradient(to bottom, ${line} 1px, transparent 1px)`, cell]);
+        break;
+      }
+      case 'grain':
+        layers.push([grain(strength), `${size * 40}px ${size * 40}px`]);
+        break;
+    }
+  return {
+    '--wallpaper-effects': layers.length ? layers.map(([image]) => image).join(', ') : 'none',
+    '--wallpaper-effects-size': layers.length ? layers.map(([, size]) => size).join(', ') : 'auto',
+  };
+}
+
 /**
  * The wallpaper layer behind every pane. Brightness, saturation and blur apply
  * to this layer only; panes and text are never filtered. An image mode without
- * a stored image falls back to the theme's own background.
+ * a stored image falls back to the theme's own background. Backdrop blur runs
+ * only where there is detail to soften — an image or a pattern — and only on a
+ * surface that is not already opaque.
  */
 export function backgroundTokens(
   appearance: AppearanceSettings,
@@ -175,6 +311,10 @@ export function backgroundTokens(
     appearance.backgroundSaturation !== 100 && `saturate(${appearance.backgroundSaturation}%)`,
     appearance.backgroundBlur > 0 && `blur(${appearance.backgroundBlur}px)`,
   ].filter(Boolean);
+  const detailed =
+    mode === 'image' || (appearance.backgroundPattern !== 'none' && appearance.patternStrength > 0);
+  const paneOpaque = (appearance.paneOpacity ?? theme.surfaces.pane[1]) >= 100;
+  const sidebarOpaque = (appearance.sidebarOpacity ?? theme.surfaces.sidebar[1]) >= 100;
   return {
     mode,
     tokens: {
@@ -183,18 +323,29 @@ export function backgroundTokens(
       '--wallpaper-filter': filters.length ? filters.join(' ') : 'none',
       // A blurred edge would fade to the window background; scale it past the edge.
       '--wallpaper-scale': String(1 + (appearance.backgroundBlur * 2) / 1000),
-      '--pane-blur': mode === 'image' ? `${appearance.paneBlur}px` : '0px',
+      '--pane-backdrop':
+        detailed && !paneOpaque && appearance.paneBlur > 0
+          ? `blur(${appearance.paneBlur}px)`
+          : 'none',
+      '--sidebar-backdrop':
+        detailed && !sidebarOpaque && appearance.sidebarBlur > 0
+          ? `blur(${appearance.sidebarBlur}px)`
+          : 'none',
+      ...effectTokens(appearance),
     },
   };
 }
 
-export function appearanceTokens(appearance: AppearanceSettings, hasWallpaper: boolean) {
-  const background = backgroundTokens(appearance, hasWallpaper);
+export function appearanceTokens(
+  appearance: AppearanceSettings,
+  wallpaper: WallpaperContext = { present: false },
+) {
+  const background = backgroundTokens(appearance, wallpaper.present);
   return {
     scheme: themeOf(appearance).scheme,
     background: background.mode,
     tokens: {
-      ...colorTokens(appearance),
+      ...colorTokens(appearance, wallpaper),
       ...typographyTokens(appearance),
       ...background.tokens,
     },

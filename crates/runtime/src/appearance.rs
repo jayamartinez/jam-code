@@ -22,6 +22,12 @@ struct Limits {
     background_blur: [u32; 2],
     pane_opacity: [u32; 2],
     pane_blur: [u32; 2],
+    sidebar_opacity: [u32; 2],
+    sidebar_blur: [u32; 2],
+    pattern_strength: [u32; 2],
+    pattern_size: [u32; 2],
+    background_fade: [u32; 2],
+    background_vignette: [u32; 2],
     wallpaper_utf16: usize,
     wallpaper_name_utf16: usize,
     wallpaper_pixels: u32,
@@ -32,6 +38,8 @@ struct Fixture {
     themes: Vec<String>,
     accents: Vec<String>,
     backgrounds: Vec<String>,
+    patterns: Vec<String>,
+    defaults: serde_json::Value,
     limits: Limits,
 }
 
@@ -69,10 +77,36 @@ pub struct Appearance {
     pub background_brightness: u32,
     pub background_saturation: u32,
     pub background_blur: u32,
+    pub background_pattern: String,
+    pub pattern_strength: u32,
+    pub pattern_size: u32,
+    pub background_fade: u32,
+    pub background_vignette: u32,
     /// Omitted keeps the theme's own pane opacity.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pane_opacity: Option<u32>,
     pub pane_blur: u32,
+    /// Omitted keeps the theme's own sidebar opacity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sidebar_opacity: Option<u32>,
+    pub sidebar_blur: u32,
+    pub auto_colors: bool,
+}
+
+impl Appearance {
+    /// Reads a stored record, filling fields added since it was written from
+    /// the shared defaults. Updates stay strict; only reading is forgiving, so
+    /// an upgrade never loses a reader's appearance.
+    pub fn from_stored(stored: serde_json::Value) -> Option<Self> {
+        let serde_json::Value::Object(stored) = stored else {
+            return None;
+        };
+        let mut record = fixture().defaults.as_object()?.clone();
+        record.extend(stored);
+        let appearance: Self = serde_json::from_value(serde_json::Value::Object(record)).ok()?;
+        appearance.validate().ok()?;
+        Some(appearance)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -136,6 +170,9 @@ impl Appearance {
         if !fixture.backgrounds.contains(&self.background) {
             return Err(JamError::invalid("Unknown background mode."));
         }
+        if !fixture.patterns.contains(&self.background_pattern) {
+            return Err(JamError::invalid("Unknown background pattern."));
+        }
         if ![
             &self.custom_accent,
             &self.background_color,
@@ -166,6 +203,11 @@ impl Appearance {
             (self.background_saturation, limits.background_saturation),
             (self.background_blur, limits.background_blur),
             (self.pane_blur, limits.pane_blur),
+            (self.sidebar_blur, limits.sidebar_blur),
+            (self.pattern_strength, limits.pattern_strength),
+            (self.pattern_size, limits.pattern_size),
+            (self.background_fade, limits.background_fade),
+            (self.background_vignette, limits.background_vignette),
         ];
         if !ranges
             .into_iter()
@@ -173,6 +215,9 @@ impl Appearance {
             || self
                 .pane_opacity
                 .is_some_and(|value| !within(value, limits.pane_opacity))
+            || self
+                .sidebar_opacity
+                .is_some_and(|value| !within(value, limits.sidebar_opacity))
         {
             return Err(JamError::invalid("An appearance value is out of range."));
         }
@@ -252,9 +297,34 @@ mod tests {
         assert!(appearance(json!({ "customAccent": "red" })).is_err());
         assert!(appearance(json!({ "codeFont": "x'; } body { color: red" })).is_err());
         assert!(appearance(json!({ "uiFontSize": 40 })).is_err());
-        assert!(appearance(json!({ "paneOpacity": 5 })).is_err());
+        assert!(appearance(json!({ "paneOpacity": 101 })).is_err());
         assert!(appearance(json!({ "surprise": true })).is_err());
+        assert!(appearance(json!({ "backgroundPattern": "plasma" })).is_err());
+        assert!(appearance(json!({ "sidebarOpacity": 101 })).is_err());
+        assert!(appearance(json!({ "autoColors": "yes" })).is_err());
+        assert!(appearance(json!({ "theme": "github-dark-dimmed", "paneOpacity": 0 })).is_ok());
         assert!(appearance(json!({ "codeFont": "JetBrains Mono" })).is_ok());
+    }
+
+    #[test]
+    fn records_from_an_earlier_version_read_with_new_fields_defaulted() {
+        let mut old = defaults();
+        let object = old.as_object_mut().unwrap();
+        for key in [
+            "backgroundPattern",
+            "sidebarBlur",
+            "autoColors",
+            "backgroundFade",
+        ] {
+            object.remove(key);
+        }
+        object.insert("theme".into(), json!("frost"));
+        let read = Appearance::from_stored(old).expect("an older record still reads");
+        assert_eq!(read.theme, "frost");
+        assert_eq!(read.background_pattern, "none");
+        assert!(!read.auto_colors);
+        assert!(Appearance::from_stored(json!({ "theme": "neon" })).is_none());
+        assert!(Appearance::from_stored(json!([])).is_none());
     }
 
     #[test]

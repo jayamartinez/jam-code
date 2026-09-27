@@ -25,15 +25,35 @@
   transform: scale(var(--wallpaper-scale));
 }
 /*
- * Over a picture, panes blur what is behind them so text stays readable. Only
- * an image needs this; the theme's own gradients are already smooth, and
- * backdrop blur costs a compositing pass on every frame the pane repaints.
+ * Effects between the wallpaper and the panes: a pattern, a fade and a
+ * vignette (Settings → Appearance → Effects). Static gradients and one small
+ * SVG tile, painted once.
  */
-[data-background='image'] .pane,
-[data-background='image'] .sidebar,
-[data-background='image'] .settings-nav {
-  -webkit-backdrop-filter: blur(var(--pane-blur));
-  backdrop-filter: blur(var(--pane-blur));
+.jam-app::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--wallpaper-effects);
+  background-size: var(--wallpaper-effects-size);
+}
+/*
+ * Over a picture or a pattern, translucent surfaces blur what is behind them
+ * so text stays readable. The resolver sets each blur to 0 where there is
+ * nothing to soften or the surface is opaque (as `none`, not a zero blur,
+ * which WebKit still composites), because backdrop blur costs a
+ * compositing pass on every frame the surface repaints. The sidebar and the
+ * main panes are set independently.
+ */
+.jam-app .pane {
+  -webkit-backdrop-filter: var(--pane-backdrop);
+  backdrop-filter: var(--pane-backdrop);
+}
+.jam-app .sidebar,
+.jam-app .settings-nav {
+  -webkit-backdrop-filter: var(--sidebar-backdrop);
+  backdrop-filter: var(--sidebar-backdrop);
 }
 /* Navigation chrome: WebKit selects the word under a right-click otherwise. */
 .sidebar,

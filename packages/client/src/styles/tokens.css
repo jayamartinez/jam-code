@@ -121,7 +121,10 @@
   --wallpaper-layer: var(--background-glow);
   --wallpaper-filter: none;
   --wallpaper-scale: 1;
-  --pane-blur: 0px;
+  --pane-backdrop: none;
+  --sidebar-backdrop: none;
+  --wallpaper-effects: none;
+  --wallpaper-effects-size: auto;
   /*
    * Typography. UI sizes are written as calc(Npx * var(--ui-scale)), so the
    * reader's UI font size scales type without touching geometry. Code and

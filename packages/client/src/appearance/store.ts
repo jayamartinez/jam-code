@@ -7,6 +7,7 @@ import {
 } from '@jam/protocol';
 import { applyAppearance, cacheAppearance, cachedAppearance } from './apply';
 import { normalizeAppearance } from './resolve';
+import { paletteFromImage, type WallpaperPalette } from './palette';
 
 /**
  * Client projection of the runtime's appearance record.
@@ -20,6 +21,8 @@ import { normalizeAppearance } from './resolve';
 export interface AppearanceSnapshot {
   appearance: AppearanceSettings;
   wallpaper?: Wallpaper;
+  /** Colours sampled from the wallpaper, for "Match colours to image". Not stored. */
+  palette?: WallpaperPalette;
   /** The runtime's record has been read (or failed to be). */
   loaded: boolean;
   /** Why the last save failed, until the next one succeeds. */
@@ -75,9 +78,25 @@ export class AppearanceStore {
   getSnapshot = () => this.snapshot;
 
   private set(next: Partial<AppearanceSnapshot>) {
+    const wallpaperChanged = 'wallpaper' in next && next.wallpaper !== this.snapshot.wallpaper;
     this.snapshot = { ...this.snapshot, ...next };
-    applyAppearance(this.snapshot.appearance, this.snapshot.wallpaper);
+    if (wallpaperChanged) {
+      this.snapshot = { ...this.snapshot, palette: undefined };
+      void this.sample(this.snapshot.wallpaper);
+    }
+    applyAppearance(this.snapshot.appearance, this.snapshot.wallpaper, this.snapshot.palette);
     this.listeners.forEach((listener) => listener());
+  }
+
+  /** Samples a wallpaper's colours once, off the change path. */
+  private async sample(wallpaper: Wallpaper | undefined) {
+    if (!wallpaper) return;
+    try {
+      const palette = await paletteFromImage(wallpaper.dataUrl);
+      if (palette && this.snapshot.wallpaper === wallpaper) this.set({ palette });
+    } catch {
+      // Without a palette, "Match colours to image" keeps the theme's colours.
+    }
   }
 
   async load() {

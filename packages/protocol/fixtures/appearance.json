@@ -1,5 +1,37 @@
 {
-  "themes": ["nightglass", "tide", "graphite", "oled", "frost", "linen"],
+  "themes": [
+    "nightglass",
+    "tide",
+    "graphite",
+    "oled",
+    "frost",
+    "linen",
+    "claude-dark",
+    "claude-light",
+    "github-dark",
+    "github-dark-dimmed",
+    "github-light",
+    "pierre-dark",
+    "pierre-light",
+    "one-dark-pro",
+    "one-light",
+    "vercel-dark",
+    "vercel-light",
+    "vscode-plus-dark",
+    "vscode-plus-light",
+    "xcode-dark",
+    "xcode-light",
+    "gruvbox-dark",
+    "gruvbox-light",
+    "linear-dark",
+    "linear-light",
+    "notion-dark",
+    "notion-light",
+    "proof-dark",
+    "proof-light",
+    "raycast-dark",
+    "raycast-light"
+  ],
   "accents": ["theme", "blue", "cobalt", "cyan", "violet", "emerald", "amber", "rose", "custom"],
   "backgrounds": ["theme", "solid", "gradient", "image"],
   "defaults": {
@@ -22,7 +54,14 @@
     "backgroundBrightness": 100,
     "backgroundSaturation": 100,
     "backgroundBlur": 0,
-    "paneBlur": 24
+    "backgroundPattern": "none",
+    "patternStrength": 35,
+    "patternSize": 4,
+    "backgroundFade": 0,
+    "backgroundVignette": 0,
+    "paneBlur": 24,
+    "sidebarBlur": 24,
+    "autoColors": false
   },
   "limits": {
     "fontUtf16": 64,
@@ -35,10 +74,17 @@
     "backgroundBrightness": [30, 130],
     "backgroundSaturation": [0, 150],
     "backgroundBlur": [0, 40],
-    "paneOpacity": [40, 100],
+    "paneOpacity": [0, 100],
     "paneBlur": [0, 40],
     "wallpaperUtf16": 8000000,
     "wallpaperNameUtf16": 128,
-    "wallpaperPixels": 2560
-  }
+    "wallpaperPixels": 2560,
+    "sidebarOpacity": [0, 100],
+    "sidebarBlur": [0, 40],
+    "patternStrength": [0, 100],
+    "patternSize": [2, 16],
+    "backgroundFade": [0, 100],
+    "backgroundVignette": [0, 100]
+  },
+  "patterns": ["none", "halftone", "scanlines", "grid", "grain"]
 }

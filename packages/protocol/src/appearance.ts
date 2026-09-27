@@ -11,10 +11,43 @@ import appearanceJson from '../fixtures/appearance.json';
  * values.
  */
 
-export type ThemeId = 'nightglass' | 'tide' | 'graphite' | 'oled' | 'frost' | 'linen';
+export type ThemeId =
+  | 'nightglass'
+  | 'tide'
+  | 'graphite'
+  | 'oled'
+  | 'frost'
+  | 'linen'
+  | 'claude-dark'
+  | 'claude-light'
+  | 'github-dark'
+  | 'github-dark-dimmed'
+  | 'github-light'
+  | 'pierre-dark'
+  | 'pierre-light'
+  | 'one-dark-pro'
+  | 'one-light'
+  | 'vercel-dark'
+  | 'vercel-light'
+  | 'vscode-plus-dark'
+  | 'vscode-plus-light'
+  | 'xcode-dark'
+  | 'xcode-light'
+  | 'gruvbox-dark'
+  | 'gruvbox-light'
+  | 'linear-dark'
+  | 'linear-light'
+  | 'notion-dark'
+  | 'notion-light'
+  | 'proof-dark'
+  | 'proof-light'
+  | 'raycast-dark'
+  | 'raycast-light';
 export type AccentId =
   'theme' | 'blue' | 'cobalt' | 'cyan' | 'violet' | 'emerald' | 'amber' | 'rose' | 'custom';
 export type BackgroundMode = 'theme' | 'solid' | 'gradient' | 'image';
+/** A static overlay drawn over the background, under every pane. */
+export type BackgroundPattern = 'none' | 'halftone' | 'scanlines' | 'grid' | 'grain';
 
 export interface AppearanceSettings {
   theme: ThemeId;
@@ -42,10 +75,23 @@ export interface AppearanceSettings {
   backgroundSaturation: number;
   /** Pixels of blur on the wallpaper layer. */
   backgroundBlur: number;
-  /** Pane opacity in percent. Omitted keeps the theme's own. */
+  backgroundPattern: BackgroundPattern;
+  /** Pattern opacity in percent and cell size in pixels. */
+  patternStrength: number;
+  patternSize: number;
+  /** Percent darkening (or lightening, on light themes) towards the bottom edge. */
+  backgroundFade: number;
+  /** Percent darkening towards the corners. */
+  backgroundVignette: number;
+  /** Main pane opacity in percent. Omitted keeps the theme's own. */
   paneOpacity?: number;
-  /** Backdrop blur behind panes, applied only over an image wallpaper. */
+  /** Backdrop blur behind panes; used over an image or a pattern. */
   paneBlur: number;
+  /** Sidebar opacity in percent. Omitted keeps the theme's own. */
+  sidebarOpacity?: number;
+  sidebarBlur: number;
+  /** Take the accent and a surface tint from the wallpaper image. */
+  autoColors: boolean;
 }
 
 /**
@@ -68,6 +114,7 @@ export const APPEARANCE = appearanceJson as {
   themes: ThemeId[];
   accents: AccentId[];
   backgrounds: BackgroundMode[];
+  patterns: BackgroundPattern[];
   defaults: AppearanceSettings;
   limits: {
     fontUtf16: number;
@@ -82,6 +129,12 @@ export const APPEARANCE = appearanceJson as {
     backgroundBlur: Range;
     paneOpacity: Range;
     paneBlur: Range;
+    sidebarOpacity: Range;
+    sidebarBlur: Range;
+    patternStrength: Range;
+    patternSize: Range;
+    backgroundFade: Range;
+    backgroundVignette: Range;
     wallpaperUtf16: number;
     wallpaperNameUtf16: number;
     wallpaperPixels: number;
@@ -102,6 +155,11 @@ export const APPEARANCE_RANGES = {
   backgroundSaturation: APPEARANCE.limits.backgroundSaturation,
   backgroundBlur: APPEARANCE.limits.backgroundBlur,
   paneBlur: APPEARANCE.limits.paneBlur,
+  sidebarBlur: APPEARANCE.limits.sidebarBlur,
+  patternStrength: APPEARANCE.limits.patternStrength,
+  patternSize: APPEARANCE.limits.patternSize,
+  backgroundFade: APPEARANCE.limits.backgroundFade,
+  backgroundVignette: APPEARANCE.limits.backgroundVignette,
 } as const satisfies Partial<Record<keyof AppearanceSettings, Range>>;
 
 export const HEX_COLOR = /^#[0-9a-f]{6}$/;

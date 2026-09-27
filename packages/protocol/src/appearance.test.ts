@@ -16,6 +16,15 @@ describe('appearance contract', () => {
     for (const accent of APPEARANCE.accents)
       expect(() => update({ ...DEFAULT_APPEARANCE, accent })).not.toThrow();
     expect(() => update({ ...DEFAULT_APPEARANCE, paneOpacity: 90 })).not.toThrow();
+    expect(() =>
+      update({
+        ...DEFAULT_APPEARANCE,
+        paneOpacity: 0,
+        sidebarOpacity: 100,
+        backgroundPattern: 'halftone',
+        autoColors: true,
+      }),
+    ).not.toThrow();
   });
 
   it('rejects unknown names, malformed colours, unsafe font names and out-of-range values', () => {
@@ -29,7 +38,11 @@ describe('appearance contract', () => {
       { uiFont: 'a'.repeat(65) },
       { uiFontSize: 40 },
       { codeLineHeight: 9 },
-      { paneOpacity: 5 },
+      { paneOpacity: 101 },
+      { sidebarOpacity: -1 },
+      { backgroundPattern: 'plasma' },
+      { autoColors: 'yes' },
+      { patternSize: 99 },
       { paneOpacity: null },
       { backgroundBlur: 1.5 },
     ];

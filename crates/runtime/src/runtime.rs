@@ -305,10 +305,7 @@ impl Runtime {
                         .and_then(|text| serde_json::from_str::<Value>(&text).ok()))
                 };
                 let mut result = serde_json::Map::new();
-                if let Some(appearance) = read(APPEARANCE_KEY)?
-                    .and_then(|value| serde_json::from_value::<Appearance>(value).ok())
-                    .filter(|appearance| appearance.validate().is_ok())
-                {
+                if let Some(appearance) = read(APPEARANCE_KEY)?.and_then(Appearance::from_stored) {
                     result.insert("appearance".into(), serde_json::to_value(appearance)?);
                 }
                 if let Some(wallpaper) = read(WALLPAPER_KEY)?

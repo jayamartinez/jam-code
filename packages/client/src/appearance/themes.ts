@@ -1,5 +1,6 @@
 import type { AccentId, ThemeId } from '@jam/protocol';
-import { alpha, contrast, luminance, mix } from './color';
+import { alpha, contrast, ensureContrast, luminance, mix } from './color';
+import { EDITOR_THEMES } from './palettes';
 
 /**
  * JAM's built-in themes.
@@ -72,6 +73,8 @@ interface Text {
 export interface ThemeDefinition {
   id: ThemeId;
   name: string;
+  /** Themes that are light and dark versions of one another share a family. */
+  family: string;
   /** One line for the picker, in Paper's "opaque · no wallpaper" register. */
   note: string;
   scheme: Scheme;
@@ -159,6 +162,7 @@ function darkAnsi(
 
 const nightglass: ThemeDefinition = {
   id: 'nightglass',
+  family: 'Nightglass',
   name: 'Nightglass',
   note: 'default',
   scheme: 'dark',
@@ -244,6 +248,7 @@ const TIDE_TEXT: Text = {
 
 const tide: ThemeDefinition = {
   id: 'tide',
+  family: 'Tide',
   name: 'Tide',
   note: 'teal accent',
   scheme: 'dark',
@@ -320,6 +325,7 @@ const GRAPHITE_TEXT: Text = {
 
 const graphite: ThemeDefinition = {
   id: 'graphite',
+  family: 'Graphite',
   name: 'Graphite',
   note: 'opaque · no wallpaper',
   scheme: 'dark',
@@ -393,6 +399,7 @@ const OLED_TEXT: Text = {
 
 const oled: ThemeDefinition = {
   id: 'oled',
+  family: 'OLED',
   name: 'OLED',
   note: 'true black · high contrast',
   scheme: 'dark',
@@ -498,6 +505,7 @@ function lightAnsi(
 
 const frost: ThemeDefinition = {
   id: 'frost',
+  family: 'Nightglass',
   name: 'Frost',
   note: 'cool light',
   scheme: 'light',
@@ -571,6 +579,7 @@ const LINEN_TEXT: Text = {
 
 const linen: ThemeDefinition = {
   id: 'linen',
+  family: 'Linen',
   name: 'Linen',
   note: 'warm light · for reading',
   scheme: 'light',
@@ -631,6 +640,9 @@ const linen: ThemeDefinition = {
   terminal: { foreground: '#3d372f', cursor: '#2a2621' },
 };
 
+/** JAM's own themes first, then editor-style themes. Frost is Nightglass's light version. */
+export const JAM_THEMES: ThemeId[] = ['nightglass', 'tide', 'graphite', 'oled', 'frost', 'linen'];
+
 export const THEMES: Record<ThemeId, ThemeDefinition> = {
   nightglass,
   tide,
@@ -638,6 +650,7 @@ export const THEMES: Record<ThemeId, ThemeDefinition> = {
   oled,
   frost,
   linen,
+  ...EDITOR_THEMES,
 };
 
 export interface AccentDefinition {
@@ -660,12 +673,14 @@ export const ACCENTS: AccentDefinition[] = [
 ];
 
 /** The accent roles for one accent colour, derived for the scheme it sits on. */
-export function accentRoles(accent: string, secondary: string, scheme: Scheme) {
+export function accentRoles(accent: string, secondary: string, scheme: Scheme, ground?: string) {
   const dark = scheme === 'dark';
   const onDark = luminance(accent) > 0.3;
+  const strong = dark ? mix(accent, '#ffffff', 0.4) : mix(accent, '#000000', 0.22);
   return {
     '--color-accent': accent,
-    '--color-accent-strong': dark ? mix(accent, '#ffffff', 0.4) : mix(accent, '#000000', 0.22),
+    // Links and selected text use accent-strong, so it always reads as text.
+    '--color-accent-strong': ground ? ensureContrast(strong, ground, 4.5) : strong,
     '--color-accent-soft': alpha(accent, dark ? 12 : 10),
     '--color-accent-border': alpha(accent, dark ? 28 : 30),
     '--color-accent-glow': alpha(accent, dark ? 55 : 40),
@@ -679,8 +694,9 @@ export function resolveAccent(
   accent: AccentId,
   customAccent: string,
 ): Record<string, string> {
+  const ground = theme.surfaces.pane[0];
   if (accent === 'theme') {
-    const derived = accentRoles(theme.accent, theme.accentSecondary, theme.scheme);
+    const derived = accentRoles(theme.accent, theme.accentSecondary, theme.scheme, ground);
     const fixed = theme.accentRoles ?? {};
     return {
       ...derived,
@@ -695,11 +711,11 @@ export function resolveAccent(
     const main = legible(customAccent, theme);
     const secondary =
       theme.scheme === 'dark' ? mix(main, '#ffffff', 0.2) : mix(main, '#000000', 0.12);
-    return accentRoles(main, secondary, theme.scheme);
+    return accentRoles(main, secondary, theme.scheme, ground);
   }
   const preset = ACCENTS.find((item) => item.id === accent) ?? ACCENTS[0]!;
   const [main, secondary] = preset[theme.scheme];
-  return accentRoles(main, secondary, theme.scheme);
+  return accentRoles(main, secondary, theme.scheme, ground);
 }
 
 /**

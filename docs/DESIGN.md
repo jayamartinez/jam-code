@@ -356,12 +356,28 @@ runtime (ADR 0008). Density and background patterns are not implemented.
 | Frost      | Cool light theme: white glass on a pale blue ground, blue accent         |
 | Linen      | Warm light reading theme: paper-white panes, ink-blue accent             |
 
-Six is deliberate; a theme earns its place by a distinct use, not a new hue.
+These six are JAM's own. Alongside them are editor themes, each with a dark
+and a light version: Claude, GitHub (with Dark Dimmed), Pierre, One (One Dark
+Pro and One Light), Vercel, VS Code Plus, Xcode, Gruvbox, Linear, Notion,
+Proof and Raycast — 25 in all. They follow each source's public colour system
+(Pierre's from its MIT-licensed theme repository); Proof is JAM's own
+sage-and-paper reading palette. Each is written as a dozen anchor colours
+(`appearance/palettes.ts`) from which one builder derives every role, so they
+stay consistent. The builder nudges any colour that would miss a contrast
+floor on its own canvas just far enough to pass, so these are JAM's
+interpretations rather than exact ports. Editor themes draw solid surfaces.
 "Paper", suggested for the warm light theme, is called Linen so it cannot be
 confused with the design tool. Graphite keeps Paper's neutral white accent.
 Every theme passes the same contrast floors, enforced by tests: body text 7:1,
-secondary and muted text 4.5:1, subtle text 3.5:1, accent, status and code
-4.5:1 (comments and punctuation 3.5:1) against its own pane.
+secondary and muted text 4.5:1, subtle text 3.5:1, accent 3:1 with its
+text-safe strong variant 4.5:1, status and code 4.5:1 (comments and
+punctuation 3.5:1), and ANSI colours 3:1, each against the theme's own pane.
+
+With 31 themes the Paper tiles no longer fit, so the picker is a Dark/Light
+switch over a two-column list: each row carries an "Aa" chip drawn in the
+theme's own canvas and accent, its name and a check. "Switch to …" jumps to the
+current theme's other version. This follows the owner's reference rather than
+a Paper frame.
 
 ### Semantic tokens
 
@@ -421,15 +437,30 @@ SQL, shell, Dockerfile, `.env`, INI-style config, XML/SVG and ignore files,
 including names such as `Dockerfile`, `Cargo.lock`, `.zshrc` and
 `.gitignore`. Each grammar is its own lazily loaded chunk.
 
-### Background
+### Background, surfaces and effects
 
-Theme (the theme's own glow), solid, gradient or image. Brightness, saturation
-and blur filter only the wallpaper layer, never panes or text. Over an image,
-panes, the sidebar and the Settings navigation blur what is behind them
-(24px by default); the theme's own gradients need no blur, so no backdrop
-filter runs unless an image is shown. Opaque themes say so when a background
-is chosen, and suggest lowering pane opacity to let it show. Page content in a
-Browser resource keeps its own colours.
+Background is the theme's own glow, a solid colour, a gradient or an image.
+Brightness, saturation and blur filter only that layer, never panes or text.
+"Match colours to image" samples the wallpaper once at 48×48 and takes the
+accent from its most vivid hue family and a surface tint from its own darkest
+(or lightest) tone; text, code and status colours are untouched, so contrast
+still holds.
+
+The sidebar and the main panes each have their own opacity and blur. Three
+styles set them at once: **Glass** (the theme's translucency, blurred), **Solid**
+(opaque, no blur) and **Clear** (an opaque sidebar and a fully transparent main
+pane over an unblurred background, dimmed and faded so text stays readable,
+with the composer on its solid raised card — the owner's halftone reference).
+Backdrop blur is emitted as `none` unless there is detail to soften (an image
+or a pattern) and the surface is translucent, since WebKit composites even a
+zero blur.
+
+Effects sit between the background and the panes: a pattern (halftone dots,
+scanlines, a fine grid or film grain, with strength and size), a fade towards
+the bottom edge and a vignette. They are CSS gradients and one small SVG noise
+tile, painted once; nothing animates. They darken towards the theme's ground,
+so on a light theme they lighten. Page content in a Browser resource keeps its
+own colours.
 
 ## Markdown
 

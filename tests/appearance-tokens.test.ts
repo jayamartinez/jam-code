@@ -26,7 +26,7 @@ function stylesheetTokens(): Map<string, string> {
 describe('default theme', () => {
   it('reproduce tokens.css — the Paper Nightglass values — exactly for the defaults', () => {
     const css = stylesheetTokens();
-    const { tokens } = appearanceTokens(DEFAULT_APPEARANCE, false);
+    const { tokens } = appearanceTokens(DEFAULT_APPEARANCE);
     for (const [name, value] of Object.entries(tokens)) {
       expect(css.has(name), `${name} is missing from tokens.css`).toBe(true);
       expect(css.get(name), name).toBe(value.replace(/\s+/g, ' '));

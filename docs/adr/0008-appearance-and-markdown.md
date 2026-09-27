@@ -31,6 +31,10 @@ repository's Markdown is untrusted content that JAM's own window now renders.
   last record in `localStorage` is used only for first paint, so a Frost user
   does not see a flash of Nightglass; it is never read as the source of truth.
   The old per-profile editor font is carried into the runtime record once.
+- **Forward-compatible reads.** Updates are strict whole records, but a stored
+  record is read over the fixture's defaults, so fields added by a later
+  version (per-surface blur, effects, auto colours) never make an earlier
+  record unreadable.
 - **Tokens, not components.** Settings resolve to semantic custom properties
   (`appearance/resolve.ts`), written into one `<style>` element. Components,
   CodeMirror (through class names) and xterm (through the pane's roles) read

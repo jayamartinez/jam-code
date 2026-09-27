@@ -380,12 +380,17 @@ const appearanceSettings: Check = (value) =>
       codeFont: fontFamily,
       terminalFont: fontFamily,
       background: oneOf(...APPEARANCE.backgrounds),
+      backgroundPattern: oneOf(...APPEARANCE.patterns),
+      autoColors: boolean,
       backgroundColor: hexColor,
       gradientFrom: hexColor,
       gradientTo: hexColor,
       ...appearanceRanges,
     },
-    { paneOpacity: range(...APPEARANCE.limits.paneOpacity) },
+    {
+      paneOpacity: range(...APPEARANCE.limits.paneOpacity),
+      sidebarOpacity: range(...APPEARANCE.limits.sidebarOpacity),
+    },
   );
 const wallpaper: Check = (value) => {
   const { limits } = APPEARANCE;
