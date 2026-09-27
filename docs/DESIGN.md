@@ -6,7 +6,7 @@ The canonical design is the Paper document **JAM code design**. Its References, 
 
 Nightglass is a dense desktop work surface with a nearly black ground, translucent dark panes, quiet borders, cool blue focus, and restrained background light. The workspace is not a dashboard: most content lives in the conversation, and tools remain adjacent resources. Cards are used for grouped activity or controls, not every line of text.
 
-`packages/client/src/styles/tokens.css` preserves the semantic Paper token roles and values. Important roles include base `#07080C`, sidebar `rgb(9 10 15 / 62%)`, pane `rgb(12 13 19 / 78%)`, raised `#171820`, overlay `#14151B`, primary text `#E3E6EE`, body `#D2D6E0`, muted `#9095A3`, accent `#6F9BFF`, success `#7EC39A`, warning `#E6A85E`, and danger `#E6807A`. Text, surfaces, borders, diff, and provider roles remain separate. Future theme/opacity controls can replace semantic tokens without changing components.
+`packages/client/src/styles/tokens.css` preserves the semantic Paper token roles and values. Important roles include base `#07080C`, sidebar `rgb(9 10 15 / 62%)`, pane `rgb(12 13 19 / 78%)`, raised `#171820`, overlay `#14151B`, primary text `#E3E6EE`, body `#D2D6E0`, muted `#9095A3`, accent `#6F9BFF`, success `#7EC39A`, warning `#E6A85E`, and danger `#E6807A`. Text, surfaces, borders, diff, and provider roles remain separate. Nightglass is the default of six built-in themes; see Appearance below.
 
 Section and group labels — Projects, Pinned, History, Open, Closed, the
 launcher's Agents and Tools, "Continue in", settings field labels — are
@@ -152,10 +152,8 @@ than repeated on every tab.
 `--font-mono` is the design's family _name_; the loaded face is Geist Mono
 Variable. Anything setting a font reads `--font-mono-stack` or, in a file pane,
 `--editor-font-family`, so a bare name can never fall through to the browser's
-default serif. The editor's family, size and line height are reader
-preferences, stored per browser profile. JAM bundles only Geist Mono; the other
-families offered are used when the reader already has them installed, so
-nothing is downloaded and an unavailable choice falls back through the stack.
+default serif. The editor's family, size and line height are Appearance
+settings (see Typography below).
 
 ## Project threads
 
@@ -292,9 +290,14 @@ drawn. When a project records no folder, the shell starts at home and the
 header says the project has no folder rather than implying a project path.
 
 xterm is themed from semantic roles scoped to the pane (`styles/terminal.css`):
-the ANSI colours map to danger, success, warning, accent, violet and the
-secondary accent, with brights from the diff text roles and mixes towards
-strong text; bright black is the subtle role so dim suggestions stay legible.
+the ANSI colours are theme roles (`--color-ansi-*`). In Nightglass they are the
+danger, success, warning, blue, violet and cyan tones, with brights from the
+diff text roles and mixes towards strong text; bright black is the subtle role
+so dim suggestions stay legible. Light themes map black to strong text and
+white to faint text so every colour reads on a pale pane. The accent never
+recolours a program's blue. Theme and font changes update the live terminal in
+place — colours are re-read, the line is re-calibrated and the view re-fitted —
+without recreating xterm or losing scrollback.
 Selection uses the accent border role, the background is transparent over the
 pane surface, the cursor does not blink (no idle timer), and the scrollbar
 uses the fill roles. Italic renders upright because only the upright Geist
@@ -313,7 +316,7 @@ native opener with its own permission.
 
 Only the deterministic Mock provider runs in this milestone. Reference Claude/Codex model versions, connected plan labels and running indicators are illustrative and must not be presented as live detection. Real providers display unavailable/unknown status. Compact Demo labeling is part of chrome; browser development preview is volatile and distinct from native SQLite persistence.
 
-Diff is a lazy-loaded static demo surface: it shows an explicit demo label and executes nothing. Terminal is real (see Terminal above) and Browser is a native-webview prototype (see Browser above). Repository picker, worktree creation, native capture, theme controls and provider configuration are deferred. Disabled controls explain their state. The initial app implements shared provider Settings and reserves navigation for future pages without pretending settings were persisted.
+Diff is a lazy-loaded static demo surface: it shows an explicit demo label and executes nothing. Terminal is real (see Terminal above) and Browser is a native-webview prototype (see Browser above). Repository picker, worktree creation, native capture and provider configuration are deferred. Disabled controls explain their state. The initial app implements shared provider Settings and reserves navigation for future pages without pretending settings were persisted.
 
 The file browser and File resource are real surfaces over a runtime file
 service, but that service serves an isolated demo tree rather than this
@@ -330,6 +333,126 @@ same convention the demo history already uses. The launcher says so in place,
 and provider status pills keep their `Mock` label.
 
 Window buttons call injected desktop services. The shared client imports no native API. Windows controls sit right; macOS retains the host's native traffic lights with an explicit left inset in sidebar, collapsed and focus presentations, avoiding duplicate web controls. Only noninteractive titlebar space initiates native dragging. Browser preview window actions are unavailable.
+
+## Appearance
+
+Paper defines Nightglass, the theme frame's "Same components, remapped tokens"
+row (Nightglass, Graphite, Tide) and its per-user overrides (wallpaper,
+accent, pane opacity and blur). There is no Appearance page frame, so the page
+is built from the Settings frames' own vocabulary: raised groups of rows with
+the label and hint on the left and the control on the right, the Snapshots
+frame's option tiles for pictured choices, and the theme frame's miniature
+windows as theme tiles. Every change applies immediately and is saved by the
+runtime (ADR 0008). Density and background patterns are not implemented.
+
+### Built-in themes
+
+| Theme      | Direction                                                                |
+| ---------- | ------------------------------------------------------------------------ |
+| Nightglass | Default. Cool near-black glass, one blue accent; the Paper tokens        |
+| Tide       | Paper's teal variant: deep sea-green ground, teal accent                 |
+| Graphite   | Paper's neutral variant: opaque graphite surfaces, no glow, white accent |
+| OLED       | True black panes, stronger borders and text, no glow                     |
+| Frost      | Cool light theme: white glass on a pale blue ground, blue accent         |
+| Linen      | Warm light reading theme: paper-white panes, ink-blue accent             |
+
+Six is deliberate; a theme earns its place by a distinct use, not a new hue.
+"Paper", suggested for the warm light theme, is called Linen so it cannot be
+confused with the design tool. Graphite keeps Paper's neutral white accent.
+Every theme passes the same contrast floors, enforced by tests: body text 7:1,
+secondary and muted text 4.5:1, subtle text 3.5:1, accent, status and code
+4.5:1 (comments and punctuation 3.5:1) against its own pane.
+
+### Semantic tokens
+
+`styles/tokens.css` is Nightglass and the first paint. Themes are data
+(`appearance/themes.ts`) resolved to the same roles (`appearance/resolve.ts`),
+and a test proves the resolver reproduces tokens.css exactly. Roles:
+
+- **Ground and surfaces:** `bg-base`, the wallpaper layer, sidebar, pane,
+  pane-muted, terminal (all translucent), raised, overlay, scrim, browser well.
+- **Text:** strong, primary, body, secondary, muted, subtle, faint, ghost.
+- **Lines and fills:** border-subtle/border/border-strong and
+  fill-subtle/fill/fill-strong, all one tint at small opacities.
+- **Accent:** accent, accent-strong, soft, border, glow, secondary, on-accent,
+  with `--color-focus` and `--color-selection` naming its two main uses.
+- **Status and diff:** success, warning, danger (and soft variants), diff text
+  and gutter roles. The accent never changes these.
+- **Code:** `--syntax-*` (below). **Terminal:** foreground, cursor, 16 ANSI.
+- **Identity:** provider tones and the Codex gradient stops.
+
+Accent choices are JAM Blue, Cobalt, Cyan, Violet, Emerald, Amber, Rose, the
+theme's own accent, or a custom colour. Each built-in has a dark and a light
+tone; strong, soft, border and glow are derived for the scheme. A custom
+accent too close to the pane is moved towards white or black until it reaches
+3:1. Pane opacity scales every translucent surface in proportion to the
+theme's own opacities, so the sidebar stays lighter than panes.
+
+### Typography
+
+Three independent groups: interface (Geist by default, 12–15px), code (Geist
+Mono, 10–20px on a 14–32px line) and terminal (follows the code font unless
+chosen, 10–20px on a 14–30px line). Interface sizes in CSS are written as
+`calc(Npx * var(--ui-scale))`, where the scale is the chosen size over the
+design's 13px; geometry — row heights, pane headers, gutters — does not scale,
+so a larger size is more readable rather than a different layout. JAM bundles
+only Geist and Geist Mono. The pickers list common families, mark the ones this
+computer lacks (WebViews cannot list installed fonts, so JAM measures), and
+accept any installed family by name. Nothing is downloaded.
+
+### Code
+
+Grammar tags map to semantic classes (`code/highlight.ts`) coloured by the
+theme's `--syntax-*` roles in `styles/code.css`: keyword, string, number,
+function, type, property, variable, definition, operator, punctuation, comment,
+tag, attribute, meta, heading, link, code, quote and marker. The editor, fenced
+code in Markdown and the Appearance preview share them. Nightglass is
+restrained: blue keywords, sage strings, soft amber numbers, pale blue
+functions, cyan types and near-body properties, with violet reserved for
+attributes and annotations. Markdown source shows headings in strong weight,
+emphasis, strong, code spans, links, quotes and the `#`, `-`, `>` and fence
+marks; whole list items stay uncoloured. Emphasis uses a synthesized oblique
+because only upright faces are bundled; comments stay upright.
+
+Languages are chosen from the file name by the runtime (`language_for`,
+mirrored for the preview and checked against a shared fixture): TypeScript,
+TSX, JavaScript, JSX, Rust, Python, HTML, CSS, JSON, Markdown, YAML, TOML,
+SQL, shell, Dockerfile, `.env`, INI-style config, XML/SVG and ignore files,
+including names such as `Dockerfile`, `Cargo.lock`, `.zshrc` and
+`.gitignore`. Each grammar is its own lazily loaded chunk.
+
+### Background
+
+Theme (the theme's own glow), solid, gradient or image. Brightness, saturation
+and blur filter only the wallpaper layer, never panes or text. Over an image,
+panes, the sidebar and the Settings navigation blur what is behind them
+(24px by default); the theme's own gradients need no blur, so no backdrop
+filter runs unless an image is shown. Opaque themes say so when a background
+is chosen, and suggest lowering pane opacity to let it show. Page content in a
+Browser resource keeps its own colours.
+
+## Markdown
+
+A Markdown file opens in Preview; the pane header's capsule (the Browser
+frame's tool capsule) switches to Source, and the choice is kept per file for
+the session. The preview is a reading surface on the Single transcript's 700px
+measure in the interface font at body size and line: headings by weight and
+size with hairline rules under the first two levels, links in accent-strong
+with a soft underline, blockquotes on an accent-border rule, tables and code
+blocks on the raised surface with the theme's borders, inline code on a fill
+chip in the code font, task lists with read-only checkboxes, and front matter
+shown as a quiet YAML block. Code blocks carry their language and a Copy
+button. Links open inside JAM (ADR 0008); remote and project images show a
+labelled placeholder. Unsaved Source edits appear in Preview.
+
+## Settings icons
+
+The Settings navigation icons are Paper's own vectors, not a library's:
+drawn on a 16-unit grid, rendered at 14px inside a 16px slot, 1.3-unit glyph
+strokes and 1.2 for large outlines, coloured through `currentColor` — muted,
+and accent on the selected row. Rows follow the frame: 30px, 8px padding, a
+9px gap, 13px text. Every page is reachable; pages that are not built yet say
+so rather than being disabled, which kept the navigation identical to Paper.
 
 ## Verification
 
