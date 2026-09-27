@@ -58,6 +58,7 @@ import { TerminalResource } from './components/TerminalResource';
 import { estimateTerminalSize } from './components/terminal-metrics';
 import { ContextMenu, menuPoint, type ContextMenuState } from './components/ContextMenu';
 import type { FileReference } from './markdown/file-refs';
+import { parseAddress } from './state/browser-address';
 import { ProjectEditor } from './components/ProjectEditor';
 import { BrowserResource, describeAnnotation } from './components/BrowserResource';
 
@@ -496,6 +497,19 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     async (url: string, fromPaneId: string | null, inProject?: string) => {
       const target = inProject ?? projectId;
       if (!target) return;
+      // A preview already beside the chat goes to the new address rather
+      // than gaining a second, blank page.
+      const beside = leaves(activeTree(layoutRef.current)).find(
+        (pane) =>
+          pane.id !== fromPaneId &&
+          client.getSnapshot().workspace?.resources.find((item) => item.id === pane.resourceId)
+            ?.kind === 'browser',
+      );
+      const parsed = parseAddress(url);
+      if (beside?.resourceId && desktop.browser && 'url' in parsed) {
+        void desktop.browser.navigate(beside.resourceId, parsed.url).catch(client.reportError);
+        return;
+      }
       try {
         const { resource } = await transport.request('resource.open', {
           projectId: target,
@@ -508,7 +522,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         client.reportError(cause);
       }
     },
-    [client, placeBeside, projectId, transport],
+    [client, desktop.browser, placeBeside, projectId, transport],
   );
 
   /** Right-click on a file a chat named. */
