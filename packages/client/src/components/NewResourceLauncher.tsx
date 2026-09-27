@@ -211,7 +211,7 @@ export function NewResourceLauncher({
           {
             id: 'diff',
             label: 'Review changes',
-            hint: 'Static demo',
+            hint: 'Working tree',
             icon: (
               <ToolGlyph>
                 <circle

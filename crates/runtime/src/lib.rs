@@ -4,6 +4,8 @@ mod commands;
 mod error;
 mod events;
 mod files;
+pub mod git;
+mod native_files;
 pub mod protocol;
 pub mod providers;
 mod runtime;
