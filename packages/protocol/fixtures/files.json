@@ -59,7 +59,23 @@
       },
       {
         "path": "README.md",
-        "text": "# jam-code\n\nA local-first desktop workspace for coding agents.\n\n- Resources outlive the views that present them.\n- Single and Tiles are two presentations of one resource list.\n- The runtime owns sessions, processes and storage.\n"
+        "text": "# jam-code\n\nA local-first desktop workspace for coding agents. See [the architecture notes](docs/ARCHITECTURE.md) and the [latest pane report](docs/reports/pane-restore.md).\n\n- Resources outlive the views that present them.\n- Single and Tiles are two presentations of one resource list.\n- The runtime owns sessions, processes and storage.\n\n> Closing a pane only changes presentation. It never ends a session.\n\n## Develop\n\n```sh\npnpm install\npnpm desktop\n```\n\n| Check | Command | Notes |\n| :---- | :------ | ----: |\n| Frontend | `pnpm check` | format, lint, types, tests |\n| Rust | `pnpm check:rust` | fmt, clippy, tests |\n\nRead more at <https://example.com/jam-code>.\n"
+      },
+      {
+        "path": "docs/reports/pane-restore.md",
+        "text": "# Pane restore keeps PTY alive\n\n**Status:** ready for review · *demo report written by the mock agent*\n\n## Summary\n\nDetaching a pane no longer kills its shell. `registry.attach()` now counts\nreferences, and the PTY is released only when nothing is looking *and* the\nidle clock has run out.\n\n## Changes\n\n1. `src/session/registry.ts` — reference counting and an idle clock.\n2. `src/panes/PaneHost.tsx` — detach on unmount instead of kill.\n3. Tests for attach → detach → reattach.\n\n### Checklist\n\n- [x] Registry keeps one session per ID\n- [x] Reattaching restores scrollback\n- [ ] Idle timeout is configurable\n\n> Note: closing the *tab* still hides the pane; only **Terminate shell**\n> ends the process.\n\n## Code\n\n```ts\nexport function release(s: Session) {\n  s.refs -= 1;\n  if (s.refs > 0) return;\n  s.idleSince = Date.now(); // start the idle clock\n}\n```\n\n```rust\nfn main() {\n    let sessions: Vec<u32> = vec![1, 2, 3];\n    println!(\"{} live\", sessions.len());\n}\n```\n\n## Results\n\n| Scenario | Before | After |\n| :------- | :----: | ----: |\n| Close pane | shell killed | shell kept |\n| Reopen pane | blank | scrollback |\n| Quit JAM | shells end | shells end |\n\n---\n\nRelated: [README](../../README.md) · [registry](../../src/session/registry.ts) · [ADR 0006](https://example.com/adr/0006)\n\n![Timeline diagram](./timeline.png)\n\n<script>alert(\"markdown html is shown as text, never run\")</script>\n"
+      },
+      {
+        "path": "scripts/bench.py",
+        "text": "\"\"\"Measure how long the demo registry takes to attach and detach.\"\"\"\nfrom dataclasses import dataclass\nimport time\n\nITERATIONS = 10_000\n\n\n@dataclass\nclass Session:\n    id: str\n    refs: int = 0\n\n\ndef bench(name: str) -> float:\n    session = Session(id=name)\n    started = time.perf_counter()\n    for _ in range(ITERATIONS):\n        session.refs += 1\n        session.refs -= 1\n    return (time.perf_counter() - started) * 1_000\n\n\nif __name__ == \"__main__\":\n    print(f\"attach/detach: {bench('pane-1'):.2f} ms\")  # demo only\n"
+      },
+      {
+        "path": ".gitignore",
+        "text": "# build output\nnode_modules/\ndist/\ntarget/\n\n# local settings\n.env\n!.env.example\n"
+      },
+      {
+        "path": ".env.example",
+        "text": "# Copy to .env; values here are examples only.\nJAM_LOG=info\nJAM_DATA_DIR=./.jam\n"
       }
     ],
     "project-atlas": [

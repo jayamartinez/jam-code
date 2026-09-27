@@ -8,8 +8,11 @@ describe('project file service', () => {
     const root = listPreviewDirectory('project-jam', '');
     expect(root.entries.map((entry) => entry.name)).toEqual([
       'docs',
+      'scripts',
       'src',
       'src-tauri',
+      '.env.example',
+      '.gitignore',
       'README.md',
       'package.json',
       'tsconfig.json',

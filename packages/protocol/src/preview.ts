@@ -16,6 +16,7 @@ import type {
   WorkspaceSnapshot,
 } from './types';
 import type { TerminalAttachment } from './terminal';
+import type { AppearanceSettings, Wallpaper } from './appearance';
 import { validateFixture, validateRequest, validateResponse, validateScope } from './validation';
 
 type Listener = { scope: SubscriptionScope; receive: (event: JamEvent) => void };
@@ -47,6 +48,9 @@ export class BrowserPreviewTransport implements JamTransport {
   private readonly pendingEvents: JamEvent[] = [];
   private publishing = false;
   private nextId = 0;
+  /** Volatile like the rest of the preview: a reload restores the defaults. */
+  private appearance: AppearanceSettings | undefined;
+  private wallpaper: Wallpaper | undefined;
 
   constructor() {
     const fixture = copy(validateFixture(fixtureJson));
@@ -182,6 +186,17 @@ export class BrowserPreviewTransport implements JamTransport {
       case 'terminal.kill':
       case 'terminal.ack':
         throw new JamError('unavailable', NO_TERMINALS);
+      case 'appearance.get':
+        return {
+          ...(this.appearance ? { appearance: this.appearance } : {}),
+          ...(this.wallpaper ? { wallpaper: this.wallpaper } : {}),
+        };
+      case 'appearance.update':
+        this.appearance = copy(request.params.appearance);
+        return { appearance: this.appearance };
+      case 'appearance.setWallpaper':
+        this.wallpaper = request.params.wallpaper && copy(request.params.wallpaper);
+        return { updatedAt: now() };
     }
   }
 

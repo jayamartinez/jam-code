@@ -822,3 +822,96 @@ fn every_browser_open_is_a_distinct_durable_resource() {
         assert_eq!(resource_in(&workspace, id)["kind"], json!("browser"));
     }
 }
+
+fn appearance_defaults() -> Value {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../../packages/protocol/fixtures/appearance.json"
+    ))
+    .unwrap();
+    fixture["defaults"].clone()
+}
+
+#[test]
+fn appearance_is_a_runtime_setting_that_survives_restart() {
+    let database = TestDatabase::new();
+    let runtime = database.open();
+
+    // Nothing is stored until the reader changes something.
+    assert_eq!(request(&runtime, "appearance.get", json!({})), json!({}));
+
+    let mut appearance = appearance_defaults();
+    appearance["theme"] = json!("frost");
+    appearance["accent"] = json!("custom");
+    appearance["customAccent"] = json!("#3366cc");
+    appearance["codeFont"] = json!("JetBrains Mono");
+    appearance["paneOpacity"] = json!(88);
+    let saved = request(
+        &runtime,
+        "appearance.update",
+        json!({ "appearance": appearance }),
+    );
+    assert_eq!(saved["appearance"], appearance);
+
+    let wallpaper = json!({
+        "dataUrl": "data:image/jpeg;base64,/9j/4AAQSkZJRg==",
+        "name": "harbour.jpg",
+        "width": 1920,
+        "height": 1080,
+    });
+    let receipt = request(
+        &runtime,
+        "appearance.setWallpaper",
+        json!({ "wallpaper": wallpaper }),
+    );
+    assert!(receipt["updatedAt"].as_str().is_some());
+
+    // Invalid updates are rejected before anything is written.
+    for bad in [
+        json!({ "appearance": { "theme": "frost" } }),
+        json!({ "appearance": Value::Null }),
+        json!({ "appearance": { "surprise": 1 } }),
+    ] {
+        assert!(
+            runtime
+                .request(Request {
+                    protocol_version: 1,
+                    method: "appearance.update".into(),
+                    params: bad.clone(),
+                })
+                .is_err(),
+            "{bad} must be rejected"
+        );
+    }
+    let mut out_of_range = appearance.clone();
+    out_of_range["uiFontSize"] = json!(64);
+    assert!(
+        runtime
+            .request(Request {
+                protocol_version: 1,
+                method: "appearance.update".into(),
+                params: json!({ "appearance": out_of_range }),
+            })
+            .is_err()
+    );
+    assert!(
+        runtime
+            .request(Request {
+                protocol_version: 1,
+                method: "appearance.setWallpaper".into(),
+                params: json!({ "wallpaper": { "dataUrl": "file:///etc/passwd", "name": "x", "width": 1, "height": 1 } }),
+            })
+            .is_err()
+    );
+
+    drop(runtime);
+    let reopened = database.open();
+    let restored = request(&reopened, "appearance.get", json!({}));
+    assert_eq!(restored["appearance"], appearance);
+    assert_eq!(restored["wallpaper"], wallpaper);
+
+    // Omitting the wallpaper forgets it; the appearance record is untouched.
+    request(&reopened, "appearance.setWallpaper", json!({}));
+    let cleared = request(&reopened, "appearance.get", json!({}));
+    assert!(cleared.get("wallpaper").is_none());
+    assert_eq!(cleared["appearance"], appearance);
+}

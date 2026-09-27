@@ -1,6 +1,13 @@
 import { JamError } from './errors';
 import { OPENABLE_KINDS, PROJECT_ICONS } from './types';
 import { TERMINAL_LIMITS } from './terminal';
+import {
+  APPEARANCE,
+  APPEARANCE_RANGES,
+  FONT_FAMILY,
+  HEX_COLOR,
+  WALLPAPER_PREFIX,
+} from './appearance';
 import type { TerminalStreamEvent } from './terminal';
 import type {
   DemoFixture,
@@ -352,6 +359,46 @@ const terminalSession: Check = (value) =>
   );
 const accepted: Check = (value) => shape(value, { accepted: oneOf(true) });
 
+const hexColor: Check = (value) => {
+  if (typeof value !== 'string' || !HEX_COLOR.test(value)) invalid('Expected a #rrggbb colour.');
+};
+const fontFamily: Check = (value) => {
+  text(APPEARANCE.limits.fontUtf16, true)(value);
+  if (!FONT_FAMILY.test(value as string)) invalid('A font family name has unsupported characters.');
+};
+const appearanceRanges = Object.fromEntries(
+  Object.entries(APPEARANCE_RANGES).map(([key, [min, max]]) => [key, range(min, max)]),
+) as Record<keyof typeof APPEARANCE_RANGES, Check>;
+const appearanceSettings: Check = (value) =>
+  shape(
+    value,
+    {
+      theme: oneOf(...APPEARANCE.themes),
+      accent: oneOf(...APPEARANCE.accents),
+      customAccent: hexColor,
+      uiFont: fontFamily,
+      codeFont: fontFamily,
+      terminalFont: fontFamily,
+      background: oneOf(...APPEARANCE.backgrounds),
+      backgroundColor: hexColor,
+      gradientFrom: hexColor,
+      gradientTo: hexColor,
+      ...appearanceRanges,
+    },
+    { paneOpacity: range(...APPEARANCE.limits.paneOpacity) },
+  );
+const wallpaper: Check = (value) => {
+  const { limits } = APPEARANCE;
+  shape(value, {
+    dataUrl: text(limits.wallpaperUtf16),
+    name: text(limits.wallpaperNameUtf16, true),
+    width: range(1, limits.wallpaperPixels),
+    height: range(1, limits.wallpaperPixels),
+  });
+  if (!WALLPAPER_PREFIX.test(object(value).dataUrl as string))
+    invalid('A wallpaper must be inline JPEG, PNG or WebP data.');
+};
+
 const params: Record<RequestMethod, Check> = {
   'workspace.get': (value) => shape(value, {}),
   'conversation.get': (value) => shape(value, { resourceId: id }),
@@ -410,6 +457,9 @@ const params: Record<RequestMethod, Check> = {
   'terminal.resize': (value) => shape(value, { resourceId: id, cols: columns, rows: lines }),
   'terminal.kill': (value) => shape(value, { resourceId: id }),
   'terminal.ack': (value) => shape(value, { attachmentId: id, seq: integer }),
+  'appearance.get': (value) => shape(value, {}),
+  'appearance.update': (value) => shape(value, { appearance: appearanceSettings }),
+  'appearance.setWallpaper': (value) => shape(value, {}, { wallpaper }),
 };
 
 const responses: Record<RequestMethod, Check> = {
@@ -434,6 +484,9 @@ const responses: Record<RequestMethod, Check> = {
   'terminal.resize': (value) => shape(value, { terminal: terminalSession }),
   'terminal.kill': (value) => shape(value, { terminal: terminalSession }),
   'terminal.ack': accepted,
+  'appearance.get': (value) => shape(value, {}, { appearance: appearanceSettings, wallpaper }),
+  'appearance.update': (value) => shape(value, { appearance: appearanceSettings }),
+  'appearance.setWallpaper': (value) => shape(value, { updatedAt: timestamp }),
 };
 
 /** Validate unknown input at a transport boundary before any mutation. */

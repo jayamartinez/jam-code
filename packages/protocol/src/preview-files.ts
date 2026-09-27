@@ -112,11 +112,37 @@ export function readPreviewFile(projectId: string, path: string): FileContents {
   };
 }
 
-/** Mirrors `language_for` in the runtime file service. */
+/**
+ * Mirrors `language_for` in the runtime file service: a language name from the
+ * file name alone. `fixtures/languages.json` holds the cases both must agree on.
+ */
 export function previewLanguage(path: string): string {
-  const name = path.slice(path.lastIndexOf('/') + 1);
-  const dot = name.lastIndexOf('.');
-  switch (dot < 0 ? '' : name.slice(dot + 1)) {
+  const lower = path.slice(path.lastIndexOf('/') + 1).toLowerCase();
+  switch (lower) {
+    case 'dockerfile':
+    case 'containerfile':
+      return 'dockerfile';
+    case 'cargo.lock':
+    case 'poetry.lock':
+      return 'toml';
+    case '.zshrc':
+    case '.zprofile':
+    case '.zshenv':
+    case '.bashrc':
+    case '.bash_profile':
+    case '.profile':
+      return 'shell';
+    case '.editorconfig':
+    case '.gitattributes':
+    case '.gitconfig':
+    case '.npmrc':
+      return 'ini';
+  }
+  if (lower.startsWith('dockerfile.')) return 'dockerfile';
+  if (lower === '.env' || lower.startsWith('.env.')) return 'dotenv';
+  if (lower.startsWith('.') && lower.endsWith('ignore')) return 'ignore';
+  const dot = lower.lastIndexOf('.');
+  switch (dot < 0 ? '' : lower.slice(dot + 1)) {
     case 'ts':
     case 'mts':
     case 'cts':
@@ -131,14 +157,20 @@ export function previewLanguage(path: string): string {
       return 'jsx';
     case 'rs':
       return 'rust';
+    case 'py':
+    case 'pyi':
+      return 'python';
     case 'json':
       return 'json';
     case 'css':
+    case 'scss':
       return 'css';
     case 'html':
+    case 'htm':
       return 'html';
     case 'md':
     case 'mdx':
+    case 'markdown':
       return 'markdown';
     case 'toml':
       return 'toml';
@@ -151,6 +183,16 @@ export function previewLanguage(path: string): string {
     case 'bash':
     case 'zsh':
       return 'shell';
+    case 'dockerfile':
+      return 'dockerfile';
+    case 'ini':
+    case 'cfg':
+    case 'conf':
+      return 'ini';
+    case 'xml':
+    case 'svg':
+    case 'plist':
+      return 'xml';
     default:
       return 'text';
   }
