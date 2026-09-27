@@ -207,6 +207,60 @@ more of its slot to read at the Codex mark's weight. A new chat has no session y
 "Continue in" rows take the provider from the draft and from each row's
 session rather than assuming Claude.
 
+## Browser
+
+Paper frame 2 (Browser annotation → agent) defines the surface. The pane's
+header carries the browser bar: back, forward and reload in 26px slots, then
+the address pill. The pill is 28px on the fill role with a 6px status dot:
+green for https or a local host, accent while loading. The origin is in
+primary mono and the path in subtle mono. Next comes the tool capsule
+(Interact and Annotate) on a fill-subtle, bordered 8px capsule with the active
+tool in accent-soft. Below the header is a 12px well on
+`--color-surface-browser-well` holding the page.
+
+Annotate is one mode that the reader toggles on and off. It does not offer a
+separate tool per kind. In the mode, a click annotates the element under the
+pointer, and a press-and-drag past 4px annotates the dragged region. Each
+capture opens the frame's comment card ("Comment on region 2", Cancel/Add),
+placed beside the target, else below or above it. Enter adds and Escape
+cancels. The comment is optional. Added annotations stack: each leaves a
+numbered marker on the page (solid outline for elements, dashed for regions),
+and the 52px tray shows the numbered badges, the count, "1 element · 1 region
+· console (1 error)", Clear, and "Add to “conversation”". Adding stages the
+whole stack as context chips that lead with their comments, clears the
+markers, and never sends. Escape in the page, the Interact button, or
+navigating away ends the mode. Markers and the stack survive leaving it.
+
+Typing `localhost:5173`, a bare port or `127.0.0.1` opens `http://`. A bare
+domain opens `https://`. Anything else is refused with a reason under the bar.
+A new browser shows JAM's own "Open a page" prompt instead of a white
+`about:blank`.
+
+Deliberate deviations, all forced by a native page or by honesty:
+
+- The bar sits inside the shared 42px pane header, not the frame's own 44px
+  bar. That keeps split, focus and the pane menu identical to every other
+  pane.
+- The page's corners are square. A native view cannot be clipped by CSS, so
+  the frame's 8px page radius is not possible. The 12px well keeps the pane's
+  own rounded corners clear.
+- Anything JAM floats over the workspace (menus, dialogs, the launcher) hides
+  native pages while it is open, because nothing in HTML can paint above
+  them. The frame's comment card, highlight, drag rectangle and markers are
+  therefore drawn inside the page by the annotate script, in the frame's
+  colours, in a closed shadow root so page CSS cannot restyle them.
+- The frame's separate Element, Region and Comment buttons became one
+  Annotate toggle at the owner's request: click versus drag decides the kind,
+  and every annotation gets a comment. Regions record their rectangle and the
+  elements they cover; the frame's "screenshot" detail needs native snapshots
+  and is not claimed.
+- The tray omits the frame's `Ctrl ↵` chip and destination dropdown. Neither
+  shortcut nor destination switching exists yet. Staging goes to the
+  conversation beside the browser, else the one used last, and never sends.
+- Back and forward are disabled only when the page's Navigation API says so.
+  Where the platform cannot say, they stay enabled and simply do nothing at
+  the ends of history.
+
 ## Interaction invariants
 
 Tabs behave like browser tabs: a press selects only if released in place;
@@ -259,7 +313,7 @@ native opener with its own permission.
 
 Only the deterministic Mock provider runs in this milestone. Reference Claude/Codex model versions, connected plan labels and running indicators are illustrative and must not be presented as live detection. Real providers display unavailable/unknown status. Compact Demo labeling is part of chrome; browser development preview is volatile and distinct from native SQLite persistence.
 
-Diff is a lazy-loaded static demo surface: it shows an explicit demo label and executes nothing. Terminal is real; see below. Browser, repository picker, worktree creation, native capture, theme controls and provider configuration are deferred. Disabled controls explain their state. The initial app implements shared provider Settings and reserves navigation for future pages without pretending settings were persisted.
+Diff is a lazy-loaded static demo surface: it shows an explicit demo label and executes nothing. Terminal is real (see Terminal above) and Browser is a native-webview prototype (see Browser above). Repository picker, worktree creation, native capture, theme controls and provider configuration are deferred. Disabled controls explain their state. The initial app implements shared provider Settings and reserves navigation for future pages without pretending settings were persisted.
 
 The file browser and File resource are real surfaces over a runtime file
 service, but that service serves an isolated demo tree rather than this

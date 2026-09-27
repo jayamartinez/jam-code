@@ -3,6 +3,7 @@ import { Folder } from 'lucide-react';
 import type { OpenableKind, Presentation, Project } from '@jam/protocol';
 import { IconSlot, ProviderIcon } from './icons';
 import { ProjectBadge } from './ProjectBadge';
+import { useOccludesNativeViews } from '../state/native-occlusion';
 
 /**
  * The New Resource launcher answers "what do I want to open?".
@@ -78,6 +79,7 @@ export function NewResourceLauncher({
 }: NewResourceLauncherProps) {
   const container = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
+  useOccludesNativeViews();
 
   /**
    * Hang from the control that opened it, like a menu, rather than floating in
@@ -151,8 +153,7 @@ export function NewResourceLauncher({
           {
             id: 'browser',
             label: 'Browser',
-            hint: 'Planned',
-            unavailable: 'The embedded browser resource is not implemented yet.',
+            hint: 'Native webview',
             icon: (
               <ToolGlyph>
                 <circle
@@ -171,6 +172,7 @@ export function NewResourceLauncher({
                 />
               </ToolGlyph>
             ),
+            run: () => onResource('browser'),
           },
           {
             id: 'open-file',

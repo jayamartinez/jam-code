@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Only the trusted local JAM client can access the runtime and window controls.",
-  "windows": ["main"],
+  "description": "Only the trusted local JAM client can access the runtime and window controls. Scoped to the main webview, not the window: Browser pages are child webviews of the same window and must match nothing here.",
+  "webviews": ["main"],
   "local": true,
   "permissions": [
     "allow-jam-request",
@@ -10,6 +10,11 @@
     "allow-jam-unsubscribe",
     "allow-jam-terminal-attach",
     "allow-jam-terminal-detach",
+    "allow-browser-attach",
+    "allow-browser-bounds",
+    "allow-browser-navigate",
+    "allow-browser-action",
+    "allow-browser-close",
     "core:window:allow-minimize",
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",

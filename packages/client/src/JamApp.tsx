@@ -18,7 +18,7 @@ import type {
   ProjectIcon,
   TerminalSession,
 } from '@jam/protocol';
-import type { DesktopServices } from './desktop';
+import type { BrowserAnnotation, DesktopServices } from './desktop';
 import {
   activeResourceId,
   activeTree,
@@ -50,10 +50,12 @@ import { TerminalResource } from './components/TerminalResource';
 import { estimateTerminalSize } from './components/terminal-metrics';
 import { ContextMenu, menuPoint, type ContextMenuState } from './components/ContextMenu';
 import { ProjectEditor } from './components/ProjectEditor';
+import { BrowserResource, describeAnnotation } from './components/BrowserResource';
 
 const DemoResource = lazy(() => import('./components/DemoResource'));
 const emptyContext: ContextItem[] = [];
 const emptyPaths: string[] = [];
+const emptyAnnotations: BrowserAnnotation[] = [];
 type Overlay = 'search' | null;
 /** Set while the New Resource launcher is open; `paneId` targets an empty pane. */
 /** Viewport point the launcher hangs from: the control that opened it. */
@@ -69,6 +71,13 @@ export interface JamAppProps {
   desktop: DesktopServices;
 }
 
+const hostOf = (href: string) => {
+  try {
+    return new URL(href).host;
+  } catch {
+    return href;
+  }
+};
 const newPaneId = () => `pane:${crypto.randomUUID()}`;
 const newSplitId = () => `split:${crypto.randomUUID()}`;
 /**
@@ -119,6 +128,12 @@ export function JamApp({ transport, desktop }: JamAppProps) {
    */
   const [expandedProjects, setExpandedProjects] = useState<string[] | undefined>(undefined);
   const [previewContext, setPreviewContext] = useState<ContextItem | null>(null);
+  /** Annotations stacked in each browser, held until staged or cleared. */
+  const [browserAnnotations, setBrowserAnnotations] = useState<Record<string, BrowserAnnotation[]>>(
+    {},
+  );
+  /** The conversation a browser annotation stages into when none is beside it. */
+  const lastConversation = useRef<string | null>(null);
   /** Live terminals the launcher offers to reopen; read when it opens. */
   const [runningTerminals, setRunningTerminals] = useState<TerminalSession[]>([]);
   const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
@@ -142,6 +157,13 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   const project = workspace?.projects.find(
     (item) => item.id === (activeResource?.projectId ?? newChats[activeId]?.projectId ?? projectId),
   );
+
+  useEffect(() => {
+    if (activeResource?.kind === 'conversation') lastConversation.current = activeResource.id;
+    const focused = focusedPane(layout)?.resourceId;
+    const kind = workspace?.resources.find((item) => item.id === focused)?.kind;
+    if (focused && kind === 'conversation') lastConversation.current = focused;
+  }, [activeResource, layout, workspace]);
 
   useEffect(() => {
     void client.connect();
@@ -547,6 +569,19 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     (item) => item.kind === 'file' && paneResourceIds.includes(item.id),
   )?.path;
 
+  /**
+   * Where a browser annotation is staged: a conversation beside the browser in
+   * this tab, else the conversation used most recently. Staging never sends.
+   */
+  const browserDestination = () => {
+    const conversations = workspace.resources.filter((item) => item.kind === 'conversation');
+    const focused = focusedPane(layout)?.resourceId;
+    const beside =
+      conversations.find((item) => item.id === focused) ??
+      conversations.find((item) => paneResourceIds.includes(item.id));
+    return beside ?? conversations.find((item) => item.id === lastConversation.current);
+  };
+
   /** Chrome shared by every pane, so split/close mean one thing everywhere. */
   const chromeFor = (paneId: string | null) => {
     const tiled = layout.mode === 'tiles';
@@ -680,6 +715,71 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             onOpenFile={(path) => void openFileFrom(path, paneId, resource.projectId)}
           />
         );
+      case 'browser': {
+        const target = browserDestination();
+        const annotations = browserAnnotations[resource.id] ?? emptyAnnotations;
+        const setAnnotations = (next: BrowserAnnotation[]) =>
+          setBrowserAnnotations((current) => ({ ...current, [resource.id]: next }));
+        const browserChrome = {
+          ...chrome,
+          menu: [
+            ...chrome.menu,
+            {
+              label: 'Close browser page',
+              danger: true,
+              // The explicit lifecycle command: the page and its process end.
+              // The resource stays, and opens blank next time.
+              onSelect: desktop.browser
+                ? () => void desktop.browser?.close(resource.id).catch(client.reportError)
+                : undefined,
+              unavailable: desktop.browser ? undefined : 'No page is open in this preview.',
+            },
+          ],
+        };
+        return (
+          <BrowserResource
+            key={resource.id}
+            chrome={browserChrome}
+            resource={resource}
+            host={desktop.browser}
+            annotations={annotations}
+            destination={target?.title}
+            onAnnotated={(annotation) =>
+              setBrowserAnnotations((current) => ({
+                ...current,
+                [resource.id]: [...(current[resource.id] ?? emptyAnnotations), annotation].slice(
+                  0,
+                  16,
+                ),
+              }))
+            }
+            onClearAnnotations={() => setAnnotations(emptyAnnotations)}
+            onStageAnnotations={() => {
+              if (!target) return;
+              // Staged, not sent: each annotation becomes one context chip in
+              // the conversation, carrying its comment and page details.
+              const items: ContextItem[] = annotations.map((annotation) => ({
+                id: crypto.randomUUID(),
+                kind: annotation.kind === 'region' ? 'browser-region' : 'browser-element',
+                label: `${annotation.comment ? `“${annotation.comment}” · ` : ''}${
+                  annotation.label
+                } · ${hostOf(annotation.url)}`.slice(0, 512),
+                source: {
+                  resourceId: resource.id,
+                  uri: annotation.url.slice(0, 4096),
+                  selection: describeAnnotation(annotation),
+                },
+              }));
+              setContext((current) => ({
+                ...current,
+                [target.id]: [...(current[target.id] ?? emptyContext), ...items].slice(0, 16),
+              }));
+              setAnnotations(emptyAnnotations);
+            }}
+            onError={client.reportError}
+          />
+        );
+      }
       case 'terminal':
         return (
           <TerminalResource

@@ -80,6 +80,17 @@ describe('project file service', () => {
 });
 
 describe('opening resources through the preview transport', () => {
+  it('opens a distinct resource for every browser', async () => {
+    const transport = new BrowserPreviewTransport();
+    const open = () =>
+      transport.request('resource.open', { projectId: 'project-jam', kind: 'browser' });
+    const first = await open();
+    const second = await open();
+    expect(first.resource.kind).toBe('browser');
+    expect(first.resource.id).not.toBe(second.resource.id);
+    expect(first.resource.id.startsWith('browser-')).toBe(true);
+  });
+
   it('returns one resource identity per target and validates its response', async () => {
     const transport = new BrowserPreviewTransport();
     const first = await transport.request('resource.open', {
