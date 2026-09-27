@@ -93,10 +93,11 @@
   color: var(--color-danger);
   font-size: calc(12px * var(--ui-scale));
 }
+/* The shared Settings content geometry (DESIGN.md → Geometry, Paper Snapshots frame). */
 .snapshot-settings {
   width: 100%;
-  max-width: 860px;
-  padding: 28px 40px;
+  max-width: 820px;
+  padding: 36px 40px;
   margin-inline: auto;
   display: flex;
   flex-direction: column;
