@@ -82,6 +82,11 @@ impl SnapshotAssets {
         }
         Ok(())
     }
+    /// The full image's file, for a provider that reads images from disk.
+    /// Only a snapshot the reader explicitly sent is ever passed on.
+    pub(crate) fn image_path(&self, id: &str) -> Result<PathBuf, JamError> {
+        self.path(id, false)
+    }
     pub fn read(&self, id: &str, thumbnail: bool) -> Result<Vec<u8>, JamError> {
         let path = self.path(id, thumbnail)?;
         let meta = fs::symlink_metadata(&path).map_err(io_error)?;

@@ -1,6 +1,7 @@
 //! Version 1 JSON contract, mirrored by `@jam/protocol` and shared fixture tests.
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::BTreeMap;
 
 pub const VERSION: u32 = 1;
 
@@ -93,9 +94,30 @@ pub struct Session {
     pub presentation: Presentation,
     pub status: SessionStatus,
     pub model: String,
+    /// Provider-specific choices (`model`, `effort`, permission options).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub options: BTreeMap<String, String>,
+    /// An approval or question waits for the reader.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub needs_input: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage: Option<SessionUsage>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionUsage {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_tokens: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_window: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_tokens: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_tokens: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ContextSource {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -106,7 +128,7 @@ pub struct ContextSource {
     pub selection: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum ContextKind {
     File,
@@ -119,7 +141,7 @@ pub enum ContextKind {
     Snapshot,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ContextItem {
     pub id: String,
@@ -130,21 +152,85 @@ pub struct ContextItem {
     pub asset_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FileChange {
     pub path: String,
     pub added: u32,
     pub removed: u32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct InteractionChoice {
+    pub id: String,
+    pub label: String,
+    /// `allow`, `deny` or `neutral`: presentation only.
+    pub tone: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct QuestionOption {
+    pub label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct InteractionQuestion {
+    pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub header: Option<String>,
+    pub question: String,
+    pub options: Vec<QuestionOption>,
+    pub multi_select: bool,
+    pub allow_other: bool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum InteractionStatus {
+    Pending,
+    Resolved,
+    Cancelled,
+    Expired,
+}
+
+/// A provider asking the reader. The JAM ID is stable; the provider's own
+/// request ID never leaves the adapter.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct Interaction {
+    pub id: String,
+    /// `command`, `file-change`, `tool`, `question` or `plan`.
+    pub kind: String,
+    pub title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    pub choices: Vec<InteractionChoice>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub questions: Option<Vec<InteractionQuestion>>,
+    pub status: InteractionStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum MessageBlock {
     Text {
         text: String,
     },
+    /// A provider-reported reasoning summary.
+    Reasoning {
+        text: String,
+    },
     Tool {
         id: String,
+        /// `read`, `search`, `edit`, `command`, `tool`, `web` or `agent`.
         kind: String,
         title: String,
         detail: String,
@@ -154,6 +240,14 @@ pub enum MessageBlock {
     },
     Context {
         items: Vec<ContextItem>,
+    },
+    Interaction {
+        interaction: Interaction,
+    },
+    Notice {
+        /// `info`, `warning` or `error`.
+        tone: String,
+        text: String,
     },
 }
 
@@ -171,7 +265,14 @@ impl Message {
         self.blocks
             .iter()
             .map(|block| match block {
-                MessageBlock::Text { text } => text.clone(),
+                MessageBlock::Text { text } | MessageBlock::Notice { text, .. } => text.clone(),
+                // A provider's reasoning summary is not something said to the reader.
+                MessageBlock::Reasoning { .. } => String::new(),
+                MessageBlock::Interaction { interaction } => format!(
+                    "{} {}",
+                    interaction.title,
+                    interaction.detail.as_deref().unwrap_or_default()
+                ),
                 MessageBlock::Tool {
                     title,
                     detail,
@@ -224,8 +325,141 @@ pub struct WorkspaceSnapshot {
     pub projects: Vec<Project>,
     pub resources: Vec<Resource>,
     pub sessions: Vec<Session>,
-    pub providers: Vec<Value>,
+    pub providers: Vec<ProviderDescriptor>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CapabilitySupport {
+    /// `supported`, `unsupported`, `unknown` or `conditional`.
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+impl CapabilitySupport {
+    pub fn supported() -> Self {
+        Self {
+            status: "supported".into(),
+            reason: None,
+        }
+    }
+    pub fn with(status: &str, reason: impl Into<String>) -> Self {
+        Self {
+            status: status.into(),
+            reason: Some(reason.into()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderModel {
+    pub id: String,
+    pub label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub is_default: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub efforts: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_effort: Option<String>,
+    /// `supported`, `unsupported` or `unknown`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub images: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct OptionValue {
+    pub value: String,
+    pub label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderOption {
+    pub id: String,
+    pub label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub values: Vec<OptionValue>,
+    pub default: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ProviderStatus {
+    /// `info`, `warning` or `error`.
+    pub tone: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ProviderAccount {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub method: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan: Option<String>,
+}
+
+/// Installation, authentication, enablement, default and running are
+/// independent. Anything a provider did not report stays absent or unknown.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderDescriptor {
+    pub id: String,
+    pub name: String,
+    /// `installed`, `missing`, `unknown` or `builtin`.
+    pub installation: String,
+    /// `authenticated`, `unauthenticated`, `unknown` or `not-required`.
+    pub authentication: String,
+    pub enabled: bool,
+    pub is_default: bool,
+    pub running: bool,
+    pub capabilities: BTreeMap<String, CapabilitySupport>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub running_count: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub executable: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub executable_source: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub executable_override: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<ProviderStatus>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account: Option<ProviderAccount>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub models: Option<Vec<ProviderModel>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub options: Option<Vec<ProviderOption>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub defaults: Option<BTreeMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checked_at: Option<String>,
+}
+
+/// Every capability JAM describes, in display order.
+pub const CAPABILITIES: [&str; 14] = [
+    "create",
+    "resume",
+    "fork",
+    "interrupt",
+    "streaming",
+    "toolApproval",
+    "userInput",
+    "images",
+    "steering",
+    "queue",
+    "modelSelection",
+    "effort",
+    "permissionModes",
+    "usage",
+];
 
 #[derive(Debug, Deserialize)]
 pub struct DemoFixture {

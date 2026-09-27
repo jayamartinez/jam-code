@@ -14,6 +14,7 @@ mod requests;
 mod shell;
 
 pub use shell::ShellSpec;
+pub(crate) use shell::expand_home as expand_home_path;
 
 use crate::error::JamError;
 use output::{Replay, Utf8Stream};

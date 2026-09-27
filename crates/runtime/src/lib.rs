@@ -7,6 +7,7 @@ mod files;
 pub mod git;
 mod native_files;
 pub mod protocol;
+mod provider_requests;
 pub mod providers;
 mod runtime;
 pub mod snapshots;

@@ -4,7 +4,9 @@ use crate::{
     error::JamError,
     events::{self, EventReceiver, Subscriber},
     protocol::*,
-    providers::{MockProvider, ProviderAdapter},
+    providers::{
+        ClaudeAdapter, CodexAdapter, Interactions, MockProvider, ProviderAdapter, ProviderManager,
+    },
     storage::Store,
     terminal::{ShellSpec, TerminalManager, TerminalSink},
 };
@@ -27,6 +29,9 @@ pub(crate) struct RunningTask {
     pub session_id: String,
     pub cancel: watch::Sender<bool>,
     pub handle: tokio::task::JoinHandle<()>,
+    /// Closes when the task has fully ended, including a provider still
+    /// stopping after an interrupt.
+    pub finished: watch::Receiver<()>,
 }
 pub(crate) struct State {
     pub store: Store,
@@ -41,7 +46,10 @@ pub struct Runtime {
     pub(crate) id: String,
     pub(crate) state: Mutex<State>,
     pub(crate) shutting_down: AtomicBool,
-    pub(crate) adapter: Arc<dyn ProviderAdapter>,
+    /// Provider adapters and the processes they own.
+    pub(crate) providers: ProviderManager,
+    /// Approvals and questions waiting for the reader, by JAM interaction ID.
+    pub(crate) interactions: Interactions,
     /// Terminal processes. Empty, with no PTY, until a terminal is created.
     pub(crate) terminals: TerminalManager,
     pub(crate) git: crate::git::GitManager,
@@ -62,8 +70,25 @@ pub(crate) fn now() -> String {
 }
 
 impl Runtime {
-    /// This milestone opens an explicitly isolated demo database, never production user history.
+    /// Opens the local database with the demo seed, the demo provider and
+    /// the real Claude Code and Codex adapters. Adapters start no process
+    /// until a provider is checked or a turn is sent.
     pub fn open_demo(path: impl AsRef<Path>) -> Result<Arc<Self>, JamError> {
+        Self::open_with(
+            path,
+            vec![
+                Arc::new(MockProvider),
+                Arc::new(ClaudeAdapter::default()),
+                Arc::new(CodexAdapter::default()),
+            ],
+        )
+    }
+
+    /// Opens with a chosen set of adapters, for tests and alternative hosts.
+    pub fn open_with(
+        path: impl AsRef<Path>,
+        adapters: Vec<Arc<dyn ProviderAdapter>>,
+    ) -> Result<Arc<Self>, JamError> {
         let mut store = Store::open(path.as_ref())?;
         store.seed_demo()?;
         Ok(Arc::new(Self {
@@ -78,7 +103,8 @@ impl Runtime {
                 subscribers: HashMap::new(),
             }),
             shutting_down: AtomicBool::new(false),
-            adapter: Arc::new(MockProvider),
+            providers: ProviderManager::new(adapters),
+            interactions: Interactions::default(),
             terminals: TerminalManager::default(),
             git: crate::git::GitManager::default(),
         }))
@@ -117,9 +143,14 @@ impl Runtime {
             "workspace.get" => {
                 let _: Empty = parse(request.params)?;
                 let state = self.lock()?;
-                Ok(serde_json::to_value(
-                    state.store.workspace(self.cursor(&state))?,
-                )?)
+                let mut workspace = state.store.workspace(self.cursor(&state))?;
+                workspace.providers = self
+                    .providers
+                    .describe(&self.provider_settings(&state)?, &workspace.sessions);
+                Ok(serde_json::to_value(workspace)?)
+            }
+            method if method.starts_with("provider.") || method == "interaction.respond" => {
+                self.provider_request(method, request.params)
             }
             "conversation.get" => {
                 let input: GetConversation = parse(request.params)?;
@@ -134,6 +165,14 @@ impl Runtime {
             "conversation.create" => {
                 let input: CreateConversation = parse(request.params)?;
                 validate_id(&input.project_id)?;
+                // Options are checked against what the provider reports, so
+                // it is asked first, before the database lock is taken.
+                if let Some(provider) = input.provider_id.as_deref() {
+                    validate_provider(provider)?;
+                    if provider != "mock" {
+                        self.check_providers(false)?;
+                    }
+                }
                 let mut state = self.lock()?;
                 if self.shutting_down.load(Ordering::Acquire) {
                     return Err(JamError::new("unavailable", "JAM is shutting down."));
@@ -142,6 +181,12 @@ impl Runtime {
                 if !workspace.projects.iter().any(|p| p.id == input.project_id) {
                     return Err(JamError::new("not_found", "Project not found."));
                 }
+                let (provider_id, presentation, model, options) = self.session_choice(
+                    &state,
+                    input.provider_id.as_deref(),
+                    input.presentation,
+                    input.options,
+                )?;
                 let resource = Resource {
                     id: new_id("conversation"),
                     kind: "conversation".into(),
@@ -157,10 +202,13 @@ impl Runtime {
                 let session = Session {
                     id: resource.session_id.clone().expect("new session ID"),
                     resource_id: resource.id.clone(),
-                    provider_id: "mock".into(),
-                    presentation: input.presentation,
+                    provider_id,
+                    presentation,
                     status: SessionStatus::Idle,
-                    model: "Demo model".into(),
+                    model,
+                    options,
+                    needs_input: false,
+                    usage: None,
                 };
                 state.store.create_conversation(&resource, &session)?;
                 self.publish(
@@ -560,8 +608,12 @@ impl Runtime {
                 for mut session in state.store.sessions()? {
                     if session.status == SessionStatus::Running {
                         session.status = SessionStatus::Interrupted;
+                        session.needs_input = false;
                         state.store.save_session(&session)?;
-                        state.store.interrupt_messages(&session.resource_id)?;
+                        state.store.interrupt_messages(
+                            &session.resource_id,
+                            InteractionStatus::Cancelled,
+                        )?;
                     }
                 }
                 Ok(())
@@ -580,6 +632,9 @@ impl Runtime {
                 let _ = handle.await;
             }
         }
+        // Every provider process ends with JAM, including idle ones kept
+        // for their next turn; sessions resume from the provider's ID.
+        self.providers.shutdown();
         Ok(())
     }
 }

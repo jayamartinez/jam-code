@@ -4,6 +4,7 @@ use crate::{
 };
 use serde::Deserialize;
 use serde_json::Value;
+use std::collections::BTreeMap;
 
 pub fn parse<T: for<'de> Deserialize<'de>>(value: Value) -> Result<T, JamError> {
     fn has_null(value: &Value) -> bool {
@@ -47,6 +48,38 @@ pub struct GetConversation {
 pub struct CreateConversation {
     pub project_id: String,
     pub presentation: Presentation,
+    /// Absent means the demo provider, as before real providers existed.
+    pub provider_id: Option<String>,
+    #[serde(default)]
+    pub options: BTreeMap<String, String>,
+}
+
+pub const PROVIDER_IDS: [&str; 3] = ["mock", "claude", "codex"];
+
+pub fn validate_provider(id: &str) -> Result<(), JamError> {
+    if PROVIDER_IDS.contains(&id) {
+        Ok(())
+    } else {
+        Err(JamError::invalid("Unknown provider."))
+    }
+}
+
+/// Option names are short identifiers; values are short strings.
+pub fn validate_options(options: &BTreeMap<String, String>) -> Result<(), JamError> {
+    if options.len() > 32 {
+        return Err(JamError::invalid("Too many provider options."));
+    }
+    for (key, value) in options {
+        let valid_key = key.len() <= 64
+            && key.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
+            && key
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'));
+        if !valid_key || value.trim().is_empty() || value.encode_utf16().count() > 256 {
+            return Err(JamError::invalid("A provider option is invalid."));
+        }
+    }
+    Ok(())
 }
 
 #[derive(Deserialize)]
@@ -56,12 +89,62 @@ pub struct StartTurn {
     pub text: String,
     pub context: Vec<ContextItem>,
     pub request_id: String,
+    #[serde(default)]
+    pub options: BTreeMap<String, String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ListProviders {
+    #[serde(default)]
+    pub refresh: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ConfigureProvider {
+    pub provider_id: String,
+    pub enabled: Option<bool>,
+    pub is_default: Option<bool>,
+    pub executable: Option<String>,
+    pub defaults: Option<BTreeMap<String, String>>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RespondInteraction {
+    pub resource_id: String,
+    pub interaction_id: String,
+    pub choice_id: Option<String>,
+    pub answers: Option<BTreeMap<String, Vec<String>>>,
+}
+
+impl RespondInteraction {
+    pub fn validate(&self) -> Result<(), JamError> {
+        validate_id(&self.resource_id)?;
+        validate_id(&self.interaction_id)?;
+        match (&self.choice_id, &self.answers) {
+            (Some(choice), None) if !choice.is_empty() && choice.len() <= 64 => Ok(()),
+            (None, Some(answers))
+                if answers.len() <= 8
+                    && answers.iter().all(|(key, values)| {
+                        key.encode_utf16().count() <= 64
+                            && values.len() <= 16
+                            && values.iter().all(|v| v.encode_utf16().count() <= 4096)
+                    }) =>
+            {
+                Ok(())
+            }
+            _ => Err(JamError::invalid("Answer with one choice or with answers.")),
+        }
+    }
 }
 
 impl StartTurn {
     pub fn validate(&self) -> Result<(), JamError> {
         validate_id(&self.resource_id)?;
         validate_id(&self.request_id)?;
+        validate_options(&self.options)?;
         if (self.text.trim().is_empty() && self.context.is_empty())
             || self.text.encode_utf16().count() > 20_000
             || self.context.len() > 16

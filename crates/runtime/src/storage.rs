@@ -4,7 +4,14 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use std::{path::Path, time::Duration};
 
-pub(crate) const SCHEMA_VERSION: i64 = 4;
+pub(crate) const SCHEMA_VERSION: i64 = 5;
+
+/// A JAM session's link to the provider's own session or thread.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Binding {
+    pub provider_id: String,
+    pub native_id: String,
+}
 
 pub(crate) struct Store {
     pub connection: Connection,
@@ -30,11 +37,12 @@ impl Store {
         }
         // Numbered, transactional, additive. A failed migration leaves the
         // previous version intact rather than resetting anything.
-        const MIGRATIONS: [&str; 4] = [
+        const MIGRATIONS: [&str; 5] = [
             include_str!("migrations/001-foundation.sql"),
             include_str!("migrations/002-file-edits.sql"),
             include_str!("migrations/003-settings.sql"),
             include_str!("migrations/004-snapshots.sql"),
+            include_str!("migrations/005-provider-bindings.sql"),
         ];
         for (index, migration) in MIGRATIONS.iter().enumerate() {
             let target = index as i64 + 1;
@@ -49,10 +57,14 @@ impl Store {
         let store = Self { connection };
         store.transaction(|| {
             for mut session in store.sessions()? {
-                if session.status == SessionStatus::Running {
-                    session.status = SessionStatus::Interrupted;
+                if session.status == SessionStatus::Running || session.needs_input {
+                    if session.status == SessionStatus::Running {
+                        session.status = SessionStatus::Interrupted;
+                    }
+                    session.needs_input = false;
                     store.save_session(&session)?;
-                    store.interrupt_messages(&session.resource_id)?;
+                    // The provider process that asked is gone with the old run.
+                    store.interrupt_messages(&session.resource_id, InteractionStatus::Expired)?;
                 }
             }
             Ok(())
@@ -119,10 +131,7 @@ impl Store {
                 self.save_message(&resource, message)?;
             }
         }
-        self.connection.execute(
-            "INSERT INTO metadata(key,value) VALUES ('providers',?1)",
-            [serde_json::to_string(&fixture.workspace.providers)?],
-        )?;
+        // Provider descriptors are live runtime state, not seeded records.
         self.connection.execute(
             "INSERT INTO metadata(key,value) VALUES ('demo_seed_v1','1')",
             [],
@@ -141,32 +150,54 @@ impl Store {
         self.all("SELECT data FROM sessions ORDER BY rowid")
     }
 
+    /// Records. Provider descriptors come from the runtime's provider
+    /// manager, not the database, and are filled in by the caller.
     pub fn workspace(&self, cursor: Cursor) -> Result<WorkspaceSnapshot, JamError> {
-        let sessions = self.sessions()?;
-        let mut providers: Vec<Value> = self
-            .connection
-            .query_row(
-                "SELECT value FROM metadata WHERE key = 'providers'",
-                [],
-                |row| decode(row.get(0)?),
-            )
-            .optional()?
-            .unwrap_or_default();
-        for provider in &mut providers {
-            if provider["id"] == "mock" {
-                provider["running"] =
-                    Value::Bool(sessions.iter().any(|s| s.status == SessionStatus::Running));
-            }
-        }
         Ok(WorkspaceSnapshot {
             protocol_version: VERSION,
             runtime_id: cursor.runtime_id,
             sequence: cursor.sequence,
             projects: self.all("SELECT data FROM projects ORDER BY rowid")?,
             resources: self.all("SELECT data FROM resources ORDER BY rowid")?,
-            sessions,
-            providers,
+            sessions: self.sessions()?,
+            providers: Vec::new(),
         })
+    }
+
+    pub fn binding(&self, session_id: &str) -> Result<Option<Binding>, JamError> {
+        Ok(self
+            .connection
+            .query_row(
+                "SELECT provider_id,native_id FROM provider_bindings WHERE session_id=?1",
+                [session_id],
+                |row| {
+                    Ok(Binding {
+                        provider_id: row.get(0)?,
+                        native_id: row.get(1)?,
+                    })
+                },
+            )
+            .optional()?)
+    }
+
+    /// Links a session to its provider's ID. A new ID (a resume that had to
+    /// start fresh) replaces the old one; the JAM session is unchanged.
+    pub fn save_binding(
+        &self,
+        session_id: &str,
+        provider_id: &str,
+        native_id: &str,
+        data: &Value,
+    ) -> Result<(), JamError> {
+        let now = crate::runtime::now();
+        self.connection.execute(
+            "INSERT INTO provider_bindings(session_id,provider_id,native_id,created_at,updated_at,data)
+             VALUES (?1,?2,?3,?4,?4,?5)
+             ON CONFLICT(session_id) DO UPDATE SET native_id=excluded.native_id,
+               updated_at=excluded.updated_at,data=excluded.data",
+            params![session_id, provider_id, native_id, now, data.to_string()],
+        )?;
+        Ok(())
     }
 
     pub fn resource(&self, id: &str) -> Result<Resource, JamError> {
@@ -303,19 +334,41 @@ impl Store {
         Ok(())
     }
 
-    pub fn interrupt_messages(&self, resource_id: &str) -> Result<Vec<Message>, JamError> {
+    /// Ends running tools and unanswered requests in a conversation.
+    /// `pending` is what an unanswered request becomes: `Cancelled` after an
+    /// explicit interrupt, `Expired` when the provider can no longer answer.
+    pub fn interrupt_messages(
+        &self,
+        resource_id: &str,
+        pending: InteractionStatus,
+    ) -> Result<Vec<Message>, JamError> {
         let resource = self.resource(resource_id)?;
         let conversation = self.conversation(resource_id, Cursor::default())?;
         let mut changed = Vec::new();
         for mut message in conversation.messages {
             let mut interrupted = false;
             for block in &mut message.blocks {
-                if let MessageBlock::Tool { status, detail, .. } = block
-                    && status == "running"
-                {
-                    *status = "failed".into();
-                    detail.push_str(" · Interrupted");
-                    interrupted = true;
+                match block {
+                    MessageBlock::Tool { status, detail, .. } if status == "running" => {
+                        *status = "failed".into();
+                        detail.push_str(" · Interrupted");
+                        interrupted = true;
+                    }
+                    MessageBlock::Interaction { interaction }
+                        if interaction.status == InteractionStatus::Pending =>
+                    {
+                        interaction.status = pending;
+                        interaction.outcome = Some(
+                            if pending == InteractionStatus::Expired {
+                                "No longer waiting: JAM restarted"
+                            } else {
+                                "Interrupted"
+                            }
+                            .into(),
+                        );
+                        interrupted = true;
+                    }
+                    _ => {}
                 }
             }
             if interrupted {
@@ -396,9 +449,6 @@ impl Store {
         {
             return Err(JamError::invalid("Unknown provider filter."));
         }
-        if query.provider_id.as_deref().is_some_and(|id| id != "mock") {
-            return Ok(Vec::new());
-        }
         let tokens = query
             .query
             .split(|c: char| !c.is_alphanumeric())
@@ -421,6 +471,7 @@ impl Store {
                 WHERE search_fts MATCH ?1
                   AND (?2 IS NULL OR r.project_id=?2)
                   AND (?3 IS NULL OR json_extract(r.data,'$.pinned')=?3)
+                  AND (?4 IS NULL OR json_extract(s.data,'$.providerId')=?4)
             ), ranked AS (
                 SELECT *, row_number() OVER (PARTITION BY resource_id ORDER BY score) AS hit_rank
                 FROM hits
@@ -429,7 +480,12 @@ impl Store {
             WHERE hit_rank=1 ORDER BY score,resource_id LIMIT 50",
         )?;
         let rows = stmt.query_map(
-            params![tokens.join(" AND "), query.project_id, query.pinned],
+            params![
+                tokens.join(" AND "),
+                query.project_id,
+                query.pinned,
+                query.provider_id
+            ],
             |row| {
                 let resource: Resource = decode(row.get(0)?)?;
                 let session: Session = decode(row.get(1)?)?;
