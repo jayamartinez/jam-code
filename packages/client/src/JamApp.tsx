@@ -57,6 +57,7 @@ import { FileResource } from './components/FileResource';
 import { TerminalResource } from './components/TerminalResource';
 import { estimateTerminalSize } from './components/terminal-metrics';
 import { ContextMenu, menuPoint, type ContextMenuState } from './components/ContextMenu';
+import type { FileReference } from './markdown/file-refs';
 import { ProjectEditor } from './components/ProjectEditor';
 import { BrowserResource, describeAnnotation } from './components/BrowserResource';
 
@@ -160,6 +161,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   const lastConversation = useRef<string | null>(null);
   /** Pages a Browser opened from a Markdown link should load once attached. */
   const [browserUrls, setBrowserUrls] = useState<Record<string, string>>({});
+  /** Lines a chat linked to, per File resource: view state, not a record. */
+  const [fileReveals, setFileReveals] = useState<Record<string, { line: number; key: number }>>({});
   /** Live terminals the launcher offers to reopen; read when it opens. */
   const [runningTerminals, setRunningTerminals] = useState<TerminalSession[]>([]);
   const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
@@ -431,23 +434,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
    * already holds one, then to an empty pane, and otherwise to a new pane
    * split beside the browser at the Files frame's proportion.
    */
-  const openFileFrom = useCallback(
-    async (path: string, fromPaneId: string | null, inProject?: string) => {
-      const target = inProject ?? projectId;
-      if (!target) return;
-      let resourceId: string;
-      try {
-        const { resource } = await transport.request('resource.open', {
-          projectId: target,
-          kind: 'file',
-          path,
-        });
-        client.addResource(resource);
-        resourceId = resource.id;
-      } catch (cause) {
-        client.reportError(cause);
-        return;
-      }
+  const placeBeside = useCallback(
+    (resourceId: string, fromPaneId: string | null, kind: 'file' | 'browser') => {
       const current = layoutRef.current;
       const tree = activeTree(current);
       const browserPane = fromPaneId ?? focusedPane(current)?.id;
@@ -455,7 +443,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       const kindOf = (id: string | null) =>
         client.getSnapshot().workspace?.resources.find((item) => item.id === id)?.kind;
       const editorPane =
-        others.find((pane) => kindOf(pane.resourceId) === 'file') ??
+        others.find((pane) => kindOf(pane.resourceId) === kind) ??
         others.find((pane) => !pane.resourceId);
       if (editorPane) {
         assignPane(resourceId, editorPane.id);
@@ -469,13 +457,99 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         splitId: newSplitId(),
         newPaneId: newPaneId(),
         resourceId,
-        ratio:
-          kindOf(findLeaf(tree, browserPane ?? '')?.resourceId ?? null) === 'diff'
-            ? 0.5
-            : browserRatio(browserPane),
+        // A chat or a diff keeps half the width; a browser keeps the Files
+        // frame's proportion.
+        ratio: ['diff', 'conversation'].includes(
+          kindOf(findLeaf(tree, browserPane ?? '')?.resourceId ?? null) ?? '',
+        )
+          ? 0.5
+          : browserRatio(browserPane),
       });
     },
-    [assignPane, client, projectId, transport],
+    [assignPane, client],
+  );
+
+  /** A file a chat or preview linked to, beside it, at `line` when given. */
+  const openFileFrom = useCallback(
+    async (path: string, fromPaneId: string | null, inProject?: string, line?: number) => {
+      const target = inProject ?? projectId;
+      if (!target) return;
+      try {
+        const { resource } = await transport.request('resource.open', {
+          projectId: target,
+          kind: 'file',
+          path,
+        });
+        client.addResource(resource);
+        if (line)
+          setFileReveals((current) => ({ ...current, [resource.id]: { line, key: Date.now() } }));
+        placeBeside(resource.id, fromPaneId, 'file');
+      } catch (cause) {
+        client.reportError(cause);
+      }
+    },
+    [client, placeBeside, projectId, transport],
+  );
+
+  /** A local server a chat started, in a JAM browser beside the chat. */
+  const openPreviewFrom = useCallback(
+    async (url: string, fromPaneId: string | null, inProject?: string) => {
+      const target = inProject ?? projectId;
+      if (!target) return;
+      try {
+        const { resource } = await transport.request('resource.open', {
+          projectId: target,
+          kind: 'browser',
+        });
+        client.addResource(resource);
+        setBrowserUrls((current) => ({ ...current, [resource.id]: url }));
+        placeBeside(resource.id, fromPaneId, 'browser');
+      } catch (cause) {
+        client.reportError(cause);
+      }
+    },
+    [client, placeBeside, projectId, transport],
+  );
+
+  /** Right-click on a file a chat named. */
+  const fileMenu = useCallback(
+    (
+      file: FileReference,
+      event: React.MouseEvent,
+      fromPaneId: string | null,
+      inProject?: string,
+    ) => {
+      const target = inProject ?? projectId;
+      setContextMenu({
+        ...menuPoint(event),
+        items: [
+          {
+            label: 'Open beside',
+            hint: 'Click',
+            onSelect: () => void openFileFrom(file.path, fromPaneId, target, file.line),
+          },
+          {
+            label: 'Open in new tab',
+            onSelect: () => void openKind('file', file.path, undefined, target),
+          },
+          {
+            label: desktop.platform === 'windows' ? 'Show in Explorer' : 'Reveal in Finder',
+            separated: true,
+            onSelect: () => {
+              if (target)
+                void transport
+                  .request('file.reveal', { projectId: target, path: file.path })
+                  .catch(client.reportError);
+            },
+          },
+          {
+            label: 'Copy path',
+            onSelect: () => void navigator.clipboard?.writeText(file.path).catch(() => {}),
+          },
+        ],
+      });
+    },
+    [client, desktop.platform, openFileFrom, openKind, projectId, transport],
   );
 
   const openSettings = useCallback(() => {
@@ -911,8 +985,15 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             session={session}
             composer={{
               ...composerFor(resource.id, session?.id),
-              onOpenUrl: (url: string) => void openUrl(url, resource.projectId),
-              onOpenFile: (path: string) => void openFileFrom(path, paneId, resource.projectId),
+              onOpenUrl: (url: string) => void openPreviewFrom(url, paneId, resource.projectId),
+              onOpenFile: (path: string, line?: number) =>
+                void openFileFrom(path, paneId, resource.projectId, line),
+              onFileMenu: (file: FileReference, event: React.MouseEvent) =>
+                fileMenu(file, event, paneId, resource.projectId),
+              ...(desktop.platform !== 'web' && {
+                onOpenExternal: (url: string) =>
+                  void transport.request('url.openExternal', { url }).catch(client.reportError),
+              }),
             }}
           />
         );
@@ -927,6 +1008,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             saveShortcut={shortcut}
             onOpenUrl={(url) => void openUrl(url, resource.projectId)}
             onOpenFile={(path) => void openKind('file', path, undefined, resource.projectId)}
+            reveal={fileReveals[resource.id]}
           />
         );
       case 'file-browser':

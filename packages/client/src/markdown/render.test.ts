@@ -180,3 +180,36 @@ describe('link classification', () => {
     });
   });
 });
+
+describe('file links in agent replies', () => {
+  const links = (source: string) =>
+    renderToStaticMarkup(
+      createElement(
+        'article',
+        null,
+        renderMarkdown(source, {
+          directory: '',
+          onLink: vi.fn(),
+          code: (content: string, _info: string, key: number): ReactNode =>
+            createElement('pre', { key }, content),
+          fileLink: (file, label, key) =>
+            createElement('a', { key, 'data-file': `${file.path}#${file.line ?? ''}` }, label),
+        }),
+      ),
+    ).match(/data-file="[^"]*"/g) ?? [];
+
+  it('links project files in inline code and unambiguous prose', () => {
+    expect(
+      links('Added it at math.ts:20, see `src/math.test.ts` and (docs/PROVIDERS.md).'),
+    ).toEqual([
+      'data-file="math.ts#20"',
+      'data-file="src/math.test.ts#"',
+      'data-file="docs/PROVIDERS.md#"',
+    ]);
+  });
+
+  it('leaves words, code and existing links alone', () => {
+    expect(links('Node.js and `pty.kill` stay text; e.g. a/b too.')).toEqual([]);
+    expect(links('[the guide](https://example.com/src/a.ts)')).toEqual([]);
+  });
+});

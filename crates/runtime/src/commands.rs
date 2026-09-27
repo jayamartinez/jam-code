@@ -212,6 +212,19 @@ pub struct ListDirectory {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RevealFile {
+    pub project_id: String,
+    pub path: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OpenUrl {
+    pub url: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ReadFile {
     pub project_id: String,
     pub path: String,

@@ -299,7 +299,11 @@ const context: Check = (value) =>
   );
 
 const fileChange: Check = (value) =>
-  shape(value, { path: text(4096), added: integer, removed: integer });
+  shape(
+    value,
+    { path: text(4096), added: integer, removed: integer },
+    { diff: text(16_000, true) },
+  );
 const interaction: Check = (value) =>
   shape(
     value,
@@ -379,12 +383,16 @@ const block: Check = (value) => {
 };
 
 const message: Check = (value) =>
-  shape(value, {
-    id,
-    role: oneOf('user', 'assistant'),
-    createdAt: timestamp,
-    blocks: array(block, 1000),
-  });
+  shape(
+    value,
+    {
+      id,
+      role: oneOf('user', 'assistant'),
+      createdAt: timestamp,
+      blocks: array(block, 1000),
+    },
+    { completedAt: timestamp },
+  );
 const conversation: Check = (value) =>
   shape(value, { resourceId: id, sessionId: id, messages: array(message), cursor });
 const workspace: Check = (value) =>
@@ -698,6 +706,8 @@ const params: Record<RequestMethod, Check> = {
   'turn.interrupt': (value) => shape(value, { sessionId: id }),
   'directory.list': (value) => shape(value, { projectId: id, path: listingPath }),
   'file.read': (value) => shape(value, { projectId: id, path: relativePath }),
+  'file.reveal': (value) => shape(value, { projectId: id, path: relativePath }),
+  'url.openExternal': (value) => shape(value, { url: text(2048) }),
   'file.write': (value) =>
     shape(value, { projectId: id, path: relativePath, text: text(2_000_000, true) }),
   'project.update': (value) =>
@@ -773,6 +783,8 @@ const responses: Record<RequestMethod, Check> = {
   'turn.interrupt': (value) => shape(value, { sessionId: id, interrupted: boolean }),
   'directory.list': directoryListing,
   'file.read': fileContents,
+  'file.reveal': (value) => shape(value, { revealed: oneOf(true) }),
+  'url.openExternal': (value) => shape(value, { opened: oneOf(true) }),
   'file.write': fileSaved,
   'project.update': (value) => shape(value, { project }),
   'thread.setClosed': (value) => shape(value, { resource }),

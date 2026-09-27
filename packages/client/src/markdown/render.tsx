@@ -1,6 +1,13 @@
 import MarkdownIt, { type Token } from 'markdown-it';
 import { Fragment, type ReactNode } from 'react';
-import { classifyImage, classifyLink, headingId, type LinkTarget } from './links';
+import {
+  classifyImage,
+  classifyLink,
+  headingId,
+  resolveProjectPath,
+  type LinkTarget,
+} from './links';
+import { fileReference, lineFromHash, type FileReference } from './file-refs';
 
 /**
  * Markdown → React elements, with no HTML string in between.
@@ -33,6 +40,11 @@ export interface MarkdownOptions {
   onLink(target: LinkTarget): void;
   /** Renders a fenced or indented code block; highlighting is the caller's. */
   code(content: string, info: string, key: number): ReactNode;
+  /**
+   * Renders a link to a project file. When given, file links use it, and
+   * inline code that names a project file (`src/a.ts:18`) becomes one too.
+   */
+  fileLink?(file: FileReference, label: ReactNode, key: number): ReactNode;
 }
 
 interface Context extends MarkdownOptions {
@@ -139,6 +151,14 @@ function element(token: Token, children: ReactNode[], context: Context): ReactNo
             {children}
           </span>
         );
+      if (target.kind === 'file' && context.fileLink) {
+        const line = lineFromHash(target.hash);
+        return context.fileLink(
+          line ? { path: target.path, line } : { path: target.path },
+          children,
+          key,
+        );
+      }
       const shown =
         target.kind === 'web' ? target.url : target.kind === 'file' ? target.path : `#${target.id}`;
       return (
@@ -165,17 +185,22 @@ function element(token: Token, children: ReactNode[], context: Context): ReactNo
   }
 }
 
-function leaf(token: Token, context: Context): ReactNode {
+function leaf(token: Token, context: Context, inLink = false): ReactNode {
   const key = context.key++;
   switch (token.type) {
     case 'text':
-      return token.content;
+      return context.fileLink && !inLink ? linkPaths(token.content, context, key) : token.content;
     case 'softbreak':
       return '\n';
     case 'hardbreak':
       return <br key={key} />;
-    case 'code_inline':
+    case 'code_inline': {
+      const file = context.fileLink && !inLink ? fileReference(token.content) : null;
+      const path = file && resolveProjectPath(context.directory, file.path);
+      if (file && path && context.fileLink)
+        return context.fileLink({ ...file, path }, token.content, key);
       return <code key={key}>{token.content}</code>;
+    }
     case 'hr':
       return <hr key={key} />;
     case 'fence':
@@ -215,6 +240,33 @@ function leaf(token: Token, context: Context): ReactNode {
   }
 }
 
+const EDGE = /^([("'[]*)(.*?)([.,;:!?)"'\]]*)$/s;
+
+/**
+ * Paths an agent writes in plain prose, like "added it at math.ts:20".
+ * Only unambiguous ones: a folder (`src/a.ts`) or a line (`a.ts:20`), so
+ * words such as "Node.js" stay words.
+ */
+function linkPaths(text: string, context: Context, key: number): ReactNode {
+  const parts = text.split(/(\s+)/);
+  let linked = false;
+  const nodes = parts.map((part, index) => {
+    const [, lead = '', core = '', trail = ''] = EDGE.exec(part) ?? [];
+    const file = core ? fileReference(core) : null;
+    const path = file && resolveProjectPath(context.directory, file.path);
+    if (!file || !path || !context.fileLink || (!core.includes('/') && !file.line)) return part;
+    linked = true;
+    return (
+      <Fragment key={index}>
+        {lead}
+        {context.fileLink({ ...file, path }, core, index)}
+        {trail}
+      </Fragment>
+    );
+  });
+  return linked ? <Fragment key={key}>{nodes}</Fragment> : text;
+}
+
 function tree(tokens: Token[], context: Context): ReactNode[] {
   const stack: { token: Token | null; children: ReactNode[] }[] = [{ token: null, children: [] }];
   for (const token of tokens) {
@@ -224,7 +276,8 @@ function tree(tokens: Token[], context: Context): ReactNode[] {
       const frame = stack.pop()!;
       stack.at(-1)!.children.push(element(frame.token!, frame.children, context));
     } else if (token.nesting === 0) {
-      stack.at(-1)!.children.push(leaf(token, context));
+      const inLink = stack.some((frame) => frame.token?.type === 'link_open');
+      stack.at(-1)!.children.push(leaf(token, context, inLink));
     }
   }
   // An unclosed element (never produced by markdown-it) still renders its content.

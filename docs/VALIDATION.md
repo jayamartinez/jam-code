@@ -646,6 +646,31 @@ Native, macOS, computer use:
   following a reply that grew without a new message; a new Codex file showed
   +0 −0 (Codex sends an added file's content, not a diff).
 
+### Follow-up: turn log, approvals, file links and web preview
+
+Designed first in Paper (Core flows 9–12, and the General settings frame).
+Automated: `pnpm check` and `pnpm check:rust` pass. New tests cover file
+references in inline code and prose, local server detection, diff previews
+from both adapters, `completedAt`, and the scoped `file.reveal` and
+`url.openExternal` requests (a folderless project, other sites, `file:`).
+
+Native, macOS, computer use, against Claude Code 2.1.283:
+
+- An edit under Ask for approval showed "Waiting for approval" in the open
+  log and Claude's real diff in the blue approval card; Allow once folded the
+  turn to "Worked for 18s · Edited 1 file" with the changed-files card.
+- `math.ts:20` in Claude's prose was a link; clicking it opened the file
+  beside the chat with line 20 selected. Right-click → Reveal in Finder
+  selected the file in Finder.
+- A command that printed a local address against a running server showed the
+  preview bar; Open web preview opened JAM's browser beside the chat on that
+  page, and Open in browser opened it in the default browser.
+- The access pill and its menu worked in a chat and a new chat's footer.
+- Found and fixed natively: diff text wrapping per character, the access menu
+  clipped by the composer, the file preview opening too narrow beside a chat.
+- Noticed, not fixed: macOS smart quotes replace typed quotes in the composer
+  (a command Claude was asked to run failed on a curly quote).
+
 Not verified: Windows (`.cmd` shims, process groups), provider versions other
 than those listed, Claude sub-agent text, Codex questions (experimental API,
 unsupported), and long-running sessions past the 15-minute idle stop.

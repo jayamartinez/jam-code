@@ -28,7 +28,9 @@ import { ProviderIcon, sessionProviderName } from './icons';
 import { ContextChip } from './ContextChip';
 import { ProjectBadge } from './ProjectBadge';
 import type { InteractionAnswer } from './InteractionCard';
-import { AgentBlocks } from './TranscriptBlocks';
+import { AgentBlocks, type BlockActions } from './TranscriptBlocks';
+import { AccessPill } from './AccessPill';
+import type { FileReference } from '../markdown/file-refs';
 import { ContextMeter } from './ContextMeter';
 import { unavailableReason } from '../state/chat-draft';
 import { composerChoices } from './composer-model';
@@ -62,7 +64,9 @@ interface ConversationProps extends Pick<
   onRemoveContext(id: string): void;
   onRespond(interactionId: string, answer: InteractionAnswer): Promise<void>;
   onOpenUrl?(url: string): void;
-  onOpenFile?(path: string): void;
+  onOpenFile?(path: string, line?: number): void;
+  onFileMenu?(file: FileReference, event: React.MouseEvent): void;
+  onOpenExternal?(url: string): void;
 }
 
 export function ConversationPane(props: ConversationProps) {
@@ -358,14 +362,11 @@ export function Composer(props: ComposerProps) {
               // A new chat shows access in its footer, as in the design.
               !props.isNew &&
               pills.map((option) => (
-                <OptionSelect
+                <AccessPill
                   key={option.id}
-                  label={option.label}
                   value={option.value}
                   values={option.values}
                   disabled={props.busy}
-                  className="composer-pill policy"
-                  icon={<Shield size={12} />}
                   onChange={(value) => set(option.id, value)}
                 />
               ))
@@ -419,14 +420,12 @@ export function Composer(props: ComposerProps) {
                 <FolderOpen size={11} />
                 <span className="mono truncate">{props.project?.paths?.[0]}</span>
                 {pills.map((option) => (
-                  <OptionSelect
+                  <AccessPill
                     key={option.id}
-                    label={option.label}
+                    compact
                     value={option.value}
                     values={option.values}
                     disabled={props.busy}
-                    className="composer-footer-option"
-                    icon={<Shield size={11} />}
                     onChange={(value) => set(option.id, value)}
                   />
                 ))}
@@ -490,7 +489,7 @@ function MessageView({
   session?: Session;
   live: boolean;
   streamReplies: boolean;
-  actions: Pick<ConversationProps, 'onOpenReview' | 'onRespond' | 'onOpenUrl' | 'onOpenFile'>;
+  actions: BlockActions;
 }) {
   if (message.role === 'user')
     return (
@@ -521,19 +520,25 @@ function MessageView({
         <ProviderIcon presentation={session?.presentation} providerId={session?.providerId} />
         <strong>{sessionProviderName(session)}</strong>
         <span>
-          {live ? <Working since={message.createdAt} /> : demo ? 'Demonstration' : session?.model}
+          {live ? (
+            <Working since={message.createdAt} waiting={!!session?.needsInput} />
+          ) : demo ? (
+            'Demonstration'
+          ) : (
+            session?.model
+          )}
         </span>
         <span className="agent-rule" />
       </header>
       <div className="agent-content">
-        <AgentBlocks blocks={message.blocks} live={live} stream={streamReplies} actions={actions} />
+        <AgentBlocks message={message} live={live} stream={streamReplies} actions={actions} />
       </div>
     </article>
   );
 }
 
 /** "Working for 1m 12s", ticking only while a turn runs. */
-function Working({ since }: { since: string }) {
+function Working({ since, waiting }: { since: string; waiting: boolean }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -544,7 +549,7 @@ function Working({ since }: { since: string }) {
   const hours = Math.floor(minutes / 60);
   return (
     <>
-      Working for{' '}
+      {waiting ? 'Waiting for you · ' : 'Working for '}
       {hours
         ? `${hours}h ${minutes % 60}m`
         : minutes

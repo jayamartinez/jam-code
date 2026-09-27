@@ -327,31 +327,37 @@ enabling writes is a change of capability, not of architecture. Local folders
 found on disk are not listed in the launcher, because detecting them needs
 native folder access; the column says so instead of showing example paths.
 
-Deliberate deviations for live providers (no Paper frame exists for these):
+Live providers follow the Core flows frames designed for them: "8 · Context
+window popover", "9 · Approvals & access", "10 · Live activity",
+"11 · File links & web preview" and "12 · Reply states", with focus mode
+(44U-0) for the transcript's geometry.
 
-- **Approvals.** An approval that gates a tool renders as a footer inside that
-  tool's card (Edit, command or activity row): the provider's reason, then
-  exactly its choices, the first as the primary button. Once answered it
-  collapses to a quiet check or cross with the outcome. Questions, and
-  approvals with no tool, use a standalone card in the same type scale.
-- **Transcript.** Follows focus mode (frame 44U-0): "Working for …" beside the
-  agent name while a turn runs, 28px activity rows grouped between cards, and
-  the Edit and command cards' geometry.
-- **Composer.** New Chat follows frame 1a (agent switch, model, effort, the
-  project folder and access in the footer). Existing chats show the model,
-  effort and access as the design's pills. A Stop button replaces Send while
-  running.
-- **Context.** The ring opens the popover designed in Paper frame
-  "8 · Context window popover" (Core flows): reported size, free tokens,
-  Auto-compact and Compact now, with a compacting state.
-- **Stream replies** (General) reveals text as it arrives; off, a reply shows
-  "Writing…" until the turn ends.
-- **Edited files.** The demo's "new" and "open diff" labels were positional;
-  real edits show path and line counts only, and "Review changes" opens Review.
+- **Turn log.** A turn's reads, searches, edits and commands are one log,
+  open while the agent works and folded to "Worked for …" with its edits and
+  commands when it ends. The agent's words between actions sit in the log;
+  the answer after the last action, the files it changed and any local server
+  stay outside.
+- **Approvals.** Waiting for the reader uses the accent, never the warning
+  colour. A pending approval always shows outside the fold, in the card of the
+  action it gates, with the change's lines and exactly the provider's choices;
+  allowing choices lead, denying ones end the row. Answered, it is one quiet
+  line in the log. Titles and reasons are the provider's own words.
+- **Access.** One pill per level: muted Ask for approval, warning Auto-accept
+  edits, danger Full access. The menu describes each level in the adapter's
+  words for that agent rather than the frame's generic copy.
+- **File links.** Project files in inline code, file links and unambiguous
+  prose (`src/a.ts`, `a.ts:20`) get a file icon, link colour and an underline.
+  Click opens beside the chat at the line; right-click opens in a tab, reveals
+  in Finder or Explorer, or copies the path.
+- **Diff previews** have no line numbers for Claude, whose edit input has none.
+- **Local servers.** A command's localhost address gets "Open web preview"
+  (JAM's browser, beside the chat) and, in the desktop app, "Open in browser".
+- **Composer.** New Chat follows frame 1a; existing chats show model, effort
+  and access pills, the context ring and Stop while running.
 - **Settings → Providers.** Frame 604-0 with live data: "Checked … ago" with a
   refresh, version beside the name, Test connection, a status note for version
   or sign-in warnings, and an executable override. Config directory and launch
-  arguments remain Planned.
+  arguments remain Planned. Settings → General gains Stream replies.
 
 Window buttons call injected desktop services. The shared client imports no native API. Windows controls sit right; macOS retains the host's native traffic lights with an explicit left inset in sidebar, collapsed and focus presentations, avoiding duplicate web controls. Only noninteractive titlebar space initiates native dragging. Browser preview window actions are unavailable.
 

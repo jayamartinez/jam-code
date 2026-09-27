@@ -157,6 +157,10 @@ pub struct FileChange {
     pub path: String,
     pub added: u32,
     pub removed: u32,
+    /// A bounded preview of the changed lines, each prefixed with `+`, `-`,
+    /// ` ` (context) or `@` (a gap between hunks).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diff: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -262,6 +266,9 @@ pub struct Message {
     pub role: String,
     pub created_at: String,
     pub blocks: Vec<MessageBlock>,
+    /// When the turn that wrote an assistant message ended.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub completed_at: Option<String>,
 }
 
 impl Message {

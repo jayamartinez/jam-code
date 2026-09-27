@@ -210,6 +210,7 @@ impl Runtime {
             role: "user".into(),
             created_at: now(),
             blocks,
+            completed_at: None,
         };
         // Compaction keeps the chat's model and options as they are.
         if descriptor.is_some() && !compact {
@@ -340,7 +341,7 @@ impl Runtime {
                     match update {
                         ProviderUpdate::Blocks(blocks) => {
                             last_blocks = blocks.clone();
-                            let message = Message { id: message_id.clone(), role: "assistant".into(), created_at: created_at.clone(), blocks };
+                            let message = Message { id: message_id.clone(), role: "assistant".into(), created_at: created_at.clone(), blocks, completed_at: None };
                             let waiting = waiting_for_reader(&message.blocks);
                             let session_changed = waiting != current.needs_input;
                             current.needs_input = waiting;
@@ -375,8 +376,25 @@ impl Runtime {
                         ProviderUpdate::Finished(status) => {
                             current.status = status;
                             current.needs_input = false;
-                            if state.store.save_session(&current).is_err() { break; }
+                            // The reply records when its turn ended.
+                            let message = (!last_blocks.is_empty()).then(|| Message {
+                                id: message_id.clone(),
+                                role: "assistant".into(),
+                                created_at: created_at.clone(),
+                                blocks: last_blocks.clone(),
+                                completed_at: Some(now()),
+                            });
+                            let saved = state.store.transaction(|| {
+                                if let Some(message) = &message {
+                                    state.store.save_message(&resource, message)?;
+                                }
+                                state.store.save_session(&current)
+                            });
+                            if saved.is_err() { break; }
                             outcome_seen = true;
+                            if let Some(message) = message {
+                                self.publish(&mut state, &resource.id, EventPayload::MessageUpserted { message });
+                            }
                             self.publish(&mut state, &resource.id, EventPayload::SessionUpdated { session: current });
                         }
                     }
@@ -431,6 +449,7 @@ impl Runtime {
                     role: "assistant".into(),
                     created_at,
                     blocks,
+                    completed_at: Some(now()),
                 };
                 current.status = SessionStatus::Failed;
                 current.needs_input = false;

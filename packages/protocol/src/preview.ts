@@ -121,6 +121,9 @@ export class BrowserPreviewTransport implements JamTransport {
         return this.createConversation(request.params);
       case 'session.compact':
         throw new JamError('unsupported', 'The demo provider has no context to compact.');
+      case 'file.reveal':
+      case 'url.openExternal':
+        throw new JamError('unavailable', 'Opening outside jam needs the desktop app.');
       case 'provider.list':
         return { providers: this.workspace.providers };
       case 'provider.configure':

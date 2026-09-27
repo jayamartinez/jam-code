@@ -234,6 +234,47 @@ async fn simulated_approvals_answer_once_and_then_are_stale() {
     .await
     .unwrap_err();
     assert!(again.starts_with("stale"), "{again}");
+    // The finished reply records when its turn ended.
+    let conversation = call(
+        &runtime,
+        "conversation.get",
+        json!({"resourceId": resource}),
+    )
+    .await
+    .unwrap();
+    let reply = conversation["messages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .rfind(|message| message["role"] == "assistant")
+        .unwrap();
+    assert!(reply["completedAt"].as_str().is_some(), "{reply}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn opening_outside_jam_is_scoped() {
+    let temp = Temp::new();
+    let runtime = Runtime::open_with(temp.db(), vec![Arc::new(MockProvider)]).unwrap();
+    // A project without a folder has nothing to reveal.
+    let reveal = call(
+        &runtime,
+        "file.reveal",
+        json!({"projectId": "project-jam", "path": "src/main.rs"}),
+    )
+    .await
+    .unwrap_err();
+    assert!(reveal.starts_with("unavailable"), "{reveal}");
+    // Only local http addresses open in the default browser.
+    for url in [
+        "https://example.com",
+        "file:///etc/passwd",
+        "http://localhost.example.com",
+    ] {
+        let error = call(&runtime, "url.openExternal", json!({"url": url}))
+            .await
+            .unwrap_err();
+        assert!(error.starts_with("invalid_request"), "{url}: {error}");
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]

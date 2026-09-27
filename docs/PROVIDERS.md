@@ -78,9 +78,9 @@ Version 1 of `@jam/protocol`, extended additively:
 - `ProviderDescriptor`: installation, authentication, enabled, default and running (with `runningCount`) stay independent. Optional fields appear only when known: version, executable and how it was found, a provider-reported `account {method, plan}`, discovered `models` (with effort levels and image support), provider-specific `options` (both: `access`; Claude also `autoCompact`), saved `defaults`, a status note and `checkedAt`.
 - Capabilities: `create, resume, fork, interrupt, streaming, toolApproval, userInput, images, steering, queue, modelSelection, effort, permissionModes, usage, compact`, each `supported | unsupported | conditional | unknown` with a reason.
 - `Session`: `providerId` is the adapter actually running it; `options`, `needsInput` and provider-reported `usage` are optional. A real session presents as its own provider; only the demo provider may present as another.
-- Blocks: `text` (Markdown, rendered through `markdown/render.tsx`), `reasoning`, `tool` (`read | search | edit | command | tool | web | agent`), `context`, `notice` and `interaction`.
+- Blocks: `text` (Markdown, rendered through `markdown/render.tsx`), `reasoning`, `tool` (`read | search | edit | command | tool | web | agent`), `context`, `notice` and `interaction`. An edit's `files` carry line counts and a bounded `diff` preview (120 lines, 12 KB; `+`/`-`/` ` lines and `@` for a gap): Claude's from the tool input's old and new text, Codex's from its unified diff or an added file's content. An assistant `Message` records `completedAt` when its turn ends.
 - `Interaction`: a JAM ID, kind (`command | file-change | tool | question | plan`), title, detail, reason, the `toolId` of the tool block it gates when there is one (so the approval renders inside that card), exactly the choices the provider offers, optional questions, and a status (`pending | resolved | cancelled | expired`) with an outcome. Provider request IDs never leave the adapter.
-- Requests: `provider.list {refresh?}`, `provider.configure {providerId, enabled?, isDefault?, executable?, defaults?}`, `interaction.respond {resourceId, interactionId, choiceId | answers}`, `conversation.create {…, providerId?, options?}`, `turn.start {…, options?}`, `session.compact {resourceId, requestId}`.
+- Requests: `provider.list {refresh?}`, `provider.configure {providerId, enabled?, isDefault?, executable?, defaults?}`, `interaction.respond {resourceId, interactionId, choiceId | answers}`, `conversation.create {…, providerId?, options?}`, `turn.start {…, options?}`, `session.compact {resourceId, requestId}`, `file.reveal {projectId, path}` and `url.openExternal {url}`.
 
 ### Access
 
@@ -107,6 +107,15 @@ notice replaces it. Claude's `autoCompact` option starts its process with
 `--settings {"autoCompactEnabled":false}` when off (verified through
 `get_context_usage`) and applies from the next message; Codex manages its own
 automatic compaction.
+
+### Opening outside JAM
+
+Two requests hand something to the operating system after an explicit click,
+never on provider output alone, and without a shell. `file.reveal` shows a
+regular file inside the project folder in Finder or Explorer (the same
+scoped-path checks as reads). `url.openExternal` opens only `http(s)` on
+localhost, 127.0.0.1, [::1] or 0.0.0.0 in the default browser: the local
+servers a command reported. Every other link stays in JAM's browser.
 
 Answers are validated against the offered choices and questions and delivered exactly once; a second answer, an answer after the provider withdrew its request, or an answer after a restart is `stale`.
 

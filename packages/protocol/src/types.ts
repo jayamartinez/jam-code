@@ -274,6 +274,11 @@ export interface FileChange {
   path: string;
   added: number;
   removed: number;
+  /**
+   * A bounded preview of the changed lines, each prefixed with `+`, `-`,
+   * ` ` (context) or `@` (a gap between hunks).
+   */
+  diff?: string;
 }
 
 export type ToolKind = 'read' | 'search' | 'edit' | 'command' | 'tool' | 'web' | 'agent';
@@ -341,6 +346,8 @@ export interface Message {
   role: 'user' | 'assistant';
   createdAt: string;
   blocks: MessageBlock[];
+  /** When the turn that wrote an assistant message ended. */
+  completedAt?: string;
 }
 
 export interface Cursor {
@@ -439,6 +446,10 @@ export interface RequestMap
     result: DirectoryListing;
   };
   'file.read': { params: { projectId: string; path: string }; result: FileContents };
+  /** Shows a project file in Finder or Explorer. */
+  'file.reveal': { params: { projectId: string; path: string }; result: { revealed: true } };
+  /** Opens a local address (localhost, 127.0.0.1) in the default browser. */
+  'url.openExternal': { params: { url: string }; result: { opened: true } };
   'file.write': {
     params: { projectId: string; path: string; text: string };
     result: FileSaved;

@@ -55,10 +55,46 @@ fn edits(name: &str, input: &Value, cwd: Option<&Path>) -> Option<Vec<FileChange
         "NotebookEdit" => (line_count(text(input, "new_source").unwrap_or_default()), 0),
         _ => return None,
     };
+    fn edit_lines(edit: &Value) -> Vec<(char, &str)> {
+        let old = text(edit, "old_string").unwrap_or_default();
+        let new = text(edit, "new_string").unwrap_or_default();
+        old.lines()
+            .map(|line| ('-', line))
+            .chain(new.lines().map(|line| ('+', line)))
+            .collect()
+    }
+    let lines: Vec<(char, &str)> = match name {
+        "Write" => text(input, "content")
+            .unwrap_or_default()
+            .lines()
+            .map(|line| ('+', line))
+            .collect(),
+        "NotebookEdit" => text(input, "new_source")
+            .unwrap_or_default()
+            .lines()
+            .map(|line| ('+', line))
+            .collect(),
+        "Edit" => edit_lines(input),
+        _ => input
+            .get("edits")
+            .and_then(Value::as_array)
+            .map(|edits| {
+                edits
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(index, edit)| {
+                        let gap = (index > 0).then_some(('@', ""));
+                        gap.into_iter().chain(edit_lines(edit))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default(),
+    };
     Some(vec![FileChange {
         path,
         added,
         removed,
+        diff: super::super::diff_preview(lines),
     }])
 }
 
@@ -457,7 +493,8 @@ mod tests {
             vec![FileChange {
                 path: "src/a.ts".into(),
                 added: 1,
-                removed: 2
+                removed: 2,
+                diff: Some("-a\n-b\n+c".into()),
             }]
         );
         let MessageBlock::Tool { kind, title, .. } = tool_block(

@@ -63,7 +63,10 @@ export function InteractionCard({
         <strong>{interaction.title}</strong>
         <span className="card-spacer" />
         {pending ? (
-          <span className="tool-state awaiting">needs input</span>
+          <span className="needs-approval">
+            <span className="status-dot needs-approval-dot" />
+            {interaction.kind === 'question' ? 'Needs your answer' : 'Needs approval'}
+          </span>
         ) : (
           <span className="ask-card-outcome">
             {interaction.status === 'resolved' ? <Check size={12} /> : <X size={12} />}

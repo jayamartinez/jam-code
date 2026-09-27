@@ -81,6 +81,9 @@ export interface CodeMirrorEditorProps {
   onChange?(text: string): void;
   /** Cmd+S on macOS, Ctrl+S elsewhere. */
   onSave?(): void;
+  /** A line to show and select, such as one an agent referred to. A new
+   * `key` reveals it again after the reader has scrolled away. */
+  reveal?: { line: number; key: number };
 }
 
 export default function CodeMirrorEditor({
@@ -89,6 +92,7 @@ export default function CodeMirrorEditor({
   editable,
   onChange,
   onSave,
+  reveal,
 }: CodeMirrorEditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView>(null);
@@ -156,6 +160,18 @@ export default function CodeMirrorEditor({
       changes: { from: 0, to: instance.state.doc.length, insert: text },
     });
   }, [text]);
+
+  useEffect(() => {
+    const instance = view.current;
+    if (!instance || !reveal) return;
+    const doc = instance.state.doc;
+    const line = doc.line(Math.min(Math.max(1, reveal.line), doc.lines));
+    instance.dispatch({
+      selection: { anchor: line.from },
+      effects: EditorView.scrollIntoView(line.from, { y: 'center' }),
+    });
+    // The file may arrive after the request; `text` re-runs this once it does.
+  }, [reveal, text]);
 
   useEffect(() => {
     let cancelled = false;

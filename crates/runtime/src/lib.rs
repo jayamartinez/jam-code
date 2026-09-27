@@ -12,6 +12,7 @@ pub mod providers;
 mod runtime;
 pub mod snapshots;
 mod storage;
+mod system_open;
 pub mod terminal;
 mod turns;
 

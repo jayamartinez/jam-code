@@ -288,6 +288,21 @@ impl Runtime {
                 contents.writable = true;
                 Ok(serde_json::to_value(contents)?)
             }
+            "file.reveal" => {
+                let input: RevealFile = parse(request.params)?;
+                validate_id(&input.project_id)?;
+                let root = crate::native_files::project_folder(&self.project(&input.project_id)?)?
+                    .ok_or_else(|| {
+                        JamError::new("unavailable", "This project has no folder to show.")
+                    })?;
+                crate::system_open::reveal(&root, &input.path)?;
+                Ok(json!({"revealed": true}))
+            }
+            "url.openExternal" => {
+                let input: OpenUrl = parse(request.params)?;
+                crate::system_open::open_local_url(&input.url)?;
+                Ok(json!({"opened": true}))
+            }
             "file.write" => {
                 let input: WriteFile = parse(request.params)?;
                 input.validate()?;

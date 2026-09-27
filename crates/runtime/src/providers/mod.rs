@@ -145,6 +145,25 @@ pub(crate) fn set_capability(
 }
 
 /// Bounded text for a block: keeps the head and the end of long output.
+/// Lines kept in a file change's preview, and its size limit.
+const PREVIEW_LINES: usize = 120;
+const PREVIEW_BYTES: usize = 12_000;
+
+/// A bounded diff preview from `(marker, line)` pairs, where the marker is
+/// `+`, `-`, ` ` or `@`. None when there is nothing to show.
+pub(crate) fn diff_preview<'a>(lines: impl IntoIterator<Item = (char, &'a str)>) -> Option<String> {
+    let mut out = String::new();
+    for (count, (marker, line)) in lines.into_iter().enumerate() {
+        if count == PREVIEW_LINES || out.len() + line.len() + 2 > PREVIEW_BYTES {
+            break;
+        }
+        out.push(marker);
+        out.push_str(&line.chars().take(400).collect::<String>());
+        out.push('\n');
+    }
+    (!out.is_empty()).then(|| out.trim_end_matches('\n').to_string())
+}
+
 pub(crate) fn bounded(text: &str, limit: usize) -> String {
     let count = text.chars().count();
     if count <= limit {

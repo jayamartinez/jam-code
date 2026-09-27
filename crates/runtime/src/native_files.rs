@@ -38,6 +38,17 @@ pub(crate) fn validate_path(path: &str) -> Result<(), JamError> {
     Ok(())
 }
 
+/// The absolute path of a regular file inside the project folder, checked
+/// the same way reads are.
+pub(crate) fn scoped_file(root: &Path, path: &str) -> Result<PathBuf, JamError> {
+    validate_path(path)?;
+    let file = open_scoped(root, path)?;
+    if !file.metadata().is_ok_and(|metadata| metadata.is_file()) {
+        return Err(JamError::invalid("Only regular files can be shown."));
+    }
+    Ok(root.join(path))
+}
+
 const MAX_FILE_BYTES: usize = 256 * 1024;
 /// Bounded read, confined to an existing project directory. Symlinks are
 /// rejected, including ancestors, so a repository cannot expose outside files.

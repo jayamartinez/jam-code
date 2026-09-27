@@ -200,6 +200,37 @@ pub(crate) fn diff_counts(diff: &str) -> (u32, u32) {
     (added, removed)
 }
 
+/// A change's preview: an added or deleted file's content, or the hunks of
+/// a unified diff without its file headers.
+fn change_preview(change: &Value) -> Option<String> {
+    let diff = text(change, "diff").unwrap_or_default();
+    let hunks = diff.starts_with("@@") || diff.contains("\n@@");
+    match change.pointer("/kind/type").and_then(Value::as_str) {
+        Some("add") if !hunks => super::super::diff_preview(diff.lines().map(|line| ('+', line))),
+        Some("delete") if !hunks => {
+            super::super::diff_preview(diff.lines().map(|line| ('-', line)))
+        }
+        _ => {
+            let mut seen_hunk = false;
+            super::super::diff_preview(diff.lines().filter_map(|line| {
+                if line.starts_with("+++") || line.starts_with("---") {
+                    None
+                } else if line.starts_with("@@") {
+                    let gap = seen_hunk;
+                    seen_hunk = true;
+                    gap.then_some(('@', ""))
+                } else {
+                    let mut chars = line.chars();
+                    match chars.next() {
+                        Some(marker @ ('+' | '-' | ' ')) => Some((marker, chars.as_str())),
+                        _ => None,
+                    }
+                }
+            }))
+        }
+    }
+}
+
 /// A change's line counts. Codex sends an added or deleted file's content
 /// rather than a unified diff, so every line of it counts.
 fn change_counts(change: &Value) -> (u32, u32) {
@@ -229,6 +260,7 @@ pub(crate) fn changes(item: &Value, cwd: Option<&Path>) -> Vec<FileChange> {
                 .map(|change| {
                     let (added, removed) = change_counts(change);
                     FileChange {
+                        diff: change_preview(change),
                         path: display_path(text(change, "path").unwrap_or_default(), cwd),
                         added,
                         removed,
@@ -502,7 +534,8 @@ mod tests {
             vec![FileChange {
                 path: "src/a.rs".into(),
                 added: 2,
-                removed: 1
+                removed: 1,
+                diff: Some("-old\n+new\n+more".into()),
             }]
         );
     }
