@@ -21,7 +21,9 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             bridge::jam_request,
             bridge::jam_subscribe,
-            bridge::jam_unsubscribe
+            bridge::jam_unsubscribe,
+            bridge::jam_terminal_attach,
+            bridge::jam_terminal_detach
         ])
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;

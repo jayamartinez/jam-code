@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-jam-terminal-attach"
+description = "Enables the jam_terminal_attach command without any pre-configured scope."
+commands.allow = ["jam_terminal_attach"]
+
+[[permission]]
+identifier = "deny-jam-terminal-attach"
+description = "Denies the jam_terminal_attach command without any pre-configured scope."
+commands.deny = ["jam_terminal_attach"]

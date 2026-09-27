@@ -82,4 +82,34 @@ describe('Tauri transport', () => {
       code: 'unavailable',
     });
   });
+
+  it('streams one terminal to one view and detaching leaves the shell alone', async () => {
+    const fixture = bridgeFixture();
+    fixture.call.mockResolvedValue('attachment-1');
+    const listener = vi.fn();
+    const attachment = await fixture.transport.attachTerminal('terminal-1', listener);
+    expect(attachment.id).toBe('attachment-1');
+    expect(fixture.call).toHaveBeenCalledWith('jam_terminal_attach', {
+      resourceId: 'terminal-1',
+      onEvent: 'opaque-channel',
+    });
+    fixture.deliver({ type: 'output', seq: 1, data: '\u001b[32mok\u001b[0m\r\n' });
+    expect(listener).toHaveBeenCalledWith({
+      type: 'output',
+      seq: 1,
+      data: '\u001b[32mok\u001b[0m\r\n',
+    });
+    // Malformed native payloads are rejected rather than written to a terminal.
+    expect(() => fixture.deliver({ type: 'output', seq: -1, data: 'x' })).toThrow();
+    expect(() => fixture.deliver({ type: 'exec', command: 'rm' })).toThrow();
+    attachment.detach();
+    attachment.detach();
+    fixture.deliver({ type: 'output', seq: 2, data: 'late' });
+    expect(listener).toHaveBeenCalledTimes(1);
+    // Only a detach crosses IPC: nothing asks the runtime to stop the shell.
+    expect(fixture.call.mock.calls.map(([command]) => command)).toEqual([
+      'jam_terminal_attach',
+      'jam_terminal_detach',
+    ]);
+  });
 });

@@ -1,5 +1,7 @@
 import { JamError } from './errors';
 import { OPENABLE_KINDS, PROJECT_ICONS } from './types';
+import { TERMINAL_LIMITS } from './terminal';
+import type { TerminalStreamEvent } from './terminal';
 import type {
   DemoFixture,
   JamEvent,
@@ -318,6 +320,38 @@ const fileContents: Check = (value) =>
 const fileSaved: Check = (value) =>
   shape(value, { projectId: id, path: relativePath, savedAt: timestamp });
 
+function range(min: number, max: number): Check {
+  return (value) => {
+    integer(value);
+    if ((value as number) < min || (value as number) > max)
+      invalid(`Expected a whole number from ${min} to ${max}.`);
+  };
+}
+const columns = range(TERMINAL_LIMITS.minCols, TERMINAL_LIMITS.maxCols);
+const lines = range(TERMINAL_LIMITS.minRows, TERMINAL_LIMITS.maxRows);
+/** Terminal output is arbitrary text, including control sequences. */
+const output = (max: number): Check => text(max, true);
+const terminalSession: Check = (value) =>
+  shape(
+    value,
+    {
+      id,
+      resourceId: id,
+      projectId: id,
+      cwd: text(4096),
+      cwdLabel: text(4096),
+      cwdSource: oneOf('project', 'requested', 'home'),
+      shell: text(256),
+      title: text(512),
+      status: oneOf('running', 'exited'),
+      createdAt: timestamp,
+      cols: columns,
+      rows: lines,
+    },
+    { exitCode: integer, exitSignal: text(256), endedAt: timestamp, terminated: oneOf(true) },
+  );
+const accepted: Check = (value) => shape(value, { accepted: oneOf(true) });
+
 const params: Record<RequestMethod, Check> = {
   'workspace.get': (value) => shape(value, {}),
   'conversation.get': (value) => shape(value, { resourceId: id }),
@@ -360,6 +394,22 @@ const params: Record<RequestMethod, Check> = {
   },
   'search.query': (value) =>
     shape(value, { query: text(256, true) }, { projectId: id, providerId, pinned: boolean }),
+  'terminal.create': (value) =>
+    shape(value, { projectId: id }, { cwd: text(4096), cols: columns, rows: lines }),
+  'terminal.start': (value) => shape(value, { resourceId: id }, { cols: columns, rows: lines }),
+  'terminal.get': (value) => shape(value, { resourceId: id }),
+  'terminal.list': (value) => shape(value, {}, { projectId: id }),
+  'terminal.input': (value) =>
+    shape(value, {
+      resourceId: id,
+      data: (data) => {
+        if (typeof data !== 'string' || !data.length || data.length > TERMINAL_LIMITS.inputUtf16)
+          invalid(`Terminal input must be 1 to ${TERMINAL_LIMITS.inputUtf16} characters.`);
+      },
+    }),
+  'terminal.resize': (value) => shape(value, { resourceId: id, cols: columns, rows: lines }),
+  'terminal.kill': (value) => shape(value, { resourceId: id }),
+  'terminal.ack': (value) => shape(value, { attachmentId: id, seq: integer }),
 };
 
 const responses: Record<RequestMethod, Check> = {
@@ -376,6 +426,14 @@ const responses: Record<RequestMethod, Check> = {
   'thread.keepOpen': (value) => shape(value, { resource }),
   'resource.open': (value) => shape(value, { resource }),
   'search.query': (value) => shape(value, { results: array(searchResult, 50) }),
+  'terminal.create': (value) => shape(value, { resource, terminal: terminalSession }),
+  'terminal.start': (value) => shape(value, { terminal: terminalSession }),
+  'terminal.get': (value) => shape(value, {}, { terminal: terminalSession }),
+  'terminal.list': (value) => shape(value, { terminals: array(terminalSession, 64) }),
+  'terminal.input': accepted,
+  'terminal.resize': (value) => shape(value, { terminal: terminalSession }),
+  'terminal.kill': (value) => shape(value, { terminal: terminalSession }),
+  'terminal.ack': accepted,
 };
 
 /** Validate unknown input at a transport boundary before any mutation. */
@@ -431,4 +489,31 @@ export function validateScope(value: unknown): SubscriptionScope {
 export function validateFixture(value: unknown): DemoFixture {
   shape(value, { workspace, conversations: array(conversation) });
   return value as DemoFixture;
+}
+
+/** The runtime bounds replay and chunks; these limits only reject nonsense. */
+export function validateTerminalEvent(value: unknown): TerminalStreamEvent {
+  try {
+    const record = object(value);
+    switch (record.type) {
+      case 'snapshot':
+        shape(
+          value,
+          { type: oneOf('snapshot'), attachmentId: id, data: output(4_000_000) },
+          { terminal: terminalSession },
+        );
+        break;
+      case 'output':
+        shape(value, { type: oneOf('output'), seq: integer, data: output(1_000_000) });
+        break;
+      case 'session':
+        shape(value, { type: oneOf('session'), terminal: terminalSession });
+        break;
+      default:
+        invalid('Unknown terminal event.');
+    }
+    return value as TerminalStreamEvent;
+  } catch {
+    throw new JamError('invalid_response', 'Invalid terminal event.');
+  }
 }

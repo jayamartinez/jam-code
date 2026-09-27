@@ -32,6 +32,9 @@ function harness() {
   let nextWorkspace: Promise<RequestMap['workspace.get']['result']> | undefined;
   const dispose = vi.fn();
   const transport: JamTransport = {
+    async attachTerminal() {
+      throw new Error('This harness has no terminals.');
+    },
     async subscribe(_scope, callback) {
       calls.push('subscribe');
       listener = callback;

@@ -15,12 +15,15 @@ import type {
   SubscriptionScope,
   WorkspaceSnapshot,
 } from './types';
+import type { TerminalAttachment } from './terminal';
 import { validateFixture, validateRequest, validateResponse, validateScope } from './validation';
 
 type Listener = { scope: SubscriptionScope; receive: (event: JamEvent) => void };
 type ActiveTurn = { timer: ReturnType<typeof setTimeout>; message: Message; fail: boolean };
 type Receipt = { signature: string; result: RequestMap['turn.start']['result'] };
 
+const NO_TERMINALS =
+  'Terminals run in the jam desktop app. The browser preview cannot start a shell.';
 const copy = <T>(value: T): T => structuredClone(value);
 const now = () => new Date().toISOString();
 /** Mirrors the runtime: first letters of the first two words, else two letters. */
@@ -73,6 +76,11 @@ export class BrowserPreviewTransport implements JamTransport {
     return () => {
       this.listeners.delete(listener);
     };
+  }
+
+  /** The browser cannot start a process, so no terminal ever runs here. */
+  async attachTerminal(): Promise<TerminalAttachment> {
+    throw new JamError('unavailable', NO_TERMINALS);
   }
 
   private dispatch(request: JamRequest): RequestMap[RequestMethod]['result'] {
@@ -156,6 +164,24 @@ export class BrowserPreviewTransport implements JamTransport {
               : results.filter((result) => result.providerId === providerId),
         };
       }
+      case 'terminal.list':
+        return { terminals: [] };
+      case 'terminal.get': {
+        const resource = this.workspace.resources.find(
+          (item) => item.id === request.params.resourceId,
+        );
+        if (!resource) throw new JamError('not_found', 'Resource not found.');
+        if (resource.kind !== 'terminal')
+          throw new JamError('invalid_request', 'That resource is not a terminal.');
+        return {};
+      }
+      case 'terminal.create':
+      case 'terminal.start':
+      case 'terminal.input':
+      case 'terminal.resize':
+      case 'terminal.kill':
+      case 'terminal.ack':
+        throw new JamError('unavailable', NO_TERMINALS);
     }
   }
 

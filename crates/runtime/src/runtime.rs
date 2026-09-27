@@ -5,6 +5,7 @@ use crate::{
     protocol::*,
     providers::{MockProvider, ProviderAdapter},
     storage::Store,
+    terminal::{ShellSpec, TerminalManager, TerminalSink},
 };
 use serde_json::{Value, json};
 use std::{
@@ -39,6 +40,8 @@ pub struct Runtime {
     pub(crate) state: Mutex<State>,
     pub(crate) shutting_down: AtomicBool,
     pub(crate) adapter: Arc<dyn ProviderAdapter>,
+    /// Terminal processes. Empty, with no PTY, until a terminal is created.
+    pub(crate) terminals: TerminalManager,
 }
 
 pub(crate) fn new_id(prefix: &str) -> String {
@@ -65,6 +68,7 @@ impl Runtime {
             }),
             shutting_down: AtomicBool::new(false),
             adapter: Arc::new(MockProvider),
+            terminals: TerminalManager::default(),
         }))
     }
 
@@ -288,6 +292,9 @@ impl Runtime {
                 input.validate()?;
                 Ok(json!({ "resource": self.open_resource(input)? }))
             }
+            method if method.starts_with("terminal.") => {
+                self.terminal_request(method, request.params)
+            }
             "search.query" => {
                 let input: SearchQuery = parse(request.params)?;
                 Ok(json!({"results":self.lock()?.store.search(input)?}))
@@ -352,6 +359,34 @@ impl Runtime {
         Ok(resource)
     }
 
+    /// Attaches a terminal view. See `TerminalManager::attach`.
+    pub fn attach_terminal(
+        &self,
+        resource_id: &str,
+        sink: TerminalSink,
+    ) -> Result<String, JamError> {
+        validate_id(resource_id)?;
+        if self.shutting_down.load(Ordering::Acquire) {
+            return Err(JamError::new("unavailable", "JAM is shutting down."));
+        }
+        let resource = self.lock()?.store.resource(resource_id)?;
+        if resource.kind != "terminal" {
+            return Err(JamError::invalid("That resource is not a terminal."));
+        }
+        self.terminals.attach(resource.id, sink)
+    }
+
+    /// Detaches a terminal view. The shell keeps running.
+    pub fn detach_terminal(&self, attachment_id: &str) -> Result<(), JamError> {
+        validate_id(attachment_id)?;
+        self.terminals.detach(attachment_id)
+    }
+
+    /// Replaces the shell new terminals start. `None` uses the detected default.
+    pub fn set_terminal_shell(&self, shell: Option<ShellSpec>) -> Result<(), JamError> {
+        self.terminals.set_shell(shell)
+    }
+
     pub fn subscribe(&self, scope: SubscriptionScope) -> Result<Subscription, JamError> {
         let mut state = self.lock()?;
         if let Some(id) = &scope.resource_id {
@@ -379,7 +414,7 @@ impl Runtime {
     /// Detaches a destroyed/reloading desktop client without altering sessions.
     pub fn detach_clients(&self) -> Result<(), JamError> {
         self.lock()?.subscribers.clear();
-        Ok(())
+        self.terminals.detach_all()
     }
 
     pub(crate) fn publish(&self, state: &mut State, resource_id: &str, payload: EventPayload) {
@@ -406,6 +441,11 @@ impl Runtime {
 
     pub async fn shutdown(&self) -> Result<(), JamError> {
         self.shutting_down.store(true, Ordering::Release);
+        // Explicit Quit ends terminal shells; they do not outlive the app. A
+        // failure here must not stop provider tasks from being interrupted.
+        if let Err(error) = self.terminals.shutdown() {
+            eprintln!("Terminal shutdown: {error}");
+        }
         let tasks = {
             let mut state = self.lock()?;
             for task in state.tasks.values() {

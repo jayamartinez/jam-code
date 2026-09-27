@@ -2,6 +2,7 @@ use crate::Host;
 use jam_runtime::{
     JamError,
     protocol::{Event, Request, SubscriptionScope},
+    terminal::TerminalEvent,
 };
 use serde_json::Value;
 use std::sync::Arc;
@@ -47,4 +48,23 @@ pub fn jam_subscribe(
 #[tauri::command]
 pub fn jam_unsubscribe(subscription_id: String, host: State<'_, Host>) -> Result<(), JamError> {
     host.runtime.unsubscribe(&subscription_id)
+}
+
+/// Streams one terminal's output to one view. The shell is untouched when the
+/// view detaches, the channel closes or the window reloads.
+#[tauri::command]
+pub fn jam_terminal_attach(
+    resource_id: String,
+    on_event: Channel<TerminalEvent>,
+    host: State<'_, Host>,
+) -> Result<String, JamError> {
+    host.runtime.attach_terminal(
+        &resource_id,
+        Box::new(move |event| on_event.send(event).is_ok()),
+    )
+}
+
+#[tauri::command]
+pub fn jam_terminal_detach(attachment_id: String, host: State<'_, Host>) -> Result<(), JamError> {
+    host.runtime.detach_terminal(&attachment_id)
 }

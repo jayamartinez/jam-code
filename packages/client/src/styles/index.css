@@ -6,6 +6,7 @@
 @import './conversation.css';
 @import './surfaces.css';
 @import './resources.css';
+@import './terminal.css';
 
 :root {
   /*

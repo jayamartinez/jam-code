@@ -4,6 +4,8 @@ fn main() {
             "jam_request",
             "jam_subscribe",
             "jam_unsubscribe",
+            "jam_terminal_attach",
+            "jam_terminal_detach",
         ]),
     ))
     .expect("could not build the desktop application metadata");
