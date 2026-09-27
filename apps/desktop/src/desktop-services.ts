@@ -1,5 +1,6 @@
 import type { DesktopServices } from '@jam/client';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { createBrowserHost } from './browser-host';
 
 /**
  * The WebView's own context menu (Reload, Inspect Element, Back) belongs to a
@@ -27,5 +28,6 @@ export function createDesktopServices(): DesktopServices {
     toggleMaximize: () => nativeWindow.toggleMaximize(),
     close: () => nativeWindow.close(),
     startDragging: () => nativeWindow.startDragging(),
+    browser: createBrowserHost(),
   };
 }

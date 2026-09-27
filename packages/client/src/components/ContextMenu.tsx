@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useOccludesNativeViews } from '../state/native-occlusion';
 
 /**
  * A right-click menu drawn by JAM rather than the WebView's native one, so it
@@ -22,6 +23,7 @@ export interface ContextMenuState {
 export function ContextMenu({ menu, onClose }: { menu: ContextMenuState; onClose(): void }) {
   const element = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ left: menu.x, top: menu.y });
+  useOccludesNativeViews();
 
   useLayoutEffect(() => {
     const box = element.current?.getBoundingClientRect();

@@ -198,8 +198,11 @@ export class BrowserPreviewTransport implements JamTransport {
     this.requireProject(params.projectId);
     // Fail before creating a record if the target cannot be read.
     if (params.kind === 'file') readPreviewFile(params.projectId, params.path ?? '');
+    // Each browser is its own page with its own history, so opening one never
+    // returns another; every other target keeps one identity.
     const existing = this.workspace.resources.find(
       (resource) =>
+        params.kind !== 'browser' &&
         resource.kind === params.kind &&
         resource.projectId === params.projectId &&
         resource.path === params.path,

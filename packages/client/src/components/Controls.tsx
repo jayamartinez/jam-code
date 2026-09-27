@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Maximize2, Minus, X } from 'lucide-react';
 import type { DesktopServices } from '../desktop';
+import { useOccludesNativeViews } from '../state/native-occlusion';
 
 export function IconButton({
   label,
@@ -60,6 +61,7 @@ export function Dialog({
   className?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  useOccludesNativeViews();
   useEffect(() => {
     const element = ref.current;
     const previous = document.activeElement;

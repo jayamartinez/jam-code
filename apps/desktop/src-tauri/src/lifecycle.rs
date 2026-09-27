@@ -7,7 +7,9 @@ use tauri::{
 };
 
 pub fn show(app: &AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
+    // `get_webview_window` stops finding "main" once Browser views are added
+    // to it as child webviews, so the window is looked up directly.
+    if let Some(window) = app.get_window("main") {
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();

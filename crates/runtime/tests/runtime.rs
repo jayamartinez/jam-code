@@ -784,3 +784,41 @@ fn pinning_a_project_persists_and_unpinning_clears_it() {
     );
     assert!(unpinned["project"].get("pinned").is_none());
 }
+
+#[test]
+fn every_browser_open_is_a_distinct_durable_resource() {
+    let database = TestDatabase::new();
+    let runtime = database.open();
+    let open = |runtime: &Arc<Runtime>| {
+        request(
+            runtime,
+            "resource.open",
+            json!({"projectId":"project-jam","kind":"browser"}),
+        )["resource"]
+            .clone()
+    };
+    // Two browsers in one project are two pages with their own history.
+    let first = open(&runtime);
+    let second = open(&runtime);
+    assert_eq!(first["kind"], json!("browser"));
+    assert_ne!(first["id"], second["id"]);
+    // The id doubles as the host's native view label, so its shape matters.
+    assert!(first["id"].as_str().unwrap().starts_with("browser-"));
+    assert!(
+        runtime
+            .request(Request {
+                protocol_version: 1,
+                method: "resource.open".into(),
+                params: json!({"projectId":"project-jam","kind":"browser","path":"x"}),
+            })
+            .is_err()
+    );
+
+    drop(runtime);
+    let reopened = database.open();
+    let workspace = request(&reopened, "workspace.get", json!({}));
+    for browser in [&first, &second] {
+        let id = browser["id"].as_str().unwrap();
+        assert_eq!(resource_in(&workspace, id)["kind"], json!("browser"));
+    }
+}

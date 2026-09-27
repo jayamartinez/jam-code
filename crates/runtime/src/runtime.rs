@@ -311,6 +311,8 @@ impl Runtime {
 
     /// Resource identity is stable per target: reopening a file returns the
     /// record that already exists rather than creating a second resource.
+    /// A browser is the exception: each is its own page and history, so every
+    /// open creates one.
     fn open_resource(&self, input: OpenResource) -> Result<Resource, JamError> {
         let state = self.lock()?;
         let workspace = state.store.workspace(self.cursor(&state))?;
@@ -322,7 +324,8 @@ impl Runtime {
             crate::files::read(&input.project_id, input.path.as_deref().unwrap_or_default())?;
         }
         let existing = workspace.resources.iter().find(|resource| {
-            resource.kind == input.kind
+            input.kind != "browser"
+                && resource.kind == input.kind
                 && resource.project_id.as_deref() == Some(input.project_id.as_str())
                 && resource.path == input.path
         });

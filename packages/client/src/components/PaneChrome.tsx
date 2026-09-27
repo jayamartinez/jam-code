@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useOccludesNativeViews } from '../state/native-occlusion';
 
 /**
  * Shared pane frame: header, control cluster and body.
@@ -163,6 +164,7 @@ function PaneMenu({ items }: { items: PaneMenuItem[] }) {
   const [open, setOpen] = useState(false);
   const wrapper = useRef<HTMLDivElement>(null);
   const id = useId();
+  useOccludesNativeViews(open);
 
   useEffect(() => {
     if (!open) return;

@@ -257,6 +257,78 @@ now follows pointer movement only. A client test covers recent-search
 ordering, de-duplication and bounds. Native rendering of the gradient mark is
 checked below the gate; Windows was not run.
 
+## Native Browser prototype (2026-09-26, macOS 26)
+
+Automated: format, lint, typecheck, 79 frontend tests (13 files) and the
+production build pass. `cargo fmt`, `cargo clippy --workspace --all-targets
+-- -D warnings` and `cargo test --workspace` pass, including the host's
+navigation policy (typed navigation, and what a page's frames may load),
+resource-ID and bounds validation tests, the runtime test that every browser
+open is a distinct durable resource, and the preview transport's equivalent.
+Client tests cover address parsing and overlay occlusion counting.
+
+Native checks were run in a debug `.app` built with a CLI config override
+(`identifier dev.jamcode.desktop.browser`, product `jam browser`). That gave it
+its own single-instance lock and demo database, so a running `jam` was
+untouched. The page used was a local test server with edge and corner markers,
+an input, links and an IPC probe. Verified on screen through computer use:
+
+| Requirement                  | Result                                                                                                                                                             |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Creation                     | The first navigation creates the WKWebView; blank browsers show JAM's own prompt                                                                                   |
+| Positioning / clipping       | Edge border and all four corner markers visible inside the 12px well, in every layout below                                                                        |
+| Resize with pane             | Split drag (547→796px), sidebar collapse (move + grow to 956px), window resize to minimum (819×656) and the annotation tray appearing (780→728px tall) all tracked |
+| Split down                   | Page clipped to the upper pane; the pane below is uncovered                                                                                                        |
+| Z-order / overlays           | Search dialog, launcher and pane menu each hide the page while open; it returns with state intact                                                                  |
+| Focus / keyboard             | First click focuses the page; typing reaches its input; clicking JAM returns focus and ⌘K works again                                                              |
+| Shortcuts while page focused | **Limitation:** ⌘K goes to the page, not JAM                                                                                                                       |
+| Navigation                   | Typed localhost and bare `example.com` (to https) load; `target=_blank` stays in the pane; Back/Forward enable from the Navigation API and work                    |
+| `file:` link                 | Not followed (refused by WebKit before JAM's hook; no notice shown)                                                                                                |
+| IPC isolation                | The page's `invoke('jam_request')` is denied: "not allowed on window main, webview browser-…, allowed on webviews: main"                                           |
+| Multiple browsers            | Two browsers in two tabs, each keeping its page and history across tab switches                                                                                    |
+| Lifecycle                    | Closing a pane or switching tabs hides the page; "Close browser page" destroys it and the pane returns to blank; navigating again starts a new history             |
+| Element annotation           | Picker highlights in-page, captures selector, styles and console (1 error), and stages a chip into the adjacent conversation without sending                       |
+
+A defect was found and fixed natively. After "Close browser page", the pane
+kept its old address and raised a generic runtime error, because it was still
+sizing a destroyed view. Views are now created lazily and closing resets them
+to blank. Host rejections now reach the banner with their real message.
+
+**Not verified or known gaps.** Windows/WebView2 was not run. Synthetic Escape
+did not reach JAM's dialog under computer use (the × button was used). Escape
+inside the picker is untested natively. Memory per page was not measured.
+Region capture, screenshots, network inspection and devtools are not
+implemented. Once its pane is closed, a live page has no UI path back other
+than reopening that resource, and browser resources are not yet listed in
+the sidebar; the eight-page cap bounds this. Page title does not yet update
+the tab title. The last URL is not persisted across restarts.
+
+### Follow-up: traffic lights and annotate mode (2026-09-26)
+
+**Traffic lights regressed** with the Browser branch. The lights sat a few
+points above the titlebar row. The cause is in Tauri: its `unstable` feature,
+needed for child webviews, builds even the main webview as a child view, and
+wry applies `traffic_light_position` only to a window's content webview. The
+main window is now built from a `WindowConfig`, which sets the inset on the
+window itself. Verified on screen: the lights are level with the tab row at
+launch, after a window resize, and with the sidebar collapsed to the rail.
+The same Tauri path skips the Windows edge-resize handler for undecorated
+windows. The host re-asserts resizability for it, but that is unverified
+without Windows.
+
+**Annotate mode** replaces separate Element and Region tools. Verified in the
+native app: a click opened "Comment on element 1" below the heading. Typing
+and Enter added it with a numbered marker. A drag became "Comment on region 2"
+with a dashed rectangle, and the Add button stacked it. The tray read "2
+annotations · 1 element · 1 region · console (1 error)". Turning the mode off
+made the page interactive again (its pushState button updated the address)
+with the markers kept. "Add to" staged two chips that lead with their
+comments, cleared the markers, and sent nothing. Cancel works. Escape could
+not be verified: computer use's synthetic Escape reaches no web content (the
+page's own key logger recorded the keys typed before and after it, but not
+Escape), so Escape needs a real keyboard. Client tests cover the staged
+description text.
+
 ## Performance measurement procedure
 
 Use release builds for product claims, fixed machine/window/corpus and five cold launches plus five warm launches. Record runtime startup timestamp and frontend `jam-bootstrap` to workspace-loaded mark. Record median/p95, OS/build, corpus size and installed WebView version.

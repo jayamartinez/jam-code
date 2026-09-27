@@ -4,6 +4,11 @@ fn main() {
             "jam_request",
             "jam_subscribe",
             "jam_unsubscribe",
+            "browser_attach",
+            "browser_bounds",
+            "browser_navigate",
+            "browser_action",
+            "browser_close",
         ]),
     ))
     .expect("could not build the desktop application metadata");

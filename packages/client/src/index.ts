@@ -1,2 +1,10 @@
 export { JamApp, type JamAppProps } from './JamApp';
-export type { DesktopServices } from './desktop';
+export type {
+  BrowserAction,
+  BrowserAnnotation,
+  BrowserBounds,
+  BrowserHost,
+  BrowserHostEvent,
+  BrowserPageState,
+  DesktopServices,
+} from './desktop';

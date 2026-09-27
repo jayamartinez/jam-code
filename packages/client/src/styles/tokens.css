@@ -7,6 +7,9 @@
   --color-surface-raised: #171820;
   --color-surface-overlay: #14151b;
   --color-scrim: rgb(4 5 9 / 62%);
+  /* The well a browsed page sits in, and the ring around annotation badges. */
+  --color-surface-browser-well: rgb(0 0 0 / 25%);
+  --color-badge-ring: #0f1119;
   --color-fill-subtle: rgb(190 210 255 / 3.5%);
   --color-fill: rgb(190 210 255 / 6%);
   --color-fill-strong: rgb(190 210 255 / 9%);
