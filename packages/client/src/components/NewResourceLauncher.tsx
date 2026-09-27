@@ -35,6 +35,9 @@ export interface NewResourceLauncherProps {
   onProject(id: string): void;
   onAgentChat(presentation: Presentation): void;
   onResource(kind: OpenableKind): void;
+  /** Live terminals in this project, reopened rather than started again. */
+  terminals?: { id: string; label: string; detail: string }[];
+  onOpenTerminal?(resourceId: string): void;
 }
 
 const SEARCH_GLYPH = (
@@ -70,6 +73,8 @@ export function NewResourceLauncher({
   onProject,
   onAgentChat,
   onResource,
+  terminals,
+  onOpenTerminal,
 }: NewResourceLauncherProps) {
   const container = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
@@ -89,8 +94,14 @@ export function NewResourceLauncher({
       Math.max(anchor.left - frame.left - 10, 8),
       Math.max(frame.width - width - 8, 8),
     );
-    setPosition({ left, top: anchor.bottom - frame.top + 6 });
-  }, [anchor]);
+    // Below the control, lifted just enough to stay inside the main region.
+    const top = Math.max(
+      Math.min(anchor.bottom - frame.top + 6, frame.height - element.offsetHeight - 8),
+      8,
+    );
+    setPosition({ left, top });
+    // Running terminals arrive after it opens and make it taller.
+  }, [anchor, terminals?.length]);
   const trigger = useRef<Element | null>(null);
   const [switching, setSwitching] = useState(false);
   const project = projects.find((item) => item.id === projectId);
@@ -122,7 +133,7 @@ export function NewResourceLauncher({
           {
             id: 'terminal',
             label: 'Terminal',
-            hint: 'Static demo',
+            hint: 'New shell',
             icon: (
               <ToolGlyph>
                 <path
@@ -229,8 +240,34 @@ export function NewResourceLauncher({
           },
         ],
       },
+      ...(terminals?.length && onOpenTerminal
+        ? [
+            {
+              // A closed pane leaves its shell running; this is how to get back to it.
+              label: 'Running',
+              actions: terminals.map((terminal) => ({
+                id: terminal.id,
+                label: terminal.label,
+                hint: terminal.detail,
+                icon: (
+                  <ToolGlyph>
+                    <path
+                      d="M3 4.5l3.5 3.5L3 11.5M8.5 12H13"
+                      fill="none"
+                      stroke="var(--color-success)"
+                      strokeWidth="1.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </ToolGlyph>
+                ),
+                run: () => onOpenTerminal(terminal.id),
+              })),
+            },
+          ]
+        : []),
     ],
-    [onAgentChat, onResource, shortcut],
+    [onAgentChat, onOpenTerminal, onResource, shortcut, terminals],
   );
 
   useEffect(() => {
@@ -332,8 +369,8 @@ export function NewResourceLauncher({
           </div>
         ))}
         <p className="launcher-note">
-          Agent replies come from the deterministic mock provider. No model is called and no command
-          runs.
+          Agent replies come from the deterministic mock provider. No model is called and agents run
+          no commands.
         </p>
       </div>
 

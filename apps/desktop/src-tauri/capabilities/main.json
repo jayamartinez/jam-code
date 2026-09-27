@@ -8,6 +8,8 @@
     "allow-jam-request",
     "allow-jam-subscribe",
     "allow-jam-unsubscribe",
+    "allow-jam-terminal-attach",
+    "allow-jam-terminal-detach",
     "core:window:allow-minimize",
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",
