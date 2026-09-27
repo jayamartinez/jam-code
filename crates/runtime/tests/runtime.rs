@@ -417,3 +417,370 @@ async fn rejected_final_write_does_not_leave_a_phantom_running_session() {
         "failed"
     );
 }
+
+#[test]
+fn file_resources_keep_one_identity_per_path_and_survive_restart() {
+    let database = TestDatabase::new();
+    let runtime = database.open();
+
+    // A directory listing resolves one level; nested files are not shipped yet.
+    let root = request(
+        &runtime,
+        "directory.list",
+        json!({"projectId":"project-jam","path":""}),
+    );
+    let names: Vec<&str> = root["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry["name"].as_str().unwrap())
+        .collect();
+    assert!(names.contains(&"src") && names.contains(&"package.json"));
+    assert!(!names.contains(&"registry.ts"));
+    assert_eq!(root["demo"], json!(true));
+
+    // Opening the same file twice is the same resource, not a duplicate record.
+    let first = request(
+        &runtime,
+        "resource.open",
+        json!({"projectId":"project-jam","kind":"file","path":"src/session/registry.ts"}),
+    );
+    let again = request(
+        &runtime,
+        "resource.open",
+        json!({"projectId":"project-jam","kind":"file","path":"src/session/registry.ts"}),
+    );
+    assert_eq!(first["resource"]["id"], again["resource"]["id"]);
+    assert_eq!(first["resource"]["title"], json!("registry.ts"));
+    let other = request(
+        &runtime,
+        "resource.open",
+        json!({"projectId":"project-jam","kind":"file","path":"src/panes/layout.ts"}),
+    );
+    assert_ne!(first["resource"]["id"], other["resource"]["id"]);
+
+    // A file browser is its own resource kind, distinct from the review surface.
+    let browser = request(
+        &runtime,
+        "resource.open",
+        json!({"projectId":"project-jam","kind":"file-browser"}),
+    );
+    assert_eq!(browser["resource"]["kind"], json!("file-browser"));
+    assert_ne!(browser["resource"]["id"], first["resource"]["id"]);
+
+    let contents = request(
+        &runtime,
+        "file.read",
+        json!({"projectId":"project-jam","path":"src/session/registry.ts"}),
+    );
+    assert_eq!(contents["language"], json!("typescript"));
+    assert_eq!(contents["writable"], json!(true));
+    assert!(
+        contents["text"]
+            .as_str()
+            .unwrap()
+            .contains("export function attach")
+    );
+
+    // Paths that would leave the project, and unknown targets, fail loudly.
+    for path in ["../../etc/passwd", "/etc/passwd", "src/../../x"] {
+        assert!(
+            runtime
+                .request(Request {
+                    protocol_version: 1,
+                    method: "file.read".into(),
+                    params: json!({"projectId":"project-jam","path":path}),
+                })
+                .is_err(),
+            "{path} must be rejected"
+        );
+    }
+    assert!(
+        runtime
+            .request(Request {
+                protocol_version: 1,
+                method: "resource.open".into(),
+                params: json!({"projectId":"project-jam","kind":"file","path":"does/not/exist.ts"}),
+            })
+            .is_err()
+    );
+    assert!(
+        runtime
+            .request(Request {
+                protocol_version: 1,
+                method: "resource.open".into(),
+                params: json!({"projectId":"project-jam","kind":"settings"}),
+            })
+            .is_err()
+    );
+
+    // The record is durable, so reopening after a restart keeps its identity.
+    drop(runtime);
+    let reopened = database.open();
+    let after = request(
+        &reopened,
+        "resource.open",
+        json!({"projectId":"project-jam","kind":"file","path":"src/session/registry.ts"}),
+    );
+    assert_eq!(after["resource"]["id"], first["resource"]["id"]);
+    let workspace = request(&reopened, "workspace.get", json!({}));
+    let files = workspace["resources"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|resource| resource["path"] == json!("src/session/registry.ts"))
+        .count();
+    assert_eq!(files, 1);
+}
+
+#[test]
+fn saving_a_file_persists_the_working_copy_across_restart() {
+    let database = TestDatabase::new();
+    let runtime = database.open();
+    let path = "src/session/registry.ts";
+    let original = request(
+        &runtime,
+        "file.read",
+        json!({"projectId":"project-jam","path":path}),
+    );
+    let edited = format!("{}\n// edited\n", original["text"].as_str().unwrap());
+
+    let receipt = request(
+        &runtime,
+        "file.write",
+        json!({"projectId":"project-jam","path":path,"text":edited}),
+    );
+    assert_eq!(receipt["path"], json!(path));
+    assert!(receipt["savedAt"].as_str().is_some());
+
+    let after = request(
+        &runtime,
+        "file.read",
+        json!({"projectId":"project-jam","path":path}),
+    );
+    assert_eq!(after["text"], json!(edited));
+
+    // A save is a durable working copy, not an in-memory overlay.
+    drop(runtime);
+    let reopened = database.open();
+    let restored = request(
+        &reopened,
+        "file.read",
+        json!({"projectId":"project-jam","path":path}),
+    );
+    assert_eq!(restored["text"], json!(edited));
+
+    // Another file in the same project is untouched by that save.
+    let other = request(
+        &reopened,
+        "file.read",
+        json!({"projectId":"project-jam","path":"src/panes/layout.ts"}),
+    );
+    assert!(!other["text"].as_str().unwrap().contains("// edited"));
+
+    // Writes outside the project, or to paths it does not contain, fail.
+    for bad in [
+        json!({"projectId":"project-jam","path":"../escape.ts","text":"x"}),
+        json!({"projectId":"project-jam","path":"does/not/exist.ts","text":"x"}),
+        json!({"projectId":"project-missing","path":"a.ts","text":"x"}),
+    ] {
+        assert!(
+            reopened
+                .request(Request {
+                    protocol_version: 1,
+                    method: "file.write".into(),
+                    params: bad.clone(),
+                })
+                .is_err(),
+            "{bad} must be rejected"
+        );
+    }
+}
+
+#[test]
+fn editing_a_project_persists_name_paths_and_icon() {
+    let database = TestDatabase::new();
+    let runtime = database.open();
+    let updated = request(
+        &runtime,
+        "project.update",
+        json!({
+            "projectId": "project-jam",
+            "name": "Jam Studio",
+            "paths": ["/Users/me/dev/jam", "C:\\Users\\me\\dev\\jam", "\\\\server\\share\\jam"],
+            "icon": {"kind": "emoji", "value": "🍓"}
+        }),
+    );
+    assert_eq!(updated["project"]["name"], json!("Jam Studio"));
+    // Initials follow the new name.
+    assert_eq!(updated["project"]["initials"], json!("JS"));
+    assert_eq!(updated["project"]["paths"].as_array().unwrap().len(), 3);
+
+    let preset = request(
+        &runtime,
+        "project.update",
+        json!({"projectId":"project-jam","icon":{"kind":"preset","value":"rocket","tone":"green"}}),
+    );
+    assert_eq!(preset["project"]["icon"]["value"], json!("rocket"));
+    assert_eq!(preset["project"]["name"], json!("Jam Studio"));
+
+    // Everything survives a restart.
+    drop(runtime);
+    let reopened = database.open();
+    let workspace = request(&reopened, "workspace.get", json!({}));
+    let project = workspace["projects"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == json!("project-jam"))
+        .unwrap()
+        .clone();
+    assert_eq!(project["name"], json!("Jam Studio"));
+    assert_eq!(project["icon"]["tone"], json!("green"));
+    assert_eq!(project["paths"][1], json!("C:\\Users\\me\\dev\\jam"));
+
+    // Plain initials in the default tone clears the icon entirely.
+    let cleared = request(
+        &reopened,
+        "project.update",
+        json!({"projectId":"project-jam","icon":{"kind":"initials"}}),
+    );
+    assert!(cleared["project"].get("icon").is_none());
+
+    for bad in [
+        json!({"projectId":"project-jam","name":"   "}),
+        json!({"projectId":"project-jam","paths":["relative/path"]}),
+        json!({"projectId":"project-jam","icon":{"kind":"preset","value":"not-a-preset"}}),
+        json!({"projectId":"project-jam","icon":{"kind":"preset","value":"rocket","tone":"neon"}}),
+        json!({"projectId":"project-jam","icon":{"kind":"emoji","value":"<script>"}}),
+        json!({"projectId":"project-jam","icon":{"kind":"image","value":"https://evil.example/x.png"}}),
+        json!({"projectId":"project-missing","name":"x"}),
+    ] {
+        assert!(
+            reopened
+                .request(Request {
+                    protocol_version: 1,
+                    method: "project.update".into(),
+                    params: bad.clone(),
+                })
+                .is_err(),
+            "{bad} must be rejected"
+        );
+    }
+}
+
+fn resource_in(workspace: &Value, id: &str) -> Value {
+    workspace["resources"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["id"] == json!(id))
+        .unwrap()
+        .clone()
+}
+
+#[tokio::test]
+async fn closing_a_thread_is_explicit_durable_and_undone_by_sending() {
+    let database = TestDatabase::new();
+    let runtime = database.open();
+    let closed = request(
+        &runtime,
+        "thread.setClosed",
+        json!({"resourceId":"conv-pane-lifetime","closed":true}),
+    );
+    assert!(closed["resource"]["closedAt"].is_string());
+    let kept = request(
+        &runtime,
+        "thread.keepOpen",
+        json!({"resourceId":"conv-navigation"}),
+    );
+    assert!(kept["resource"]["closeSuggestionDismissedAt"].is_string());
+    assert!(kept["resource"].get("closedAt").is_none());
+
+    // Only conversations are threads.
+    for (method, params) in [
+        (
+            "thread.setClosed",
+            json!({"resourceId":"diff-pane","closed":true}),
+        ),
+        ("thread.keepOpen", json!({"resourceId":"diff-pane"})),
+        (
+            "thread.setClosed",
+            json!({"resourceId":"conv-missing","closed":true}),
+        ),
+    ] {
+        assert!(
+            runtime
+                .request(Request {
+                    protocol_version: 1,
+                    method: method.into(),
+                    params,
+                })
+                .is_err()
+        );
+    }
+
+    // Both survive a restart.
+    drop(runtime);
+    let reopened = database.open();
+    let workspace = request(&reopened, "workspace.get", json!({}));
+    assert!(resource_in(&workspace, "conv-pane-lifetime")["closedAt"].is_string());
+    assert!(resource_in(&workspace, "conv-navigation")["closeSuggestionDismissedAt"].is_string());
+
+    // Sending into a closed thread reopens it.
+    let mut observer = reopened.subscribe(SubscriptionScope::default()).unwrap();
+    request(
+        &reopened,
+        "turn.start",
+        turn("reopen-by-send", "Back to this"),
+    );
+    assert_eq!(finished(&mut observer.receiver).await, "idle");
+    let workspace = request(&reopened, "workspace.get", json!({}));
+    assert!(
+        resource_in(&workspace, "conv-pane-lifetime")
+            .get("closedAt")
+            .is_none()
+    );
+
+    // Reopening explicitly works too.
+    request(
+        &reopened,
+        "thread.setClosed",
+        json!({"resourceId":"conv-layout","closed":true}),
+    );
+    let reopened_thread = request(
+        &reopened,
+        "thread.setClosed",
+        json!({"resourceId":"conv-layout","closed":false}),
+    );
+    assert!(reopened_thread["resource"].get("closedAt").is_none());
+}
+
+#[test]
+fn pinning_a_project_persists_and_unpinning_clears_it() {
+    let database = TestDatabase::new();
+    let runtime = database.open();
+    let pinned = request(
+        &runtime,
+        "project.update",
+        json!({"projectId":"project-orbit","pinned":true}),
+    );
+    assert_eq!(pinned["project"]["pinned"], json!(true));
+    drop(runtime);
+    let reopened = database.open();
+    let workspace = request(&reopened, "workspace.get", json!({}));
+    let orbit = workspace["projects"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == json!("project-orbit"))
+        .unwrap()
+        .clone();
+    assert_eq!(orbit["pinned"], json!(true));
+    let unpinned = request(
+        &reopened,
+        "project.update",
+        json!({"projectId":"project-orbit","pinned":false}),
+    );
+    assert!(unpinned["project"].get("pinned").is_none());
+}

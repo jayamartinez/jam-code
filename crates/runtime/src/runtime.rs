@@ -129,8 +129,11 @@ impl Runtime {
                     title: "New conversation".into(),
                     project_id: Some(input.project_id),
                     session_id: Some(new_id("session")),
+                    path: None,
                     pinned: false,
                     updated_at: now(),
+                    closed_at: None,
+                    close_suggestion_dismissed_at: None,
                 };
                 let session = Session {
                     id: resource.session_id.clone().expect("new session ID"),
@@ -165,6 +168,126 @@ impl Runtime {
                 let interrupted = self.interrupt(&input.session_id)?;
                 Ok(json!({"sessionId":input.session_id,"interrupted":interrupted}))
             }
+            "directory.list" => {
+                let input: ListDirectory = parse(request.params)?;
+                validate_id(&input.project_id)?;
+                self.require_project(&input.project_id)?;
+                Ok(serde_json::to_value(crate::files::list(
+                    &input.project_id,
+                    &input.path,
+                )?)?)
+            }
+            "file.read" => {
+                let input: ReadFile = parse(request.params)?;
+                validate_id(&input.project_id)?;
+                let state = self.lock()?;
+                if !state
+                    .store
+                    .workspace(self.cursor(&state))?
+                    .projects
+                    .iter()
+                    .any(|p| p.id == input.project_id)
+                {
+                    return Err(JamError::new("not_found", "Project not found."));
+                }
+                let mut contents = crate::files::read(&input.project_id, &input.path)?;
+                // A saved working copy replaces the fixture's content.
+                if let Some(text) = state.store.file_edit(&input.project_id, &input.path)? {
+                    contents.truncated = false;
+                    contents.text = text;
+                }
+                contents.writable = true;
+                Ok(serde_json::to_value(contents)?)
+            }
+            "file.write" => {
+                let input: WriteFile = parse(request.params)?;
+                input.validate()?;
+                let state = self.lock()?;
+                if !state
+                    .store
+                    .workspace(self.cursor(&state))?
+                    .projects
+                    .iter()
+                    .any(|p| p.id == input.project_id)
+                {
+                    return Err(JamError::new("not_found", "Project not found."));
+                }
+                // Only a path the project actually contains can be written.
+                crate::files::read(&input.project_id, &input.path)?;
+                let saved_at = now();
+                state.store.save_file_edit(
+                    &input.project_id,
+                    &input.path,
+                    &input.text,
+                    &saved_at,
+                )?;
+                Ok(serde_json::to_value(FileSaved {
+                    project_id: input.project_id,
+                    path: input.path,
+                    saved_at,
+                })?)
+            }
+            "project.update" => {
+                let input: UpdateProject = parse(request.params)?;
+                input.validate()?;
+                let state = self.lock()?;
+                let mut project = state
+                    .store
+                    .workspace(self.cursor(&state))?
+                    .projects
+                    .into_iter()
+                    .find(|p| p.id == input.project_id)
+                    .ok_or_else(|| JamError::new("not_found", "Project not found."))?;
+                if let Some(name) = input.name {
+                    project.name = name.trim().to_string();
+                    project.initials = initials_of(&project.name);
+                }
+                if let Some(paths) = input.paths {
+                    project.paths = paths.into_iter().map(|p| p.trim().to_string()).collect();
+                }
+                if let Some(icon) = input.icon {
+                    // Plain initials in the default tone is the absence of an icon.
+                    project.icon = if icon.kind == "initials" && icon.tone.is_none() {
+                        None
+                    } else {
+                        Some(icon)
+                    };
+                }
+                if let Some(pinned) = input.pinned {
+                    project.pinned = pinned;
+                }
+                state.store.save_project(&project)?;
+                Ok(json!({ "project": project }))
+            }
+            "thread.setClosed" => {
+                let input: SetThreadClosed = parse(request.params)?;
+                validate_id(&input.resource_id)?;
+                let state = self.lock()?;
+                let mut resource = state.store.resource(&input.resource_id)?;
+                if resource.kind != "conversation" {
+                    return Err(JamError::invalid("Only a conversation can be closed."));
+                }
+                resource.closed_at = input.closed.then(now);
+                state.store.save_resource(&resource)?;
+                Ok(json!({ "resource": resource }))
+            }
+            "thread.keepOpen" => {
+                let input: KeepThreadOpen = parse(request.params)?;
+                validate_id(&input.resource_id)?;
+                let state = self.lock()?;
+                let mut resource = state.store.resource(&input.resource_id)?;
+                if resource.kind != "conversation" {
+                    return Err(JamError::invalid("Only a conversation can be kept open."));
+                }
+                resource.close_suggestion_dismissed_at = Some(now());
+                state.store.save_resource(&resource)?;
+                Ok(json!({ "resource": resource }))
+            }
+            "resource.open" => {
+                let input: OpenResource = parse(request.params)?;
+                input.validate()?;
+                Ok(json!({ "resource": self.open_resource(input)? }))
+            }
             "search.query" => {
                 let input: SearchQuery = parse(request.params)?;
                 Ok(json!({"results":self.lock()?.store.search(input)?}))
@@ -174,6 +297,59 @@ impl Runtime {
                 "Unknown JAM request method.",
             )),
         }
+    }
+
+    fn require_project(&self, project_id: &str) -> Result<(), JamError> {
+        let state = self.lock()?;
+        let workspace = state.store.workspace(self.cursor(&state))?;
+        if workspace.projects.iter().any(|p| p.id == project_id) {
+            Ok(())
+        } else {
+            Err(JamError::new("not_found", "Project not found."))
+        }
+    }
+
+    /// Resource identity is stable per target: reopening a file returns the
+    /// record that already exists rather than creating a second resource.
+    fn open_resource(&self, input: OpenResource) -> Result<Resource, JamError> {
+        let state = self.lock()?;
+        let workspace = state.store.workspace(self.cursor(&state))?;
+        if !workspace.projects.iter().any(|p| p.id == input.project_id) {
+            return Err(JamError::new("not_found", "Project not found."));
+        }
+        if input.kind == "file" {
+            // Fail before creating a record if the target cannot be read.
+            crate::files::read(&input.project_id, input.path.as_deref().unwrap_or_default())?;
+        }
+        let existing = workspace.resources.iter().find(|resource| {
+            resource.kind == input.kind
+                && resource.project_id.as_deref() == Some(input.project_id.as_str())
+                && resource.path == input.path
+        });
+        if let Some(resource) = existing {
+            return Ok(resource.clone());
+        }
+        let title = match (&input.kind[..], input.path.as_deref()) {
+            ("file", Some(path)) => path.rsplit('/').next().unwrap_or(path).to_string(),
+            ("file-browser", _) => "Files".to_string(),
+            ("terminal", _) => "Terminal".to_string(),
+            ("browser", _) => "Browser".to_string(),
+            _ => "Review changes".to_string(),
+        };
+        let resource = Resource {
+            id: new_id(&input.kind),
+            kind: input.kind,
+            title,
+            project_id: Some(input.project_id),
+            session_id: None,
+            path: input.path,
+            pinned: false,
+            updated_at: now(),
+            closed_at: None,
+            close_suggestion_dismissed_at: None,
+        };
+        state.store.save_resource(&resource)?;
+        Ok(resource)
     }
 
     pub fn subscribe(&self, scope: SubscriptionScope) -> Result<Subscription, JamError> {

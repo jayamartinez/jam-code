@@ -39,7 +39,12 @@
   --color-diff-add-gutter: #5a7e68;
   --color-diff-del-gutter: #8e5c58;
   --color-provider-claude: #d48f74;
+  --color-tone-violet: #a99bff;
   --color-provider-codex: #c3c9d6;
+  /* Codex's own mark gradient, from its colour icon. */
+  --color-provider-codex-from: #b1a7ff;
+  --color-provider-codex-mid: #7a9dff;
+  --color-provider-codex-to: #3941ff;
   --font-sans: Geist;
   --font-mono: Geist Mono;
   --text-label: 10.5px;

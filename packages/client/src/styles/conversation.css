@@ -370,10 +370,9 @@
   gap: 28px;
 }
 .suggestion-label {
-  font-size: 10px;
-  text-transform: uppercase;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
   color: var(--color-text-subtle);
-  letter-spacing: 0.04em;
   padding: 0 8px 7px;
 }
 .suggestion-row {
@@ -388,8 +387,9 @@
   padding: 0 8px;
   color: var(--color-text-secondary);
 }
-.suggestion-row span {
+.suggestion-row > .truncate {
   flex: 1;
+  min-width: 0;
 }
 .empty-conversation {
   padding-top: 50px;

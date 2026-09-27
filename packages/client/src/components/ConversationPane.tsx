@@ -4,9 +4,6 @@ import {
   File,
   FileText,
   GitBranch,
-  GitCompareArrows,
-  Maximize2,
-  MoreHorizontal,
   Pencil,
   Plus,
   Search,
@@ -21,14 +18,20 @@ import type {
   Conversation,
   Message,
   MessageBlock,
+  Presentation,
   Project,
   Resource,
   Session,
 } from '@jam/protocol';
 import { IconButton, Shortcut } from './Controls';
-import { ProjectBadge, ProviderGlyph } from './Sidebar';
+import { PaneChrome, type PaneChromeProps } from './PaneChrome';
+import { ProviderIcon, providerName } from './icons';
+import { ProjectBadge } from './ProjectBadge';
 
-interface ConversationProps {
+interface ConversationProps extends Pick<
+  PaneChromeProps,
+  'focused' | 'onSplitRight' | 'onSplitDown' | 'onExpand' | 'expandLabel' | 'menu'
+> {
   resource: Resource;
   project?: Project;
   session?: Session;
@@ -40,7 +43,6 @@ interface ConversationProps {
   onDraft(text: string): void;
   onSend(): void;
   onStop(): void;
-  onFocus(): void;
   onOpenDemo(): void;
   onAddContext(): void;
   onPreviewContext(item: ContextItem): void;
@@ -56,9 +58,17 @@ export function ConversationPane(props: ConversationProps) {
       transcript.current.scrollTop = transcript.current.scrollHeight;
   }, [conversation?.messages]);
   return (
-    <section className="pane conversation-pane focused" aria-label={resource.title}>
-      <header className="pane-header">
-        <div className="pane-heading">
+    <PaneChrome
+      className="conversation-pane"
+      label={resource.title}
+      focused={props.focused}
+      onSplitRight={props.onSplitRight}
+      onSplitDown={props.onSplitDown}
+      onExpand={props.onExpand}
+      expandLabel={props.expandLabel}
+      menu={props.menu}
+      heading={
+        <>
           <ProjectBadge project={project} />
           <span className="project-label muted">{project?.name}</span>
           <span className="separator subtle">/</span>
@@ -66,23 +76,17 @@ export function ConversationPane(props: ConversationProps) {
           <span className="branch mono">
             <GitBranch size={10} /> {project?.branch}
           </span>
-        </div>
-        <div className="pane-actions">
-          <span className="provider-status">
-            <span className={`status-dot ${session?.status ?? ''}`} />
-            Mock <span className="subtle">{session?.status ?? 'idle'}</span>
-          </span>
-          <IconButton label="Show tiled demo resources" onClick={props.onOpenDemo}>
-            <GitCompareArrows size={14} />
-          </IconButton>
-          <IconButton label="Focus conversation" onClick={props.onFocus}>
-            <Maximize2 size={14} />
-          </IconButton>
-          <IconButton label="More conversation actions are planned" disabled>
-            <MoreHorizontal size={15} />
-          </IconButton>
-        </div>
-      </header>
+        </>
+      }
+      status={
+        <span className="provider-status">
+          <span className={`status-dot ${session?.status ?? ''}`} />
+          {providerName(session?.presentation)}{' '}
+          <span className="subtle">{session?.status ?? 'idle'}</span>
+          <span className="demo-label">Mock</span>
+        </span>
+      }
+    >
       <div
         className="transcript"
         ref={transcript}
@@ -117,7 +121,7 @@ export function ConversationPane(props: ConversationProps) {
         </div>
       </div>
       <Composer {...props} />
-    </section>
+    </PaneChrome>
   );
 }
 
@@ -134,7 +138,12 @@ export function Composer(
     | 'onAddContext'
     | 'onPreviewContext'
     | 'onRemoveContext'
-  > & { session?: Session; isNew?: boolean },
+  > & {
+    session?: Session;
+    isNew?: boolean;
+    /** A new chat has no session yet, but already knows which agent it is for. */
+    presentation?: Presentation;
+  },
 ) {
   const running = props.session?.status === 'running';
   return (
@@ -195,7 +204,7 @@ export function Composer(
             <Plus size={15} />
           </IconButton>
           <span className="model-label">
-            <ProviderGlyph presentation={props.session?.presentation} />
+            <ProviderIcon presentation={props.session?.presentation ?? props.presentation} />
             Demo model
           </span>
           <button
@@ -287,7 +296,7 @@ function MessageView({
   return (
     <article className="agent-message">
       <header className="agent-heading">
-        <ProviderGlyph presentation={session?.presentation} />
+        <ProviderIcon presentation={session?.presentation} />
         <strong>Mock</strong>
         <span>Demonstration</span>
         <span className="agent-rule" />

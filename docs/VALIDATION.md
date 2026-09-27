@@ -32,6 +32,231 @@ Compare the running shell against Paper's Windows Single and Windows Tiled frame
 
 The intentional branding deviation is a lowercase text mark instead of the provisional abstract icon. Mock labels and disabled future controls are intentional honesty requirements. Paper's provider/model/version/count numbers are design examples, not live facts.
 
+## Resource and layout milestone (2026-09-26, macOS)
+
+Automated gates run on macOS 15 (Darwin 25.3), Node 22 via the documented
+`npm exec` pnpm workaround, Rust stable:
+
+| Check                                                                              | Result                                                                                                                        |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm format:check`, `pnpm lint`, `pnpm typecheck`                                 | Passed                                                                                                                        |
+| `pnpm test`                                                                        | Passed: 60 tests across seven files, up from 37                                                                               |
+| `pnpm build`                                                                       | Passed; CodeMirror is a separate 291 kB chunk and each language mode is its own chunk, so none of it is in the startup bundle |
+| `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` | Passed                                                                                                                        |
+| `cargo test --workspace`                                                           | Passed: 14 tests, including the file service and file-resource identity                                                       |
+
+New automated coverage: split right, split down, nested splits, ratio clamping,
+pane focus, closing a pane versus closing a resource tab, Single ↔ Tiles round
+trips preserving both the arrangement and every resource identity, two
+conversations in one arrangement, promoted drafts staying in their pane,
+one-level directory listings, path-escape rejection, and file resources keeping
+one identity per path across a runtime restart. Boundary tests now fail if the
+layout tree names a resource kind or if the tile renderer imports a resource
+surface.
+
+The development build was restarted under `pnpm desktop` so the running
+application serves the new client with hot reload.
+
+**Visual comparison.** The client was rendered headlessly at 1440x900 against
+the development server and compared with the Paper frames. Verified on screen:
+the launcher's 600px width, 42px drop below the titlebar and centring on the
+main region; its Agents/Tools sections, project column and honest disabled
+states; provider icon density across pinned, history, tabs and launcher rows;
+Single to Tiles; split right and split down; the empty-pane affordance; a
+Claude conversation and a Codex conversation side by side, each with its own
+composer; the file browser's lazy tree, git status letters and branch footer;
+opening a file into a different pane; the File resource's path metadata,
+`Read-only` and `Demo tree` labels, gutter and syntax highlighting; a file
+above a terminal nested inside a split with the browser, built from generic
+splits only; and a Single/Tiles round trip restoring all three panes with
+resource identities intact.
+
+Four defects were found this way and fixed: the launcher's project badge was
+stretched by an inherited `flex: 1`; a disabled launcher row rendered both its
+hint and a redundant "Unavailable" chip; the initially focused launcher row had
+no visible highlight because the rule used `:focus-visible` after a
+programmatic focus; and a pane header wrapped to three lines at tile width,
+which now drops the branch and then the project label by the header's own
+width through a container query. Opening a file also preferred an arbitrary
+pane and could displace a working conversation; it now prefers a pane already
+showing a file, then an empty pane.
+
+**Not verified.** Two things still need a hands-on pass. The macOS native
+traffic lights cannot appear in a browser render, so the titlebar inset,
+spacing and drag regions from Issue 1 are implemented from the frame's
+computed styles but unconfirmed on screen; computer use was unavailable this
+session because Accessibility and Screen Recording were not granted. Windows
+was not run at all, so the claim that its chrome is unregressed rests on the
+platform-conditional code paths and unchanged Windows CSS, not on observation.
+The headless render also exercises the browser preview transport, not the
+native SQLite runtime, so these are rendering and interaction checks rather
+than native IPC checks.
+
+## Tabs, panes and Files milestone (2026-09-26)
+
+`pnpm format:check`, `lint`, `typecheck`, `build`, `cargo fmt --all --check`
+and `cargo clippy --workspace --all-targets -- -D warnings` pass. 64 frontend
+tests across eight files and 15 runtime tests pass, including: selecting a tab
+while an empty pane is focused switches the workspace rather than filling that
+pane; each tab keeping its own arrangement; pane resources staying out of the
+tab bar; tab reordering; a promoted draft carrying its tab, tree and text; and
+a save round trip persisting a working copy across a runtime restart while
+leaving other files and the shipped fixture untouched.
+
+Verified by rendering the client headlessly at 1440x900 against the development
+server and reading the screenshots: tab selection no longer assigns into an
+empty pane; splitting creates no tab; the file browser stays visible when a
+file opens, with the file landing in a pane beside it; the tree keeps its
+expansion across that reshape; browser, editor and terminal form the Files
+frame's arrangement from generic splits; File, File Browser and Review remain
+three distinct panes; typing marks the editor dirty and Cmd/Ctrl+S clears it;
+and both icon themes render at the same geometry.
+
+Defects found this way and fixed: the provider mark was stretched to half-width
+in search results and new-chat suggestions by an ambient `span { flex: 1 }`; the
+branch chip drew its icon over its text; a pane header wrapped to three lines at
+tile width; the file tree collapsed whenever a file opened; the browser header
+clipped its project name at 250px and its footer wrapped; a Rust manifest
+carried the Node package mark in both themes; and the first JAM glyph set was
+illegible at 14px and was redrawn mark-first.
+
+**Not verified.** The macOS native traffic lights still cannot appear in a
+browser render, so Issue 1's titlebar geometry remains implemented from the
+frame's computed styles and unconfirmed on screen; computer use was unavailable
+because Accessibility and Screen Recording were not granted. Windows was not
+run. The headless route exercises the browser preview transport, so saves were
+confirmed against the preview's in-memory store in the browser and against
+SQLite only through runtime tests, not through the native app. Tab drag-and-drop
+reordering was implemented and type-checked but exercised only through its
+keyboard path and unit test, not by dragging in the running app.
+
+## Appearance and project identity pass (2026-09-26)
+
+The whole gate passes again: format, lint, typecheck, build, `cargo fmt`,
+`cargo clippy -- -D warnings`, 64 frontend tests and 15 runtime tests.
+
+Verified by headless render: the editor now resolves to Geist Mono rather than
+the browser's default serif (`.cm-scroller` computes to the Geist Mono Variable
+stack); the Appearance settings page changes editor family, size and line
+height with a live preview; project icon presets and image upload are offered
+per project; tab badges appear once more than one project is open; and
+pointer-based tab reordering moves a tab from index 0 to index 2.
+
+The editor font was regressing because the CodeMirror theme used `var(--font-mono)`
+alone. That token holds the design's family _name_, `Geist Mono`, which is not a
+loaded family, so the editor fell through to a serif default while every other
+mono surface used the full stack.
+
+**Not verified.** The macOS Settings header inset was confirmed only as a
+computed value of 78px under a simulated platform class; the native traffic
+lights themselves still need a look on macOS, as does Issue 1's titlebar
+geometry. Windows was not run. Project icon images were exercised through the
+squaring helper's code path in the browser only — no image was uploaded end to
+end, and image icons have not been round-tripped through the native SQLite
+runtime, only through the preview transport and runtime validation.
+
+## macOS chrome, verified on screen (2026-09-26)
+
+Computer use became available once Screen Recording was granted to the Claude
+desktop app. The Tauri dev executable is a bare binary that computer use cannot
+target, so the app was run as a debug `.app` bundle (`pnpm tauri build --debug
+--bundles app`), which registers as `jam`.
+
+Three real macOS defects were found and fixed by looking at the native window:
+
+- **Traffic lights sat about 7pt above the titlebar row.** Tauri's
+  `traffic_light_position.y` is not a distance from the top: wry sets the
+  titlebar container to `button height + y`, and the buttons keep their own
+  offset inside it. `y = 16` centred them near 15pt; the 44pt titlebar row is
+  centred at 22pt. `y = 23` puts the lights on the same line as the tabs and
+  the sidebar header's controls.
+- **The dedicated Settings title touched the green light.** Its header now
+  starts at 88px: the lights span 18–70px, and the title keeps the same 18px of
+  air on their right that they keep from the window edge.
+- **With the sidebar collapsed, the green light covered the first tab.** The
+  56px rail is narrower than the lights; the titlebar now starts its tabs 32px
+  in from the rail so they clear the lights by the same 18px.
+
+Verified in the running native app: expanded sidebar, dedicated Settings and
+collapsed rail. Windows was not run.
+
+## Editing, tabs and cross-platform pass (2026-09-26, macOS)
+
+Checked in headless Chromium against the preview transport (a 16-step sweep:
+send, failure, interrupt, search, shortcuts, launcher anchoring, tiles, file
+open and save, status colours, tab drag, project editing with emoji, glyph and
+image, appearance, sidebar) and then in the native debug `.app`.
+
+Defects found and fixed in this pass:
+
+- **Custom images "could not be read"** natively: object (`blob:`) URLs are
+  refused by the desktop CSP. Images now load as `data:` URLs. A dark
+  transparent logo is given a light backing. Verified by uploading an SVG
+  through the native macOS file sheet.
+- **Modified status letters were uncoloured**: they used a `.warning` class
+  that does not exist. Status letters and names now use `status-*` classes.
+- **Dragging a tab selected it, then did not move it in WebKit.** The click
+  after a drag is now suppressed. Separately, WebKit started a text selection
+  from the press, which swallowed the drag; the press now prevents default and
+  captures the pointer. Chromium never showed the second defect, so the
+  headless sweep could not catch it — it was found and verified natively.
+- **The launcher ignored Escape and outside right-clicks natively**; it now
+  listens at window level and closes on blur, and its `+` toggles.
+- **The native WebView menu (Reload, Inspect Element) opened over JAM's own
+  menu** when right-clicking inside it. JAM's menus swallow the event, and the
+  desktop host suppresses the WebView menu except over editable or selected
+  text. Right-clicking a sidebar row also selected the word under the pointer;
+  the sidebar is no longer selectable text.
+- **Codex chats showed a neutral or Claude mark** in a new chat's composer and
+  its "Continue in" rows. The draft and each row's session now supply it.
+- **The file browser shrank to ~120px** beside a chat; its split ratio now
+  comes from the pane's real width. Web preview on a Mac used Ctrl shortcuts;
+  it now follows the Mac modifier.
+
+Verified natively on macOS: launcher anchored below `+` and toggling closed;
+tab reorder without selection; editor gutter; coloured `A` status; project
+context menu, editor, emoji and glyph badges, and image upload with backing;
+the Codex mark. Not verified: Escape and typed input under computer use,
+because synthetic keystrokes did not reach the WebView in this session (clicks
+did) — Escape is covered in Chromium only. Windows was not run; the path
+placeholder, emoji-picker hint (Win + .), Ctrl shortcuts and context-menu
+suppression are written for it but untested there.
+
+Once, natively, a modal dialog opened without painting (Escape dismissed it).
+It did not recur and no cause was found; no speculative fix was made.
+
+## Project threads, pinned projects and sentence-case labels (2026-09-26)
+
+Automated: the runtime proves closing is explicit, survives restart, is
+refused for non-conversations and unknown IDs, and is undone by sending; that
+Keep open persists; and that project pinning persists and clears. The preview
+transport repeats those cases, validation rejects malformed thread requests,
+and client tests cover open/closed ordering, the suggestion rule (including
+the Keep open snooze, running sessions and "never"), pinned ordering and
+compact ages. Headless Chromium drove the sidebar end to end with the
+threshold at one day: one prompt at a time, amber ages, close, Closed group,
+Keep open moving the question on, reopen from the menu, collapse and switch
+projects, pin ordering and mark, and a send reopening a closed thread. No
+computed uppercase remains on any label.
+
+Not yet verified in the native app or on Windows. The demo seed's
+timestamps are fixed, so with the seven-day default no seeded thread looks
+idle until a week has passed; set Settings → Threads to one day to see the
+prompt.
+
+## Multi-project threads, Codex colour mark and search recents (2026-09-26)
+
+Headless Chromium: three projects expanded together and collapsing one left
+the others; the Codex mark renders the gradient with no white tile and every
+instance has a unique gradient ID; search lists recent chats before typing,
+remembers a search only after its result is opened, runs a recent search on
+Enter, opens a recent chat with arrow and Enter, and clears. One defect was
+found and fixed: a row rendered under a resting pointer took the selection on
+`mouseenter`, so Enter opened a chat instead of the recent search; selection
+now follows pointer movement only. A client test covers recent-search
+ordering, de-duplication and bounds. Native rendering of the gradient mark is
+checked below the gate; Windows was not run.
+
 ## Performance measurement procedure
 
 Use release builds for product claims, fixed machine/window/corpus and five cold launches plus five warm launches. Record runtime startup timestamp and frontend `jam-bootstrap` to workspace-loaded mark. Record median/p95, OS/build, corpus size and installed WebView version.

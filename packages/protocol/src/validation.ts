@@ -1,4 +1,5 @@
 import { JamError } from './errors';
+import { OPENABLE_KINDS, PROJECT_ICONS } from './types';
 import type {
   DemoFixture,
   JamEvent,
@@ -80,9 +81,66 @@ const timestamp: Check = (value) => {
 const presentation = oneOf('claude', 'codex');
 const providerId = oneOf('mock', 'claude', 'codex');
 
+/** Project-relative only: a client may never address a location by escape. */
+const relativePath: Check = (value) => {
+  text(512)(value);
+  const candidate = value as string;
+  if (
+    candidate.startsWith('/') ||
+    candidate.startsWith('\\') ||
+    candidate.includes('//') ||
+    candidate.includes('\0') ||
+    candidate.split('/').some((segment) => segment === '..' || segment === '.')
+  ) {
+    invalid('Paths must be project-relative and must not contain relative segments.');
+  }
+};
+const listingPath: Check = (value) => {
+  if (value === '') return;
+  relativePath(value);
+};
+const fileStatus = oneOf('added', 'modified', 'deleted', 'untracked');
+
 const cursor: Check = (value) => shape(value, { runtimeId: id, sequence: integer });
+const { limits: iconLimits } = PROJECT_ICONS;
+const projectIcon: Check = (value) => {
+  shape(
+    value,
+    { kind: oneOf('initials', 'preset', 'emoji', 'image') },
+    { value: text(iconLimits.imageUtf16), tone: oneOf(...PROJECT_ICONS.tones) },
+  );
+  const record = object(value);
+  const content = record.value as string | undefined;
+  switch (record.kind) {
+    case 'initials':
+      if (content !== undefined) invalid('An initials icon carries no value.');
+      break;
+    case 'preset':
+      if (!PROJECT_ICONS.presets.includes(content ?? '')) invalid('Unknown project icon preset.');
+      break;
+    case 'emoji':
+      // A few code points, never markup or a sentence.
+      if (!content || content.length > iconLimits.emojiUtf16 || /[<>\s]/.test(content))
+        invalid('An emoji icon must be a short emoji.');
+      break;
+    case 'image':
+      if (!content?.startsWith('data:image/'))
+        invalid('A project image must be inline image data.');
+      break;
+  }
+};
+/** Absolute on macOS/Linux (`/`, `~/`) or Windows (`C:\`, `\\server`). */
+const projectPath: Check = (value) => {
+  text(iconLimits.pathUtf16)(value);
+  if (!/^(\/|~\/|[A-Za-z]:[\\/]|\\\\)/.test(value as string))
+    invalid('A project path must be an absolute folder path.');
+};
 const project: Check = (value) =>
-  shape(value, { id, name: text(256), initials: text(8), branch: text(256) });
+  shape(
+    value,
+    { id, name: text(256), initials: text(8), branch: text(256) },
+    { icon: projectIcon, paths: array(projectPath, iconLimits.paths), pinned: boolean },
+  );
 const resource: Check = (value) =>
   shape(
     value,
@@ -101,7 +159,13 @@ const resource: Check = (value) =>
       pinned: boolean,
       updatedAt: timestamp,
     },
-    { projectId: id, sessionId: id },
+    {
+      projectId: id,
+      sessionId: id,
+      path: relativePath,
+      closedAt: timestamp,
+      closeSuggestionDismissedAt: timestamp,
+    },
   );
 const session: Check = (value) =>
   shape(value, {
@@ -222,6 +286,38 @@ const searchResult: Check = (value) =>
     updatedAt: timestamp,
   });
 
+const directoryEntry: Check = (value) =>
+  shape(
+    value,
+    { name: text(512), path: relativePath, kind: oneOf('file', 'directory') },
+    { status: fileStatus, hasChildren: boolean },
+  );
+const directoryListing: Check = (value) =>
+  shape(value, {
+    projectId: id,
+    path: listingPath,
+    entries: array(directoryEntry, 500),
+    truncated: boolean,
+    demo: boolean,
+  });
+const fileContents: Check = (value) =>
+  shape(
+    value,
+    {
+      projectId: id,
+      path: relativePath,
+      language: text(64),
+      text: text(2_000_000, true),
+      truncated: boolean,
+      writable: boolean,
+      demo: boolean,
+    },
+    { status: fileStatus },
+  );
+
+const fileSaved: Check = (value) =>
+  shape(value, { projectId: id, path: relativePath, savedAt: timestamp });
+
 const params: Record<RequestMethod, Check> = {
   'workspace.get': (value) => shape(value, {}),
   'conversation.get': (value) => shape(value, { resourceId: id }),
@@ -239,6 +335,29 @@ const params: Record<RequestMethod, Check> = {
     }
   },
   'turn.interrupt': (value) => shape(value, { sessionId: id }),
+  'directory.list': (value) => shape(value, { projectId: id, path: listingPath }),
+  'file.read': (value) => shape(value, { projectId: id, path: relativePath }),
+  'file.write': (value) =>
+    shape(value, { projectId: id, path: relativePath, text: text(2_000_000, true) }),
+  'project.update': (value) =>
+    shape(
+      value,
+      { projectId: id },
+      {
+        name: text(iconLimits.nameUtf16),
+        paths: array(projectPath, iconLimits.paths),
+        icon: projectIcon,
+        pinned: boolean,
+      },
+    ),
+  'thread.setClosed': (value) => shape(value, { resourceId: id, closed: boolean }),
+  'thread.keepOpen': (value) => shape(value, { resourceId: id }),
+  'resource.open': (value) => {
+    shape(value, { projectId: id, kind: oneOf(...OPENABLE_KINDS) }, { path: relativePath });
+    const record = object(value);
+    if ((record.kind === 'file') !== (record.path !== undefined))
+      invalid('Only a file resource is opened by path, and it requires one.');
+  },
   'search.query': (value) =>
     shape(value, { query: text(256, true) }, { projectId: id, providerId, pinned: boolean }),
 };
@@ -249,6 +368,13 @@ const responses: Record<RequestMethod, Check> = {
   'conversation.create': (value) => shape(value, { resource, session, conversation }),
   'turn.start': (value) => shape(value, { accepted: oneOf(true), sessionId: id, requestId: id }),
   'turn.interrupt': (value) => shape(value, { sessionId: id, interrupted: boolean }),
+  'directory.list': directoryListing,
+  'file.read': fileContents,
+  'file.write': fileSaved,
+  'project.update': (value) => shape(value, { project }),
+  'thread.setClosed': (value) => shape(value, { resource }),
+  'thread.keepOpen': (value) => shape(value, { resource }),
+  'resource.open': (value) => shape(value, { resource }),
   'search.query': (value) => shape(value, { results: array(searchResult, 50) }),
 };
 

@@ -1,28 +1,28 @@
 import type { ReactNode } from 'react';
-import type { Project, Resource } from '@jam/protocol';
-import { ProviderGlyph } from './Sidebar';
+import type { Presentation, Project, Resource } from '@jam/protocol';
+import { ProviderIcon } from './icons';
 
 interface NewChatProps {
   project?: Project;
   resources: Resource[];
   composer: ReactNode;
+  presentationOf(resource: Resource): Presentation | undefined;
   onOpen(id: string): void;
   onStarter(text: string): void;
 }
 
-export function NewChat({ project, resources, composer, onOpen, onStarter }: NewChatProps) {
+export function NewChat({
+  project,
+  resources,
+  composer,
+  presentationOf,
+  onOpen,
+  onStarter,
+}: NewChatProps) {
+  // The pane frame (header and controls) is supplied by the caller so a new
+  // chat can occupy any pane, like every other resource.
   return (
-    <section className="pane">
-      <header className="pane-header">
-        <div className="pane-heading">
-          <span className="muted">{project?.name}</span>
-          <span className="subtle">/</span>
-          <strong>New chat</strong>
-        </div>
-        <span className="subtle" style={{ fontSize: 11 }}>
-          Not started · nothing is saved until you send
-        </span>
-      </header>
+    <>
       <div className="new-chat-body">
         <div className="new-chat-content">
           <div className="new-chat-heading">
@@ -39,7 +39,7 @@ export function NewChat({ project, resources, composer, onOpen, onStarter }: New
                   className="suggestion-row"
                   onClick={() => onOpen(resource.id)}
                 >
-                  <ProviderGlyph />
+                  <ProviderIcon presentation={presentationOf(resource)} />
                   <span className="truncate">{resource.title}</span>
                 </button>
               ))}
@@ -55,6 +55,6 @@ export function NewChat({ project, resources, composer, onOpen, onStarter }: New
           </div>
         </div>
       </div>
-    </section>
+    </>
   );
 }

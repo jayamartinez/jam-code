@@ -48,6 +48,31 @@ describe('architectural boundaries', () => {
     expect(forbidden).toEqual([]);
   });
 
+  it('the layout tree never names a resource kind', async () => {
+    // A leaf holds a view ID. The moment layout code branches on "terminal" or
+    // "conversation", panes stop being interchangeable views onto resources.
+    const layout = await readFile(resolve('packages/client/src/state/layout.ts'), 'utf8');
+    const code = layout.replaceAll(/\/\*[\s\S]*?\*\//g, '').replaceAll(/\/\/.*$/gm, '');
+    for (const kind of [
+      'conversation',
+      'terminal',
+      'browser',
+      'file',
+      'file-browser',
+      'diff',
+      'settings',
+    ]) {
+      expect(code).not.toContain(`'${kind}'`);
+    }
+  });
+
+  it('the tile renderer arranges panes without inspecting their contents', async () => {
+    const tiles = await readFile(resolve('packages/client/src/components/TileLayout.tsx'), 'utf8');
+    // It receives a render callback; it must not import any resource surface.
+    expect(tiles).not.toMatch(/from '\.\/(Conversation|File|Demo|Settings|Empty)/);
+    expect(tiles).toContain('renderPane');
+  });
+
   it('the runtime remains independent of Tauri and React', async () => {
     const manifest = await readFile(resolve('crates/runtime/Cargo.toml'), 'utf8');
     expect(manifest).not.toMatch(/^\s*(tauri|react)\s*=/m);

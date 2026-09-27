@@ -32,6 +32,10 @@
   line-height: 28px;
   outline: none;
 }
+/* The field is the dialog's whole purpose and its caret already shows focus. */
+.search-dialog-input > input:focus-visible {
+  outline: none;
+}
 .search-filters {
   display: flex;
   gap: 8px;
@@ -55,6 +59,82 @@
   overflow: auto;
   padding: 0 8px 10px;
 }
+.search-section-label {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 0;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-subtle);
+}
+.search-section-label span {
+  font-weight: 400;
+  color: var(--color-text-faint);
+}
+.search-clear {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+.search-clear:hover {
+  color: var(--color-text-primary);
+}
+.search-recent,
+.search-chat {
+  width: 100%;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  text-align: left;
+}
+.search-recent {
+  padding-right: 4px;
+}
+.search-recent.selected,
+.search-chat.selected {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent-border);
+}
+.search-recent-query {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-text-secondary);
+  text-align: left;
+}
+.search-recent-query svg {
+  flex-shrink: 0;
+  color: var(--color-text-subtle);
+}
+.search-forget {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  opacity: 0;
+}
+.search-recent:hover .search-forget,
+.search-recent.selected .search-forget,
+.search-forget:focus-visible {
+  opacity: 1;
+}
+.search-chat-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+}
+.search-chat-meta {
+  flex-shrink: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-subtle);
+}
 .search-result {
   width: 100%;
   padding: 12px;
@@ -69,7 +149,7 @@
   background: var(--color-accent-soft);
   border-color: var(--color-accent-border);
 }
-.search-result > span {
+.search-result-copy {
   flex: 1;
   min-width: 0;
 }
@@ -99,57 +179,6 @@
 }
 .dialog-footer kbd {
   margin-right: 3px;
-}
-.launcher {
-  width: 600px;
-  display: grid;
-  grid-template-columns: 1.6fr 1fr;
-}
-.launcher-list {
-  padding: 10px 8px;
-}
-.launcher-heading {
-  padding: 8px;
-  font-size: 12px;
-  color: var(--color-text-muted);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.launcher-label {
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-size: 10px;
-  padding: 12px 8px 4px;
-  color: var(--color-text-subtle);
-}
-.launcher-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  height: 34px;
-  padding: 0 8px;
-  text-align: left;
-  border-radius: 6px;
-  font-size: 12px;
-}
-.launcher-item > span {
-  flex: 1;
-}
-.launcher-projects {
-  border-left: 1px solid var(--color-border);
-  padding: 12px;
-  background: var(--color-fill-subtle);
-}
-.launcher-projects > p {
-  font-size: 10.5px;
-  color: var(--color-text-subtle);
-  margin: 12px 0;
-  line-height: 17px;
-}
-.launcher-projects .project-row {
-  font-size: 12px;
 }
 .context-dialog {
   width: 440px;

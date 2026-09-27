@@ -5,8 +5,21 @@
 @import './shell.css';
 @import './conversation.css';
 @import './surfaces.css';
+@import './resources.css';
 
 :root {
+  /*
+   * `--font-sans`/`--font-mono` are the design's family names. These are the
+   * stacks that actually resolve, so anything reading a font goes through one
+   * of them rather than a bare name that may not be loaded.
+   */
+  --font-sans-stack: 'Geist Variable', var(--font-sans), system-ui, sans-serif;
+  --font-mono-stack:
+    'Geist Mono Variable', var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Overridden per reader by the editor appearance preferences. */
+  --editor-font-family: var(--font-mono-stack);
+  --editor-font-size: 12px;
+  --editor-line-height: 20px;
   font-family: 'Geist Variable', var(--font-sans), sans-serif;
   color: var(--color-text-primary);
   font-size: 13px;

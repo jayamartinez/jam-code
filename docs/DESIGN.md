@@ -8,6 +8,14 @@ Nightglass is a dense desktop work surface with a nearly black ground, transluce
 
 `packages/client/src/styles/tokens.css` preserves the semantic Paper token roles and values. Important roles include base `#07080C`, sidebar `rgb(9 10 15 / 62%)`, pane `rgb(12 13 19 / 78%)`, raised `#171820`, overlay `#14151B`, primary text `#E3E6EE`, body `#D2D6E0`, muted `#9095A3`, accent `#6F9BFF`, success `#7EC39A`, warning `#E6A85E`, and danger `#E6807A`. Text, surfaces, borders, diff, and provider roles remain separate. Future theme/opacity controls can replace semantic tokens without changing components.
 
+Section and group labels — Projects, Pinned, History, Open, Closed, the
+launcher's Agents and Tools, "Continue in", settings field labels — are
+sentence case at 11.5px medium in the subtle text role, with no added
+tracking. The Paper frames were drawn in tracked uppercase; the project owner
+asked for calmer labels, and Paper was updated to match, so hierarchy now
+comes from weight and colour rather than capitals. Genuine abbreviations,
+keycaps, initials and status letters stay as they are.
+
 Geist and Geist Mono are bundled locally. UI labels use 10.5–13px, body 14px with 23px line height, and new-chat headings 24px/30px. Monospace is reserved for paths, code, keys and compact metadata. A future readable-density mode may increase these values; do not solve density by shrinking unrelated typography.
 
 ## Geometry
@@ -27,14 +35,186 @@ Dedicated Settings replaces the normal sidebar with a 260px settings navigation.
 | New chat              | Unsaved project-scoped draft, provider/model/effort and execution target selection, resume and starters      |
 | Launcher              | Agent chats, terminal, browser, file, file browser, review; project switching and adding                     |
 | Browser annotation    | Element/region selection, numbered annotation bundle, destination choice, explicit staging                   |
-| Files/editor/terminal | Independent resources; selection context; directory-aware terminal; read-only agent shell observation        |
+| Files/editor/terminal | Independent resources arranged by the generic layout system, never a combined editor-with-terminal component |
 | Review                | Branch-wide changes, viewed state, inline pending comments and explicit batch send                           |
 | Collapsed rail        | Project identity/status remains reachable with flyouts                                                       |
 | Focus                 | Conversation alone with a thin exit/attention strip                                                          |
 | Snapshot → context    | Background capture, quiet toast, staged context and destination change                                       |
+| Project threads       | Frame 7: a selected project expands its open threads, one idle-close prompt, and a collapsible Closed group  |
 | Settings              | Dedicated providers, provider detail, snapshot options, shortcut states, and resource-tab presentation       |
 
+## Window chrome
+
+Windows draws JAM's own controls at the right of the titlebar. macOS keeps the
+host's real traffic lights and JAM draws none: the desktop host positions them
+at an 18px left inset, 16px from the top, so the system's 12px buttons and 8px
+spacing centre in the 44px titlebar. They occupy the sidebar header's left
+inset, which is where the wordmark sits on Windows; on macOS the wordmark
+yields to them rather than being pushed sideways. A collapsed 56px rail is
+narrower than the buttons need, so the rail's own content starts below them.
+Only noninteractive titlebar space starts a native drag, and tab reordering is
+pointer-driven rather than HTML5 drag-and-drop: a native drag hands the tab to
+the operating system as a draggable item that could be dropped into another
+application. The tab strip also scrolls horizontally from a vertical wheel, so
+an overflowing tab stays reachable with a plain mouse. All of this lives in
+the desktop host and the chrome components; resource surfaces contain no
+platform conditionals.
+
+## Panes and tiling
+
+Every resource surface shares one pane frame: a 42px header with its heading on
+the left and a 26px control cluster on the right — split right, split down,
+focus, and a pane menu — at 2px spacing and 6px radius, matching the Tiles
+frame. Because the cluster is identical everywhere, splitting is discoverable
+from any pane and from Single, which enters Tiles with the resource already on
+screen. Splits are 6px gutters that drag to resize and respond to arrow keys.
+
+The file browser pane omits the reference's own search and add buttons: both
+are unimplemented, and the shared control cluster occupies that space instead.
+A pane header drops its branch, then its project label, by its own width rather
+than the window's, so a narrow tile stays one 42px line.
+
+Choosing a file never replaces the browser. The file opens in a pane that
+already holds one, then an empty pane, and otherwise a new pane split beside
+the browser at the Files frame's 250/1160 proportion — the browser-left,
+editor-right arrangement that frame shows, with a terminal optionally below.
+
+The editor gutter follows the Files frame: line numbers right-aligned in a
+48px column with 14px on their right, a subtle divider, and the code starting
+8px after it. The active line's number brightens; nothing else is highlighted
+in the gutter. Lines do not wrap.
+
+## New Resource launcher
+
+The launcher answers "what do I want to open?" and is not a search field. It is
+600px wide, with a 362px open list (Agents, then Tools) and a 236px project
+column, following the launcher frame. The frame draws it centred on an empty
+workspace; in use it opens from whatever asked for it — 6px below the tab
+strip's `+`, or below an empty pane's button — aligned 10px left of that
+control and clamped inside the main region, so it reads as that button's menu
+rather than a modal. Pressing the `+` again, Escape, a press or right-click
+outside, or the window losing focus closes it. Global history search keeps its own centred dialog and its
+own shortcut; the two interactions stay separate.
+
+## File and folder icons
+
+The Files frame does not define a file icon system, so JAM adds one behind
+`FileIcon` and `FolderIcon`. Both take a path and never name a pack. Two themes
+are available so their designs can be compared in place: an original JAM glyph
+set, and a curated subset of the MIT-licensed Material Icon Theme vendored in
+`components/file-icons/material` with its licence. Both classify paths through
+the same module, so switching changes artwork only — never which files are
+distinguished — and both render into the same 16px box at the same row height
+and indentation.
+
+The JAM set began as a page outline with a small type mark inside it. At the
+14px the tree uses, the outline dominated and the marks were unreadable, so the
+page was dropped and the mark now fills the box; only a file JAM has no opinion
+about still draws a page. Types separate by silhouette first and tone second,
+with five tones across the set. The Material set is more immediately
+recognizable and carries more colour; it is constrained to the same box so it
+cannot outweigh the rest of the interface. The default is a mix: Material's marks for file types, JAM's own outlined
+folders for structure. Choosing a single set is deliberately still open, and
+the comparison switch is temporary development chrome, not a setting.
+
+## Project identity
+
+A project badge is an 18px square at radius 5 with accent-soft behind 9.5px
+semibold mono on a 12px line, matching the design's sidebar row, and every
+project uses the same accent tone by default rather than cycling through
+several. Right-clicking a project (or its context-menu key) offers **Edit
+project details…**, which edits the name, the project's folders, and its badge:
+initials, one of 40 line glyphs, any emoji, or an image, with eight tones for
+everything but the image. The glyph names, tones and size limits are one shared
+fixture (`packages/protocol/fixtures/project-icons.json`) that the runtime
+validates against too. Folders are recorded but not yet read.
+
+An image is cropped from its centre to a square and stored at 64px, so a tall
+or wide picture is never stretched and the record stays small. A dark mark on
+a transparent background — a monochrome logo — is redrawn on a light backing,
+because it would otherwise vanish on the dark badge. Images are read with
+`FileReader` into `data:` URLs: the desktop content security policy allows
+`data:` images and deliberately not `blob:`, which is why object URLs failed
+with "cannot be read".
+
+JAM draws its own context menus so they look the same on macOS and Windows.
+The WebView's native menu (Reload, Inspect Element) is suppressed by the
+desktop host except over editable or selected text, where Cut/Copy/Paste stay
+native.
+
+Tabs show their project's badge once more than one project is open, because
+several resources of the same kind — four file browsers, say — are otherwise
+indistinguishable. With a single project in play the badge is omitted rather
+than repeated on every tab.
+
+## Editor typography
+
+`--font-mono` is the design's family _name_; the loaded face is Geist Mono
+Variable. Anything setting a font reads `--font-mono-stack` or, in a file pane,
+`--editor-font-family`, so a bare name can never fall through to the browser's
+default serif. The editor's family, size and line height are reader
+preferences, stored per browser profile. JAM bundles only Geist Mono; the other
+families offered are used when the reader already has them installed, so
+nothing is downloaded and an unavailable choice falls back through the stack.
+
+## Project threads
+
+Paper frame 7 defines this surface. A project's threads are its
+conversations. Clicking a project selects it and lists its threads under it in
+the sidebar; clicking it again hides them. Any number of projects can be open
+at once, so threads from several projects can be compared side by side; until
+the reader toggles one, the current project starts open. The expanded project drops its row fill and keeps its weight,
+so the highlight belongs to the open thread. Thread rows are 28px, indented to
+the project's name, with the provider mark, the title and a compact age.
+
+Open threads sort by last activity. Closed threads sit in a Closed group that
+starts collapsed, show three at a time, and read "closed 3d". Closing is
+always the reader's decision: right-click a thread to close or reopen it, and
+sending to a closed thread reopens it. JAM may suggest closing a thread nobody
+has used for the configured period (seven days by default, or never) — every
+idle thread's age turns amber, and one inline prompt asks about the longest
+idle one at a time. "Keep open" snoozes that thread for another full period.
+Nothing closes on its own. The frame also shows "merged #41"; that reason
+needs git integration and is not implemented, so JAM never claims it.
+
+Projects can be pinned from their context menu. Pinned projects sort first and
+carry a small pin beside the name; otherwise the runtime's order is kept.
+
+## History search
+
+Search opens with something to act on instead of an empty list: up to six
+recent searches, then the eight most recent chats, both narrowed by the
+dialog's project, provider and pinned filters. A search is remembered only
+once it led to an opened result, and recent searches live in this browser
+profile, never in the runtime. Choosing one runs it; each can be forgotten, or
+all cleared. Arrow keys and Enter move through both lists as one. The pointer
+changes the selection only when it moves, so a row appearing under a resting
+pointer never steals the keyboard's place.
+
+## Provider and resource icons
+
+Marks render inside a fixed square — 16px in dense rows — with the glyph
+centred at a per-mark scale so differently shaped provider marks read at the
+same optical weight. The slot never stretches, never sets a row's height and
+never shifts adjacent text. An unrecognized provider gets a neutral fallback
+rather than another provider's mark. Claude Code and Codex use their own
+supplied marks. Claude Code is drawn in its provider tone through
+`currentColor`. Codex keeps its own violet-to-blue gradient, whose stops are
+provider tokens, but not the white rounded tile its colour icon ships on: the
+view box is cropped to the mark, so it sits directly on the dark surface.
+Each instance gets its own gradient ID, as SVG IDs are document-global. The Claude Code mark is wide and short, so it takes
+more of its slot to read at the Codex mark's weight. A new chat has no session yet, so its composer and its
+"Continue in" rows take the provider from the draft and from each row's
+session rather than assuming Claude.
+
 ## Interaction invariants
+
+Tabs behave like browser tabs: a press selects only if released in place;
+past a 5px threshold it becomes a reorder, the tab follows the pointer and its
+neighbours slide aside, and releasing does not select it. The press prevents
+WebKit's default so it cannot start a text selection, which otherwise takes
+over the pointer stream; the tab strip and sidebar are not selectable text.
+The wheel scrolls the strip horizontally.
 
 Tabs are open resources; panes are views. A resource can remain open while not visible. Focused and visible tabs are distinct. Closing a view never terminates a session. Draft text belongs to a resource-keyed client draft store outside mounted panes. Explicit Stop is the only composer action that interrupts work. Resource identity is not a React key invented on every render.
 
@@ -50,9 +230,23 @@ Review comments are pending until explicitly sent. Review sends one message cont
 
 Only the deterministic Mock provider runs in this milestone. Reference Claude/Codex model versions, connected plan labels and running indicators are illustrative and must not be presented as live detection. Real providers display unavailable/unknown status. Compact Demo labeling is part of chrome; browser development preview is volatile and distinct from native SQLite persistence.
 
-Diff and terminal are lazy-loaded static demo surfaces. They show explicit demo labels, execute nothing, and own no process. Browser, editor, repository picker, worktree creation, native capture, theme controls and provider configuration are deferred. Disabled controls explain their state. The initial app implements shared provider Settings and reserves navigation for future pages without pretending settings were persisted.
+Diff and terminal are lazy-loaded static demo surfaces. They show explicit demo labels, execute nothing, and own no process. Browser, repository picker, worktree creation, native capture, theme controls and provider configuration are deferred. Disabled controls explain their state. The initial app implements shared provider Settings and reserves navigation for future pages without pretending settings were persisted.
 
-Window buttons call injected desktop services. The shared client imports no native API. Windows controls sit right; macOS retains the host's native traffic lights with an explicit left inset in sidebar, collapsed and focus presentations, avoiding duplicate web controls. Only noninteractive titlebar space initiates native dragging. Browser preview window actions are unavailable. The macOS native inset is implemented but unverified on macOS hardware.
+The file browser and File resource are real surfaces over a runtime file
+service, but that service serves an isolated demo tree rather than this
+machine, so both are labelled `Demo tree`. The File resource is read-only and
+says `Read-only`: there is no write path, and a working editor over fictional
+files would be a simulation. The editor is built on an editable compartment so
+enabling writes is a change of capability, not of architecture. Local folders
+found on disk are not listed in the launcher, because detecting them needs
+native folder access; the column says so instead of showing example paths.
+
+Claude Code and Codex chats in the launcher create conversations that
+_present_ as those agents while running on the deterministic mock adapter, the
+same convention the demo history already uses. The launcher says so in place,
+and provider status pills keep their `Mock` label.
+
+Window buttons call injected desktop services. The shared client imports no native API. Windows controls sit right; macOS retains the host's native traffic lights with an explicit left inset in sidebar, collapsed and focus presentations, avoiding duplicate web controls. Only noninteractive titlebar space initiates native dragging. Browser preview window actions are unavailable.
 
 ## Verification
 

@@ -19,6 +19,29 @@ pub struct Project {
     pub name: String,
     pub initials: String,
     pub branch: String,
+    /// How the project's badge is drawn. Absent means its initials.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<ProjectIcon>,
+    /// Folders the user associates with the project. Recorded only: nothing
+    /// is read from them yet, and they are never a grant to a remote client.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub paths: Vec<String>,
+    /// Pinned projects sort first in the sidebar.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub pinned: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectIcon {
+    /// `initials`, `preset`, `emoji` or `image`.
+    pub kind: String,
+    /// A preset name, an emoji, or an image data URL the client already squared.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+    /// Colour role for a preset or the initials.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tone: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,8 +54,18 @@ pub struct Resource {
     pub project_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
+    /// Project-relative path for file resources. Never an absolute local path.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
     pub pinned: bool,
     pub updated_at: String,
+    /// When the reader closed this thread. Closing is always explicit: JAM
+    /// may suggest it, but never closes a thread by itself.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub closed_at: Option<String>,
+    /// When the reader last answered "Keep open" to an idle suggestion.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub close_suggestion_dismissed_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -211,6 +244,52 @@ pub struct SearchResult {
     pub pinned: bool,
     pub snippet: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirectoryEntry {
+    pub name: String,
+    /// Project-relative path, resolved by the runtime.
+    pub path: String,
+    pub kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_children: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirectoryListing {
+    pub project_id: String,
+    pub path: String,
+    pub entries: Vec<DirectoryEntry>,
+    pub truncated: bool,
+    /// True while the tree is the isolated demo workspace, not this computer.
+    pub demo: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileContents {
+    pub project_id: String,
+    pub path: String,
+    pub language: String,
+    pub text: String,
+    pub truncated: bool,
+    pub writable: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    pub demo: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileSaved {
+    pub project_id: String,
+    pub path: String,
+    pub saved_at: String,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]

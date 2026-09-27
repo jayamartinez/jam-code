@@ -12,12 +12,11 @@ async function bootstrap() {
   let desktop: DesktopServices;
 
   if (isTauri()) {
-    const [{ TauriTransport }, { createDesktopServices }] = await Promise.all([
-      import('./tauri-transport'),
-      import('./desktop-services'),
-    ]);
+    const [{ TauriTransport }, { createDesktopServices, suppressBrowserContextMenu }] =
+      await Promise.all([import('./tauri-transport'), import('./desktop-services')]);
     transport = new TauriTransport();
     desktop = createDesktopServices();
+    suppressBrowserContextMenu();
   } else if (import.meta.env.DEV) {
     const { BrowserPreviewTransport } = await import('@jam/protocol/preview');
     transport = new BrowserPreviewTransport();

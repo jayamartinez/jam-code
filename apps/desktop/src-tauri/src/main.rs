@@ -37,11 +37,19 @@ fn main() {
                 .inner_size(1440.0, 900.0)
                 .min_inner_size(960.0, 640.0)
                 .decorations(false);
+            // macOS keeps its real traffic lights over JAM's custom titlebar.
+            // `traffic_light_position.y` is not "distance from the top": wry
+            // sets the titlebar container to `button height + y` and the
+            // buttons keep their own offset inside it. Measured on screen,
+            // y = 16 centred the lights at ~15pt; JAM's 44pt titlebar row is
+            // centred at 22pt, so y = 23 aligns them with the tab row and the
+            // sidebar header controls. x = 18 is the design's left inset.
             #[cfg(target_os = "macos")]
             let window = window
                 .decorations(true)
                 .title_bar_style(tauri::TitleBarStyle::Overlay)
-                .hidden_title(true);
+                .hidden_title(true)
+                .traffic_light_position(tauri::LogicalPosition::new(18.0, 23.0));
             window.build()?;
             // Startup fails visibly if the reopen path cannot be created; never hide an unreachable app.
             lifecycle::install_tray(app)?;

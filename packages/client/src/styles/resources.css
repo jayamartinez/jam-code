@@ -1,0 +1,736 @@
+/*
+ * New Resource launcher.
+ *
+ * Anchored under the resource tab bar rather than presented as a modal: the
+ * question is "what do I want to open?", and the answer lands in this window's
+ * tabs. Global history search keeps its own centred dialog.
+ * Geometry follows the approved launcher frame: 600px wide, 42px below the top
+ * of the main region, a 362px open list and a 236px project column.
+ */
+.new-resource-launcher {
+  position: absolute;
+  top: 42px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  width: 600px;
+  max-width: calc(100% - 16px);
+  max-height: calc(100% - 56px);
+  display: flex;
+  border-radius: 14px;
+  overflow: clip;
+  background: var(--color-surface-overlay);
+  border: 1px solid var(--color-border-strong);
+  box-shadow: 0 30px 80px rgb(0 0 0 / 55%);
+}
+.launcher-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-row);
+  overflow: auto;
+}
+.launcher-title {
+  height: 38px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 4px;
+  padding: 0 10px;
+  font-size: 13.5px;
+  line-height: var(--leading-ui);
+  color: var(--color-text-subtle);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.launcher-title span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.launcher-section + .launcher-section {
+  padding-top: var(--spacing-gutter);
+}
+.launcher-label {
+  height: 24px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-subtle);
+}
+.launcher-row {
+  height: 32px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border-radius: var(--radius-md);
+  text-align: left;
+  color: var(--color-text-secondary);
+  font-size: var(--text-md);
+}
+.launcher-row-label {
+  flex: 1;
+  min-width: 0;
+}
+.launcher-row:hover:not(:disabled),
+.launcher-row:focus {
+  background: var(--color-accent-soft);
+  color: var(--color-text-strong);
+  outline: none;
+}
+.launcher-row:disabled {
+  color: var(--color-text-ghost);
+}
+.launcher-row:disabled .icon-slot {
+  opacity: 0.5;
+}
+.launcher-row kbd {
+  font-family: 'Geist Mono Variable', monospace;
+  font-size: var(--text-label);
+  color: var(--color-text-faint);
+  background: none;
+  border: 0;
+  padding: 0;
+}
+.launcher-hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-subtle);
+  white-space: nowrap;
+}
+.launcher-row:disabled .launcher-hint {
+  color: var(--color-text-ghost);
+}
+.launcher-note {
+  padding: var(--spacing-gutter) 10px 0;
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--color-text-subtle);
+}
+.launcher-project {
+  width: 236px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-gutter);
+  padding: 14px 12px;
+  overflow: auto;
+  background: var(--color-fill-subtle);
+  border-left: 1px solid var(--color-border-subtle);
+}
+.launcher-project .launcher-label {
+  height: auto;
+  padding: 0 4px 4px;
+}
+.launcher-project-row {
+  height: 30px;
+  padding: 0 var(--spacing-row);
+  gap: var(--spacing-row);
+  font-size: var(--text-sm);
+}
+.launcher-project-row.current {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-md);
+  background: var(--color-fill);
+  color: var(--color-text-primary);
+}
+.launcher-project-row.current > .launcher-row-label {
+  flex: 1;
+  min-width: 0;
+}
+.launcher-project-row.current small,
+.launcher-project-row small {
+  font-size: 11px;
+  color: var(--color-text-subtle);
+}
+.launcher-project-row.nested {
+  padding-left: 16px;
+}
+.launcher-project-row.dashed {
+  border: 1px dashed var(--color-border-strong);
+}
+.launcher-project-row.field {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  font-family: 'Geist Mono Variable', monospace;
+  font-size: 11px;
+  color: var(--color-text-subtle);
+}
+.launcher-divider {
+  height: 1px;
+  flex-shrink: 0;
+  margin: var(--spacing-gutter) 0;
+  background: var(--color-border-subtle);
+}
+.launcher-subtitle {
+  padding: 0 4px;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+/*
+ * File browser.
+ *
+ * Rows are one fixed height with a fixed chevron lane, so names and status
+ * letters stay in vertical lanes at every depth. Indentation is 16px a level.
+ */
+.file-browser-pane .pane-header,
+.file-pane .pane-header {
+  padding-left: 14px;
+}
+.file-browser-title {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+.file-tree {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--spacing-gutter);
+}
+.file-row {
+  height: 26px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-gutter);
+  padding-right: var(--spacing-row);
+  border-radius: var(--radius-md);
+  text-align: left;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+.file-row.expanded {
+  color: var(--color-text-secondary);
+}
+.file-row:hover {
+  background: var(--color-fill-subtle);
+}
+.file-row.selected {
+  background: var(--color-accent-soft);
+  color: var(--color-text-strong);
+}
+.file-chevron {
+  width: 10px;
+  flex-shrink: 0;
+  font-size: 9px;
+  line-height: 12px;
+  color: var(--color-text-subtle);
+}
+.file-name {
+  flex: 1;
+  min-width: 0;
+}
+.file-status {
+  width: 10px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: var(--text-label);
+  line-height: 14px;
+}
+.file-row-note {
+  padding: 2px var(--spacing-row);
+  font-size: 11px;
+  color: var(--color-text-subtle);
+}
+.file-row-note.error {
+  color: var(--color-danger);
+}
+.file-browser-footer {
+  height: 34px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-row);
+  padding: 0 14px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+/*
+ * File resource.
+ *
+ * A normal file, deliberately unlike the review surface: one path breadcrumb,
+ * a 48px line-number gutter and a 20px line grid.
+ */
+.file-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 16px;
+}
+.file-path-directory {
+  color: var(--color-text-subtle);
+}
+.file-path-name {
+  color: var(--color-text-primary);
+}
+.file-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: var(--color-text-subtle);
+  white-space: nowrap;
+}
+.code-editor {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/*
+ * Icon slots are laid out by their own size, never by the row around them.
+ * This lives last and is type-qualified so an ambient `… span { flex: 1 }`
+ * cannot stretch a provider mark into a half-width column.
+ */
+span.icon-slot {
+  flex: 0 0 auto;
+  inline-size: var(--icon-slot, 16px);
+  block-size: var(--icon-slot, 16px);
+}
+
+/* The branch chip is an icon beside its text, not stacked on it. */
+.pane-heading .branch,
+.file-browser-footer {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.pane-heading .branch > svg {
+  flex-shrink: 0;
+}
+
+/* A 250px browser pane keeps its header on one line. */
+.file-browser-footer {
+  overflow: hidden;
+  white-space: nowrap;
+}
+@container pane-header (max-width: 300px) {
+  .file-browser-pane .demo-label,
+  .file-pane .file-meta .demo-label {
+    display: none;
+  }
+}
+@container pane-header (max-width: 240px) {
+  .pane-actions .pane-button:nth-of-type(2),
+  .pane-actions .pane-button:nth-of-type(3) {
+    display: none;
+  }
+}
+.file-browser-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.file-meta {
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Unsaved work is stated in the header, next to the path it belongs to. */
+.dirty-dot {
+  inline-size: 6px;
+  block-size: 6px;
+  flex-shrink: 0;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+.file-save {
+  padding: 0 6px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  color: var(--color-accent-strong);
+  background: var(--color-accent-soft);
+  border: 1px solid var(--color-accent-border);
+  white-space: nowrap;
+}
+.file-save:disabled {
+  color: var(--color-text-subtle);
+  background: none;
+  border-color: transparent;
+}
+.pane-footnote.error {
+  color: var(--color-danger);
+}
+
+/* File rows keep one lane for the chevron and one for the icon. */
+.file-row .file-icon {
+  margin-right: 1px;
+}
+.icon-theme-switch {
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--color-text-subtle);
+  border: 1px dashed var(--color-border-strong);
+  white-space: nowrap;
+}
+.icon-theme-switch:hover {
+  color: var(--color-text-secondary);
+  background: var(--color-fill-subtle);
+}
+
+/*
+ * The dedicated Settings header clears the native macOS traffic lights: they
+ * occupy 18px..70px, and the title keeps the same 18px of air on their right
+ * that they keep from the window edge on their left.
+ */
+.platform-macos .settings-nav-header {
+  padding-left: 88px;
+}
+.settings-nav-header .traffic-light-inset {
+  display: none;
+}
+.settings-controls {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.editor-preview {
+  font-family: var(--editor-font-family);
+  font-size: var(--editor-font-size, 12px);
+  line-height: var(--editor-line-height, 20px);
+  color: var(--color-text-body);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.settings-note {
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--color-text-subtle);
+}
+
+/* Project icon picker. */
+.project-icons-heading {
+  margin-top: 28px;
+}
+.project-icon-row {
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.project-icon-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 160px;
+}
+.project-icon-identity p {
+  font-size: 11px;
+  color: var(--color-text-subtle);
+  margin-top: 2px;
+}
+.project-icon-choices {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.project-icon-option {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+}
+.project-icon-option:hover {
+  background: var(--color-fill-subtle);
+}
+.project-icon-option.selected {
+  border-color: var(--color-accent-border);
+  background: var(--color-accent-soft);
+}
+.project-icon-upload {
+  height: 28px;
+  padding: 0 10px;
+  margin-left: 4px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--color-border-strong);
+  font-size: 11.5px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.project-icon-upload:hover {
+  background: var(--color-fill-subtle);
+}
+.project-icon-upload input {
+  display: none;
+}
+.settings-error {
+  margin: 8px 0;
+  font-size: 12px;
+  color: var(--color-danger);
+}
+
+/* Appearance rows put their control beside the label they belong to. */
+.appearance-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.appearance-row:last-of-type {
+  border-bottom: 0;
+}
+.appearance-row > div:first-child {
+  min-width: 0;
+}
+.appearance-row strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+.appearance-row p {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--color-text-muted);
+  max-width: 62ch;
+}
+.appearance-row select {
+  flex-shrink: 0;
+}
+
+/*
+ * Git status letters. The colour carries the meaning, as the Files frame
+ * shows: added green, modified amber, deleted red, untracked quiet. A changed
+ * file's name takes a faint tint of the same colour so the row reads at a
+ * glance, not only at its right edge.
+ */
+.file-status {
+  font-weight: 600;
+}
+.file-status.status-added {
+  color: var(--color-success);
+}
+.file-status.status-modified {
+  color: var(--color-warning);
+}
+.file-status.status-deleted {
+  color: var(--color-danger);
+}
+.file-status.status-untracked {
+  color: var(--color-text-subtle);
+}
+.file-row:has(.status-added) .file-name {
+  color: color-mix(in srgb, var(--color-success) 55%, var(--color-text-secondary));
+}
+.file-row:has(.status-modified) .file-name {
+  color: color-mix(in srgb, var(--color-warning) 55%, var(--color-text-secondary));
+}
+.file-row:has(.status-deleted) .file-name {
+  color: var(--color-danger);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--color-danger) 50%, transparent);
+}
+.file-row.selected .file-name {
+  color: var(--color-text-strong);
+}
+
+/* Once measured, the launcher hangs from its control instead of centring. */
+.new-resource-launcher.anchored {
+  transform: none;
+}
+
+/* Context menu: JAM-drawn so it is identical on macOS and Windows. */
+.context-menu {
+  position: fixed;
+  z-index: 200;
+  min-width: 200px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-overlay);
+  border: 1px solid var(--color-border-strong);
+  box-shadow: 0 20px 50px rgb(0 0 0 / 55%);
+}
+.context-menu button {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  font-size: 12.5px;
+  color: var(--color-text-secondary);
+}
+.context-menu button:hover,
+.context-menu button:focus-visible {
+  background: var(--color-accent-soft);
+  color: var(--color-text-strong);
+  outline: none;
+}
+
+/* Edit project details. */
+.project-editor {
+  width: 520px;
+  max-width: calc(100vw - 32px);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.project-editor-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.project-editor-header > div {
+  flex: 1;
+}
+.project-editor-header h2 {
+  font-size: 15px;
+  font-weight: 600;
+}
+.project-editor-header p {
+  font-size: 11px;
+  color: var(--color-text-subtle);
+}
+.editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.editor-field > span {
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-subtle);
+}
+.editor-field input:not([type='file']) {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+  font-size: 13px;
+}
+.editor-field input:focus {
+  outline: none;
+  border-color: var(--color-accent-border);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+.editor-hint {
+  font-size: 11.5px;
+  line-height: 17px;
+  color: var(--color-text-muted);
+}
+.editor-path {
+  display: flex;
+  gap: 6px;
+}
+.editor-path input {
+  flex: 1;
+  font-size: 12px;
+}
+.editor-add {
+  align-self: flex-start;
+}
+.segmented {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 2px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+.segmented button {
+  height: 24px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--color-text-subtle);
+}
+.segmented button.active {
+  background: var(--color-fill-strong);
+  color: var(--color-text-primary);
+}
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 34px);
+  gap: 4px;
+}
+.icon-choice {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  color: var(--tone, var(--color-text-secondary));
+}
+.emoji-grid .icon-choice {
+  font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+  font-size: 18px;
+}
+.icon-choice:hover {
+  background: var(--color-fill);
+}
+.icon-choice.selected {
+  border-color: var(--color-accent-border);
+  background: color-mix(in srgb, var(--tone, var(--color-accent)) 15%, transparent);
+}
+.editor-emoji {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.editor-emoji input {
+  width: 64px;
+  text-align: center;
+  font-size: 20px !important;
+  font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+}
+.editor-image {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.tone-row {
+  display: flex;
+  gap: 8px;
+}
+.tone-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--tone);
+  border: 2px solid transparent;
+  box-shadow: inset 0 0 0 2px var(--color-surface-overlay);
+}
+.tone-swatch.selected {
+  border-color: var(--tone);
+}
+.project-editor-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.editor-image .button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}

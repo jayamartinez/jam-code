@@ -1,21 +1,26 @@
-import { FileDiff, Terminal, X } from 'lucide-react';
-import { IconButton } from './Controls';
+import { PaneChrome, type PaneChromeProps } from './PaneChrome';
+import { ResourceIcon } from './icons';
+
+type Chrome = Pick<
+  PaneChromeProps,
+  'focused' | 'onSplitRight' | 'onSplitDown' | 'onExpand' | 'expandLabel' | 'menu'
+>;
 
 export default function DemoResource({
   kind,
-  onClose,
+  chrome,
 }: {
   kind: 'diff' | 'terminal';
-  onClose(): void;
+  chrome: Chrome;
 }) {
   return (
-    <section
-      className={`pane ${kind === 'terminal' ? 'terminal-pane' : 'diff-pane'}`}
-      aria-label={`${kind} demonstration`}
-    >
-      <header className="pane-header">
-        <div className="pane-heading">
-          {kind === 'diff' ? <FileDiff size={13} /> : <Terminal size={13} />}
+    <PaneChrome
+      {...chrome}
+      className={kind === 'terminal' ? 'terminal-pane' : 'diff-pane'}
+      label={`${kind} demonstration`}
+      heading={
+        <>
+          <ResourceIcon kind={kind} />
           <strong>{kind === 'diff' ? 'PaneHost.tsx' : 'pnpm dev'}</strong>
           {kind === 'diff' && (
             <>
@@ -23,12 +28,10 @@ export default function DemoResource({
               <span className="danger">−12</span>
             </>
           )}
-          <span className="demo-label">Static demo</span>
-        </div>
-        <IconButton label={`Close ${kind} view`} onClick={onClose}>
-          <X size={13} />
-        </IconButton>
-      </header>
+        </>
+      }
+      status={<span className="demo-label">Static demo</span>}
+    >
       {kind === 'terminal' ? (
         <div className="terminal-demo">
           <pre>
@@ -91,6 +94,6 @@ export default function DemoResource({
           </div>
         </div>
       )}
-    </section>
+    </PaneChrome>
   );
 }

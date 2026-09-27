@@ -1,0 +1,110 @@
+{
+  "projects": {
+    "project-jam": [
+      {
+        "path": "docs/ARCHITECTURE.md",
+        "text": "# Architecture\n\nThe runtime owns sessions. Views hold resource IDs.\n"
+      },
+      {
+        "path": "docs/DESIGN.md",
+        "text": "# Design\n\nNightglass: dense, nearly black, quiet borders, cool blue focus.\n"
+      },
+      {
+        "path": "src-tauri/Cargo.toml",
+        "text": "[package]\nname = \"jam-desktop\"\nedition = \"2024\"\n"
+      },
+      {
+        "path": "src-tauri/src/main.rs",
+        "text": "fn main() {\n    jam_desktop::run();\n}\n"
+      },
+      {
+        "path": "src/browser/annotate.ts",
+        "text": "export function annotate(region: Region) {\n  return stage(region);\n}\n"
+      },
+      {
+        "path": "src/panes/PaneHost.tsx",
+        "text": "import { useEffect } from 'react';\nimport { registry } from '../session/registry';\nimport { SessionView } from './SessionView';\nimport { PaneSkeleton } from './PaneSkeleton';\n\nexport function PaneHost({ pane }) {\n  const session = useSession(pane.sessionId);\n  useEffect(() => {\n    const handle = registry.attach(pane.sessionId);\n    return () => handle.detach();\n  }, [pane.sessionId]);\n  if (!session) return <PaneSkeleton />;\n  return <SessionView session={session} />;\n}\n\nfunction onClose() {\n  layout.hide(pane.id); // restorable\n}\n",
+        "status": "modified"
+      },
+      {
+        "path": "src/panes/layout.ts",
+        "text": "export type LayoutNode = SplitNode | LeafNode;\n\nexport interface SplitNode {\n  type: 'split';\n  direction: 'row' | 'column';\n  ratio: number;\n  first: LayoutNode;\n  second: LayoutNode;\n}\n\nexport interface LeafNode {\n  type: 'leaf';\n  id: string;\n  viewId: string | null;\n}\n\n// A leaf holds a view id and nothing else: the layout never learns which\n// kind of resource it is arranging.\nexport function leaves(node: LayoutNode): LeafNode[] {\n  return node.type === 'leaf' ? [node] : [...leaves(node.first), ...leaves(node.second)];\n}\n"
+      },
+      {
+        "path": "src/pty/spawn.ts",
+        "text": "export interface Pty {\n  write(data: string): void;\n  resize(cols: number, rows: number): void;\n  kill(): void;\n}\n\nexport function spawnPty(cwd: string): Pty {\n  throw new Error('The native PTY service is not implemented yet.');\n}\n",
+        "status": "modified"
+      },
+      {
+        "path": "src/session/registry.ts",
+        "text": "import { spawnPty, type Pty } from '../pty/spawn';\n\ntype Handle = { id: string; detach(): void };\nconst sessions = new Map<string, Session>();\n\nexport function attach(id: string): Handle {\n  const s = sessions.get(id) ?? create(id);\n  s.refs += 1;\n  return { id, detach: () => release(s) };\n}\n\nfunction release(s: Session) {\n  s.refs -= 1;\n  if (s.refs > 0) return;\n  // nobody is looking — keep the PTY alive,\n  // but start the idle clock\n  s.idleSince = Date.now();\n}\n\nexport function restore(id: string) {\n  const s = sessions.get(id);\n  if (!s) return null;\n  return { scrollback: s.buffer.snapshot() };\n}\n",
+        "status": "added"
+      },
+      {
+        "path": "src/session/registry.test.ts",
+        "text": "import { describe, expect, it } from 'vitest';\nimport { attach, restore } from './registry';\n\ndescribe('registry', () => {\n  it('detach keeps the process alive', () => {\n    const handle = attach('session-1');\n    handle.detach();\n    expect(restore('session-1')).not.toBeNull();\n  });\n\n  it('reattach replays scrollback', () => {\n    attach('session-2').detach();\n    expect(restore('session-2')?.scrollback).toBeDefined();\n  });\n});\n",
+        "status": "added"
+      },
+      {
+        "path": "src/search/index.ts",
+        "text": "export { query } from './query';\nexport { tokenize } from './tokenize';\n"
+      },
+      {
+        "path": "package.json",
+        "text": "{\n  \"name\": \"jam-code\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"scripts\": {\n    \"dev\": \"vite\",\n    \"test\": \"vitest run\",\n    \"typecheck\": \"tsc --noEmit\"\n  }\n}\n"
+      },
+      {
+        "path": "tsconfig.json",
+        "text": "{\n  \"compilerOptions\": {\n    \"target\": \"ES2022\",\n    \"module\": \"ESNext\",\n    \"moduleResolution\": \"bundler\",\n    \"strict\": true,\n    \"jsx\": \"react-jsx\",\n    \"noEmit\": true\n  },\n  \"include\": [\"src\"]\n}\n"
+      },
+      {
+        "path": "README.md",
+        "text": "# jam-code\n\nA local-first desktop workspace for coding agents.\n\n- Resources outlive the views that present them.\n- Single and Tiles are two presentations of one resource list.\n- The runtime owns sessions, processes and storage.\n"
+      }
+    ],
+    "project-atlas": [
+      {
+        "path": "app/routes/index.tsx",
+        "text": "export default function Index() {\n  return <Workspace />;\n}\n"
+      },
+      {
+        "path": "app/styles/tokens.css",
+        "text": ":root {\n  --color-bg-base: #07080c;\n  --color-accent: #6f9bff;\n}\n",
+        "status": "modified"
+      },
+      {
+        "path": "package.json",
+        "text": "{\n  \"name\": \"atlas-web\",\n  \"private\": true\n}\n"
+      }
+    ],
+    "project-forge": [
+      {
+        "path": "src/keymap.rs",
+        "text": "pub fn binding(key: Key) -> Option<Command> {\n    KEYMAP.get(&key).copied()\n}\n",
+        "status": "modified"
+      },
+      {
+        "path": "src/main.rs",
+        "text": "fn main() -> anyhow::Result<()> {\n    forge_cli::run()\n}\n"
+      },
+      {
+        "path": "Cargo.toml",
+        "text": "[package]\nname = \"forge-cli\"\nedition = \"2024\"\n"
+      }
+    ],
+    "project-orbit": [
+      {
+        "path": "src/index/fts.sql",
+        "text": "CREATE VIRTUAL TABLE search_fts USING fts5(title, body);\n"
+      },
+      {
+        "path": "src/server.ts",
+        "text": "export function serve(port: number) {\n  return listen(port);\n}\n"
+      },
+      {
+        "path": "package.json",
+        "text": "{\n  \"name\": \"orbit-api\",\n  \"private\": true\n}\n"
+      }
+    ]
+  }
+}

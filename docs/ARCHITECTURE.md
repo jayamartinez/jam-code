@@ -24,16 +24,80 @@ The dashed path is a reserved boundary, not implemented software. No server, Web
 
 ## Ownership
 
-| State                                                  | Authority        | Client responsibility                |
-| ------------------------------------------------------ | ---------------- | ------------------------------------ |
-| Projects, resource identities, conversations, messages | Runtime / SQLite | Cache and render                     |
-| Sessions, in-flight turns, task handles, subscribers   | Runtime          | Render normalized state              |
-| Provider installation/auth/capabilities                | Runtime adapters | Display unknown faithfully           |
-| Open views, focus, Single/Tiles, local drafts          | Client           | Never use view cleanup to stop work  |
-| Search index                                           | Runtime storage  | Query and paginate/bound             |
-| Native window/menu/tray                                | Desktop host     | Access via injected desktop services |
+| State                                                  | Authority        | Client responsibility                   |
+| ------------------------------------------------------ | ---------------- | --------------------------------------- |
+| Projects, resource identities, conversations, messages | Runtime / SQLite | Cache and render                        |
+| Sessions, in-flight turns, task handles, subscribers   | Runtime          | Render normalized state                 |
+| Provider installation/auth/capabilities                | Runtime adapters | Display unknown faithfully              |
+| Open views, layout tree, focus, Single/Tiles, drafts   | Client           | Never use view cleanup to stop work     |
+| Project files and directory listings                   | Runtime          | Address by project ID and relative path |
+| Search index                                           | Runtime storage  | Query and paginate/bound                |
+| Native window/menu/tray                                | Desktop host     | Access via injected desktop services    |
 
 Rust protocol models and TypeScript contracts are explicit JSON wire types. Shared fixtures and contract tests catch drift. Keep provider wire types inside adapters. A conversation resource points to a session; future resumptions can add historical sessions without changing resource identity. A view only holds a resource ID.
+
+## Presentation: tabs, panes and the layout tree
+
+A tab is one open resource and owns its own arrangement. A pane is one visible
+slot inside the active tab's arrangement:
+
+```
+LayoutNode = SplitNode | LeafNode
+SplitNode  = { direction: row | column, ratio, first, second }
+LeafNode   = { paneId, resourceId | null }
+```
+
+Selecting a tab switches the whole workspace to that tab's tree. It never loads
+a resource into whichever pane happens to be focused, which is the distinction
+between navigating and arranging. Panes are therefore local to the tab you are
+in rather than app-wide: a terminal, file or review opened beside a
+conversation belongs to that conversation's workspace and does not appear in
+the tab bar. The `+` in the tab bar opens a new tab; an empty pane's own
+control and the pane menu fill that pane.
+
+A leaf holds a resource ID and nothing else, so the layout never learns whether
+it is arranging a conversation, a terminal, a file, a file browser or a review;
+any resource can occupy any leaf and there are no per-kind split types. An
+empty leaf is a real state: splitting creates a pane before its resource is
+chosen. A boundary test fails if layout code starts naming resource kinds.
+
+Single presents the tab's own resource; Tiles presents its tree. Switching
+between them changes nothing else: every tab's tree survives the round trip,
+and so do resource identities and sessions. Closing a pane removes a slot;
+closing a tab discards that tab's arrangement. Neither ends a session — only an
+explicit lifecycle command does.
+
+Resource identity for non-conversation resources belongs to the runtime.
+`resource.open` is keyed by project, kind and path, so reopening the same file
+returns the record that already exists instead of duplicating it.
+
+A conversation's open or closed state is runtime data on its resource:
+`closedAt` and `closeSuggestionDismissedAt`. `thread.setClosed` and
+`thread.keepOpen` change them only on an explicit request, and `turn.start`
+clears `closedAt`, so continuing a thread reopens it. When to suggest closing
+is a client preference computed from those timestamps; no timer runs.
+`project.update` also accepts `pinned`.
+
+## Project files
+
+`directory.list` resolves exactly one directory level, `file.read` returns one
+file and `file.write` saves a working copy, all addressed by project ID and a
+project-relative path that the runtime validates and resolves. A client never submits a local path. The wire
+shape is therefore already the lazily expanded tree a large repository needs.
+
+This milestone serves an isolated demo tree from
+`packages/protocol/fixtures/files.json`, shared by the Rust runtime and the
+browser development preview so they cannot drift. No directory on the machine
+is opened, listed or read; every listing and file is flagged `demo` and every
+surface says so. Saves do not mutate that fixture: a working copy is recorded
+in the `file_edits` table and layered over the fixture on read, so an edit
+survives restart while the shipped tree stays pristine. Replacing the demo
+table with a scoped real reader changes neither the protocol nor the client,
+but needs native folder selection and a permission model first.
+
+Directory listings and expansion state are client-owned and live outside any
+mounted pane, because reshaping the layout remounts panes and a repository tree
+must not collapse when a file opens beside it.
 
 ## Transport and consistency
 
@@ -77,7 +141,7 @@ Request limits match the TypeScript contract in UTF-16 units: identifiers 128, p
 ## Native services and platform differences
 
 - Terminal: later native-owned PTY handles, bounded output buffers, resize/attach/detach, xterm loaded on demand. Never couple process exit to component unmount.
-- Editor: later CodeMirror 6, scoped filesystem service and explicit save conflicts. No eager editor dependency now.
+- Editor: CodeMirror 6, loaded only by a File pane that is actually rendered, with language modes in per-language chunks. Merely opening a file resource, or leaving one open in a hidden tab, constructs no editor. Writing still needs a filesystem service and explicit save conflicts, so the File resource is read-only and says so.
 - Git: user's Git CLI, argument arrays, repository-scoped working directory, no shell-concatenated commands.
 - Browser: separate unprivileged view/service with platform-specific inspection support. WebView2 and WKWebView differ; a browser prototype must validate both before promising devtools parity.
 - Context: typed provenance/selection and opaque asset references. Capture service retains bytes, stages to a conversation and never invokes Send. Remote clients cannot submit arbitrary local paths as capability grants.

@@ -3,6 +3,7 @@ import type {
   Cursor,
   JamEvent,
   JamTransport,
+  Project,
   Resource,
   Session,
   WorkspaceSnapshot,
@@ -257,6 +258,37 @@ export class RuntimeClient {
     } finally {
       if (this.loading.get(resourceId) === token) this.loading.delete(resourceId);
     }
+  }
+
+  /** Reflect a project the runtime just updated without a full reread. */
+  updateProject(project: Project) {
+    const workspace = this.state.workspace;
+    if (!workspace) return;
+    this.update({
+      workspace: {
+        ...workspace,
+        projects: workspace.projects.map((item) => (item.id === project.id ? project : item)),
+      },
+    });
+  }
+
+  /** Reflect a resource the runtime just changed, such as a closed thread. */
+  updateResource(resource: Resource) {
+    const workspace = this.state.workspace;
+    if (!workspace) return;
+    this.update({
+      workspace: {
+        ...workspace,
+        resources: workspace.resources.map((item) => (item.id === resource.id ? resource : item)),
+      },
+    });
+  }
+
+  /** Cache a resource the runtime just created so the tab can render at once. */
+  addResource(resource: Resource) {
+    const workspace = this.state.workspace;
+    if (!workspace || workspace.resources.some((item) => item.id === resource.id)) return;
+    this.update({ workspace: { ...workspace, resources: [...workspace.resources, resource] } });
   }
 
   addConversation(created: { resource: Resource; session: Session; conversation: Conversation }) {

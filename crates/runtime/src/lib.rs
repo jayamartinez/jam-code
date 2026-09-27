@@ -2,6 +2,7 @@
 mod commands;
 mod error;
 mod events;
+mod files;
 pub mod protocol;
 pub mod providers;
 mod runtime;

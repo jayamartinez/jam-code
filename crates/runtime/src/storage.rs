@@ -4,6 +4,8 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use std::{path::Path, time::Duration};
 
+pub(crate) const SCHEMA_VERSION: i64 = 2;
+
 pub(crate) struct Store {
     pub connection: Connection,
 }
@@ -20,16 +22,26 @@ impl Store {
         connection.busy_timeout(Duration::from_secs(3))?;
         connection.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")?;
         let version: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if version > 1 {
+        if version > SCHEMA_VERSION {
             return Err(JamError::new(
                 "unavailable",
                 "This database was created by a newer JAM version.",
             ));
         }
-        if version == 0 {
+        // Numbered, transactional, additive. A failed migration leaves the
+        // previous version intact rather than resetting anything.
+        const MIGRATIONS: [&str; 2] = [
+            include_str!("migrations/001-foundation.sql"),
+            include_str!("migrations/002-file-edits.sql"),
+        ];
+        for (index, migration) in MIGRATIONS.iter().enumerate() {
+            let target = index as i64 + 1;
+            if version >= target {
+                continue;
+            }
             let transaction = connection.transaction()?;
-            transaction.execute_batch(include_str!("migrations/001-foundation.sql"))?;
-            transaction.pragma_update(None, "user_version", 1)?;
+            transaction.execute_batch(migration)?;
+            transaction.pragma_update(None, "user_version", target)?;
             transaction.commit()?;
         }
         let store = Self { connection };
@@ -192,6 +204,41 @@ impl Store {
             messages,
             cursor,
         })
+    }
+
+    /// The saved working copy of a file, if one has been written.
+    pub fn file_edit(&self, project_id: &str, path: &str) -> Result<Option<String>, JamError> {
+        Ok(self
+            .connection
+            .query_row(
+                "SELECT text FROM file_edits WHERE project_id=?1 AND path=?2",
+                params![project_id, path],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?)
+    }
+
+    pub fn save_file_edit(
+        &self,
+        project_id: &str,
+        path: &str,
+        text: &str,
+        updated_at: &str,
+    ) -> Result<(), JamError> {
+        self.connection.execute(
+            "INSERT INTO file_edits(project_id,path,text,updated_at) VALUES (?1,?2,?3,?4)
+             ON CONFLICT(project_id,path) DO UPDATE SET text=excluded.text,updated_at=excluded.updated_at",
+            params![project_id, path, text, updated_at],
+        )?;
+        Ok(())
+    }
+
+    pub fn save_project(&self, project: &Project) -> Result<(), JamError> {
+        self.connection.execute(
+            "UPDATE projects SET data=?2 WHERE id=?1",
+            params![project.id, serde_json::to_string(project)?],
+        )?;
+        Ok(())
     }
 
     pub fn save_resource(&self, resource: &Resource) -> Result<(), JamError> {

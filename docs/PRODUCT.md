@@ -15,7 +15,7 @@ JAM is a local-first desktop client for coding work with existing agent installa
 | Turn          | One explicit user submission and resulting agent activity                           | Durable outcome                      |
 | Context item  | A file/selection/diff/browser region/terminal excerpt/message/snapshot attachment   | Staged, then explicitly sent         |
 
-Single mode displays one active resource. Tiles displays a selected set simultaneously; visible and focused are different states. Closing a view must leave the underlying resource available in history. A terminal is a real PTY resource eventually, not the rendering mechanism for conversations.
+Single mode displays one active resource. Tiles displays a set simultaneously in a split tree whose leaves are views; any resource can occupy any leaf, and visible and focused are different states. Closing a view must leave the underlying resource available in history. A terminal is a real PTY resource eventually, not the rendering mechanism for conversations.
 
 ## Foundation milestone
 
@@ -29,7 +29,7 @@ Claude Code and Codex remain first-class V0 targets, with native authentication 
 
 History will index titles, message text, referenced paths/diffs and command activity with project/provider/time/pinned filters. Results must reopen the resource and eventually jump to the matching item. The initial implementation may cover a documented subset, with bounded results.
 
-Browser inspection and annotations, CodeMirror editor, xterm + native PTY, Git CLI integration, and native snapshots are later resources/services. Browser pages cannot inherit native application privileges. Universal context unifies these sources without moving raw assets into UI state.
+Browser inspection and annotations, xterm + native PTY, Git CLI integration, and native snapshots are later resources/services. The file browser and CodeMirror File resource exist over a runtime file service, but that service serves an isolated demo tree and the editor is read-only until native folder access and a write path exist. Browser pages cannot inherit native application privileges. Universal context unifies these sources without moving raw assets into UI state.
 
 Snapshots default conceptually to Shift Shift, capture the currently focused window without taking focus, provide optional feedback, and stage context into the last-focused conversation. They are never automatically sent. Modifier-only shortcut detection, conflicts, platform capture permission and focus behavior need native feasibility work. Fullscreen/region modes follow later.
 

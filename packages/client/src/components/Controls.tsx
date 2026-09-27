@@ -14,9 +14,12 @@ export function IconButton({
   );
 }
 
+/**
+ * macOS keeps the host's own traffic lights; JAM only reserves space for them
+ * (see `TrafficLightInset`). Windows draws its controls on the right.
+ */
 export function WindowControls({ desktop }: { desktop: DesktopServices }) {
-  if (desktop.platform === 'macos')
-    return <div className="native-traffic-light-spacer" aria-hidden="true" />;
+  if (desktop.platform === 'macos') return null;
   const unavailable = desktop.platform === 'web';
   return (
     <div className="window-controls">
@@ -82,6 +85,17 @@ export function Dialog({
       {children}
     </dialog>
   );
+}
+
+/**
+ * Reserved space for the host's native macOS traffic lights.
+ *
+ * The buttons themselves are drawn by the window server at the inset the
+ * desktop host configures; JAM never draws duplicates. This keeps the one
+ * place that knows about macOS chrome geometry inside the chrome components.
+ */
+export function TrafficLightInset() {
+  return <span className="traffic-light-inset" aria-hidden="true" />;
 }
 
 export function Brand({ className = '' }: { className?: string }) {

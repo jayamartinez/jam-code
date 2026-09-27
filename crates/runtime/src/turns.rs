@@ -38,6 +38,8 @@ impl Runtime {
         let executor = tokio::runtime::Handle::try_current()
             .map_err(|_| JamError::new("unavailable", "The runtime executor is not available."))?;
         resource.updated_at = now();
+        // Continuing a closed thread is the clearest sign it is in use again.
+        resource.closed_at = None;
         if resource.title == "New conversation" {
             resource.title = if input.text.trim().is_empty() {
                 "Context conversation".into()

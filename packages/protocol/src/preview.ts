@@ -1,5 +1,6 @@
 import fixtureJson from '../fixtures/workspace.json';
 import { JamError } from './errors';
+import { listPreviewDirectory, readPreviewFile, writePreviewFile } from './preview-files';
 import { searchPreview } from './preview-search';
 import type {
   Conversation,
@@ -22,6 +23,13 @@ type Receipt = { signature: string; result: RequestMap['turn.start']['result'] }
 
 const copy = <T>(value: T): T => structuredClone(value);
 const now = () => new Date().toISOString();
+/** Mirrors the runtime: first letters of the first two words, else two letters. */
+export const initialsOf = (name: string) => {
+  const words = name.split(/[\s._-]+/).filter(Boolean);
+  const letters =
+    words.length > 1 ? `${words[0]![0]}${words[1]![0]}` : (words[0] ?? '').slice(0, 2);
+  return (letters || '··').toUpperCase();
+};
 
 /**
  * Explicit development-only, volatile runtime substitute. Never select this as
@@ -79,6 +87,55 @@ export class BrowserPreviewTransport implements JamTransport {
         return this.startTurn(request.params);
       case 'turn.interrupt':
         return this.interrupt(request.params.sessionId);
+      case 'directory.list':
+        this.requireProject(request.params.projectId);
+        return listPreviewDirectory(request.params.projectId, request.params.path);
+      case 'file.read':
+        this.requireProject(request.params.projectId);
+        return readPreviewFile(request.params.projectId, request.params.path);
+      case 'file.write': {
+        this.requireProject(request.params.projectId);
+        const savedAt = writePreviewFile(
+          request.params.projectId,
+          request.params.path,
+          request.params.text,
+        );
+        return { projectId: request.params.projectId, path: request.params.path, savedAt };
+      }
+      case 'project.update': {
+        this.requireProject(request.params.projectId);
+        const project = this.workspace.projects.find(
+          (item) => item.id === request.params.projectId,
+        )!;
+        const { name, paths, icon, pinned } = request.params;
+        if (pinned !== undefined) {
+          if (pinned) project.pinned = true;
+          else delete project.pinned;
+        }
+        if (name !== undefined) {
+          project.name = name.trim();
+          project.initials = initialsOf(project.name);
+        }
+        if (paths !== undefined) project.paths = paths.map((path) => path.trim());
+        if (icon !== undefined) {
+          if (icon.kind === 'initials' && !icon.tone) delete project.icon;
+          else project.icon = { ...icon };
+        }
+        return { project };
+      }
+      case 'thread.setClosed': {
+        const resource = this.getThread(request.params.resourceId);
+        if (request.params.closed) resource.closedAt = new Date().toISOString();
+        else delete resource.closedAt;
+        return { resource };
+      }
+      case 'thread.keepOpen': {
+        const resource = this.getThread(request.params.resourceId);
+        resource.closeSuggestionDismissedAt = new Date().toISOString();
+        return { resource };
+      }
+      case 'resource.open':
+        return { resource: this.openResource(request.params) };
       case 'search.query': {
         const { query, projectId, providerId, pinned } = request.params;
         const resources = this.workspace.resources.filter(
@@ -121,6 +178,54 @@ export class BrowserPreviewTransport implements JamTransport {
     const session = this.workspace.sessions.find((item) => item.id === sessionId);
     if (!session) throw new JamError('not_found', 'Session not found.');
     return session;
+  }
+
+  private getThread(resourceId: string): Resource {
+    const resource = this.workspace.resources.find((item) => item.id === resourceId);
+    if (!resource) throw new JamError('not_found', 'Resource not found.');
+    if (resource.kind !== 'conversation')
+      throw new JamError('invalid_request', 'Only a conversation is a thread.');
+    return resource;
+  }
+
+  private requireProject(projectId: string) {
+    if (!this.workspace.projects.some((project) => project.id === projectId))
+      throw new JamError('not_found', 'Project not found.');
+  }
+
+  /** Reopening the same target returns the resource that already exists. */
+  private openResource(params: RequestMap['resource.open']['params']): Resource {
+    this.requireProject(params.projectId);
+    // Fail before creating a record if the target cannot be read.
+    if (params.kind === 'file') readPreviewFile(params.projectId, params.path ?? '');
+    const existing = this.workspace.resources.find(
+      (resource) =>
+        resource.kind === params.kind &&
+        resource.projectId === params.projectId &&
+        resource.path === params.path,
+    );
+    if (existing) return existing;
+    const title =
+      params.kind === 'file'
+        ? (params.path ?? '').slice((params.path ?? '').lastIndexOf('/') + 1)
+        : params.kind === 'file-browser'
+          ? 'Files'
+          : params.kind === 'terminal'
+            ? 'Terminal'
+            : params.kind === 'browser'
+              ? 'Browser'
+              : 'Review changes';
+    const resource: Resource = {
+      id: this.makeId(params.kind),
+      kind: params.kind,
+      title,
+      projectId: params.projectId,
+      ...(params.path === undefined ? {} : { path: params.path }),
+      pinned: false,
+      updatedAt: now(),
+    };
+    this.workspace.resources.push(resource);
+    return resource;
   }
 
   private createConversation(
@@ -210,6 +315,8 @@ export class BrowserPreviewTransport implements JamTransport {
     session.status = 'running';
     const resource = this.workspace.resources.find((item) => item.id === params.resourceId)!;
     resource.updatedAt = now();
+    // Continuing a closed thread is the clearest sign it is in use again.
+    delete resource.closedAt;
     if (resource.title === 'New conversation')
       resource.title = params.text.trim().slice(0, 70) || 'Context review';
     const result = { accepted: true as const, sessionId: session.id, requestId: params.requestId };
