@@ -199,6 +199,10 @@ h2 {
 .status-dot.interrupted {
   background: var(--color-warning);
 }
+.status-dot.needs-input {
+  background: var(--color-warning);
+  box-shadow: 0 0 0 3px var(--color-warning-soft);
+}
 .error-banner {
   display: flex;
   align-items: center;

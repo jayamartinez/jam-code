@@ -20,7 +20,7 @@ const HIGHLIGHT_LIMIT = 200_000;
 
 type Span = [text: string, className: string];
 
-function CodeBlock({ code, info }: { code: string; info: string }) {
+export function CodeBlock({ code, info }: { code: string; info: string }) {
   const language = fenceLanguageName(info);
   const [spans, setSpans] = useState<Span[] | null>(null);
   const [copied, setCopied] = useState(false);

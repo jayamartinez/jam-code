@@ -1,4 +1,10 @@
-import type { JamTransport, Project, ProjectIcon, ProviderDescriptor } from '@jam/protocol';
+import type {
+  JamTransport,
+  Project,
+  ProjectIcon,
+  ProviderDescriptor,
+  RequestMap,
+} from '@jam/protocol';
 import type { DesktopServices, SnapshotHost } from '../../desktop';
 
 export type SettingsPageId =
@@ -23,9 +29,19 @@ export interface ProjectChanges {
   pinned?: boolean;
 }
 
+/** Provider checks and saved provider settings; the runtime owns both. */
+export interface ProviderControl {
+  /** Checks providers once, if nothing has checked them yet. */
+  ensure(): Promise<void>;
+  /** Asks every provider again. */
+  refresh(): Promise<void>;
+  configure(changes: RequestMap['provider.configure']['params']): Promise<void>;
+}
+
 /** Everything a Settings page may read or change. Pages own no records. */
 export interface SettingsPageProps {
   providers: ProviderDescriptor[];
+  providerControl: ProviderControl;
   projects: Project[];
   platform: DesktopServices['platform'];
   idleThreadDays: number | null;

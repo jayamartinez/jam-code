@@ -16,10 +16,13 @@ import type {
   ContextItem,
   JamTransport,
   OpenableKind,
-  Presentation,
   ProjectIcon,
+  ProviderId,
+  RequestMap,
   TerminalSession,
 } from '@jam/protocol';
+import { type ChatDraft, draftProvider, presentationFor } from './state/chat-draft';
+import type { InteractionAnswer } from './components/InteractionCard';
 import type { BrowserAnnotation, DesktopServices } from './desktop';
 import {
   activeResourceId,
@@ -132,9 +135,9 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   const [launcher, setLauncher] = useState<LauncherTarget>(null);
   const [settingsStartPage, setSettingsStartPage] = useState<'General' | 'Snapshots'>('General');
   const [settingsMode, setSettingsMode] = useState<'dedicated' | null>(null);
-  const [newChats, setNewChats] = useState<
-    Record<string, { projectId: string; presentation: Presentation }>
-  >({});
+  const [newChats, setNewChats] = useState<Record<string, ChatDraft>>({});
+  /** Model, effort or provider options chosen since a session's last Send. */
+  const [pendingOptions, setPendingOptions] = useState<Record<string, Record<string, string>>>({});
   const [context, setContext] = useState<Record<string, ContextItem[]>>({});
   /** Expanded folders per file-browser resource, outside any pane's lifetime. */
   const [treeExpansion, setTreeExpansion] = useState<Record<string, string[]>>({});
@@ -262,19 +265,35 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     setLauncher(null);
   }, []);
 
-  /** A new chat is an unsaved draft until its first explicit Send. */
+  /**
+   * A new chat is an unsaved draft until its first explicit Send. It starts
+   * with the requested agent when that is enabled, else the default one.
+   */
   const newChat = useCallback(
-    (presentation: Presentation = 'claude', paneId?: string) => {
+    (requested?: ProviderId, paneId?: string) => {
       if (!projectId) return;
       const id = `draft:${crypto.randomUUID()}`;
-      setNewChats((current) => ({ ...current, [id]: { projectId, presentation } }));
+      const providers = client.getSnapshot().workspace?.providers ?? [];
+      const providerId = draftProvider(providers, requested);
+      const defaults = providers.find((provider) => provider.id === providerId)?.defaults;
+      setNewChats((current) => ({
+        ...current,
+        [id]: {
+          projectId,
+          providerId,
+          presentation: presentationFor(providerId, requested === 'codex' ? 'codex' : 'claude'),
+          options: { ...defaults },
+        },
+      }));
+      // The agent picker needs real installation and sign-in state.
+      void client.ensureProviders();
       if (paneId) assignPane(id, paneId);
       else dispatch({ type: 'openTab', resourceId: id });
       setOverlay(null);
       setLauncher(null);
       setSettingsMode(null);
     },
-    [assignPane, projectId],
+    [assignPane, projectId, client],
   );
 
   /**
@@ -493,7 +512,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         setOverlay('search');
       } else if (key === 'n') {
         event.preventDefault();
-        if (!overlay && !launcher) newChat(event.shiftKey ? 'codex' : 'claude');
+        if (!overlay && !launcher) newChat(event.shiftKey ? 'codex' : undefined);
       } else if (key === 't') {
         event.preventDefault();
         // The keyboard path hangs from the tab strip's own new-tab button.
@@ -559,6 +578,10 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         const created = await transport.request('conversation.create', {
           projectId: draft.projectId,
           presentation: draft.presentation,
+          providerId: draft.providerId,
+          ...(draft.providerId !== 'mock' && Object.keys(draft.options).length
+            ? { options: draft.options }
+            : {}),
         });
         client.addConversation(created);
         resourceId = created.resource.id;
@@ -572,7 +595,9 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         });
         setContext((current) => ({ ...current, [resourceId]: staged }));
       }
-      const payload = JSON.stringify({ text, context: staged });
+      // Choices made since the last Send apply from this turn on.
+      const options = draft ? undefined : pendingOptions[resourceId];
+      const payload = JSON.stringify({ text, context: staged, options });
       const previous = requests.current.get(resourceId);
       const requestId = previous?.payload === payload ? previous.requestId : crypto.randomUUID();
       requests.current.set(resourceId, { payload, requestId });
@@ -581,9 +606,16 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         text,
         context: staged,
         requestId,
+        ...(options && Object.keys(options).length ? { options } : {}),
       });
       snapshots.refresh();
       requests.current.delete(resourceId);
+      setPendingOptions((current) => {
+        if (!current[resourceId]) return current;
+        const rest = { ...current };
+        delete rest[resourceId];
+        return rest;
+      });
       dispatch({ type: 'draft', resourceId, text: '' });
       setContext((current) => ({ ...current, [resourceId]: [] }));
     } catch (cause) {
@@ -595,12 +627,53 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     }
   }
 
+  const providerControl = {
+    ensure: () => client.ensureProviders(),
+    refresh: () => client.refreshProviders(),
+    configure: async (changes: RequestMap['provider.configure']['params']) => {
+      try {
+        const { providers } = await transport.request('provider.configure', changes);
+        client.updateProviders(providers);
+      } catch (cause) {
+        client.reportError(cause);
+      }
+    },
+  };
+
+  const optionsFor = (resourceId: string, sessionId?: string) => {
+    const draft = newChats[resourceId];
+    if (draft) return draft.options;
+    const session = workspace?.sessions.find((item) => item.id === sessionId);
+    return { ...session?.options, ...pendingOptions[resourceId] };
+  };
+
   const composerFor = (resourceId: string, sessionId?: string) => ({
     draft: layout.drafts[resourceId] ?? '',
     context: contextFor(resourceId),
     snapshotTransport: desktop.snapshots ? transport : undefined,
     busy: busy.has(resourceId),
     shortcut,
+    providers: workspace?.providers ?? [],
+    options: optionsFor(resourceId, sessionId),
+    onOptions: (options: Record<string, string>) => {
+      if (newChats[resourceId])
+        setNewChats((current) => {
+          const draft = current[resourceId];
+          return draft ? { ...current, [resourceId]: { ...draft, options } } : current;
+        });
+      else setPendingOptions((current) => ({ ...current, [resourceId]: options }));
+    },
+    onRespond: async (interactionId: string, answer: InteractionAnswer) => {
+      try {
+        await transport.request('interaction.respond', {
+          resourceId,
+          interactionId,
+          ...answer,
+        });
+      } catch (cause) {
+        client.reportError(cause);
+      }
+    },
     onDraft: (text: string) => dispatch({ type: 'draft', resourceId, text }),
     onSend: () => void send(resourceId),
     onStop: () => {
@@ -623,7 +696,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         [resourceId]: (current[resourceId] ?? emptyContext).filter((item) => item.id !== id),
       }));
     },
-    onOpenDemo: () => void openKind('diff'),
+    onOpenReview: () => void openKind('diff'),
   });
 
   if (!workspace)
@@ -657,6 +730,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       initialPage={settingsStartPage}
       transport={transport}
       providers={workspace.providers}
+      providerControl={providerControl}
       projects={workspace.projects}
       onUpdateProject={updateProject}
       dedicated={dedicated}
@@ -766,11 +840,37 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             )}
             onOpen={openResource}
             onStarter={(text) => dispatch({ type: 'draft', resourceId, text })}
-            presentationOf={(item) =>
-              workspace.sessions.find((session) => session.id === item.sessionId)?.presentation
+            providerId={draft.providerId}
+            sessionOf={(item) =>
+              workspace.sessions.find((session) => session.id === item.sessionId)
             }
             composer={
-              <Composer {...composerFor(resourceId)} presentation={draft.presentation} isNew />
+              <Composer
+                {...composerFor(resourceId)}
+                project={draftProject}
+                providerId={draft.providerId}
+                presentation={draft.presentation}
+                onProvider={(providerId) =>
+                  setNewChats((current) => {
+                    const previous = current[resourceId];
+                    if (!previous) return current;
+                    const defaults = workspace.providers.find(
+                      (provider) => provider.id === providerId,
+                    )?.defaults;
+                    return {
+                      ...current,
+                      [resourceId]: {
+                        ...previous,
+                        providerId,
+                        presentation: presentationFor(providerId, previous.presentation),
+                        // Options belong to one provider; switching starts from its defaults.
+                        options: { ...defaults },
+                      },
+                    };
+                  })
+                }
+                isNew
+              />
             }
           />
         </PaneChrome>
@@ -795,7 +895,11 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             resource={resource}
             project={workspace.projects.find((item) => item.id === resource.projectId)}
             session={session}
-            composer={composerFor(resource.id, session?.id)}
+            composer={{
+              ...composerFor(resource.id, session?.id),
+              onOpenUrl: (url: string) => void openUrl(url, resource.projectId),
+              onOpenFile: (path: string) => void openFileFrom(path, paneId, resource.projectId),
+            }}
           />
         );
       }

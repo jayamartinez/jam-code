@@ -47,12 +47,12 @@ export const BINDING_GROUPS: BindingGroup[] = [
         evidence: "key === 'k'",
       },
       {
-        id: 'new-chat-claude',
-        command: 'New chat with Claude Code',
+        id: 'new-chat',
+        command: 'New chat with the default agent',
         context: 'Everywhere',
         keys: same(['mod', 'N']),
         source: 'JamApp.tsx',
-        evidence: "newChat(event.shiftKey ? 'codex' : 'claude')",
+        evidence: "newChat(event.shiftKey ? 'codex' : undefined)",
       },
       {
         id: 'new-chat-codex',
@@ -60,7 +60,7 @@ export const BINDING_GROUPS: BindingGroup[] = [
         context: 'Everywhere',
         keys: same(['mod', 'shift', 'N']),
         source: 'JamApp.tsx',
-        evidence: "newChat(event.shiftKey ? 'codex' : 'claude')",
+        evidence: "newChat(event.shiftKey ? 'codex' : undefined)",
       },
       {
         id: 'new-tab',

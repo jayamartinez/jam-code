@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { ProviderDescriptor } from '@jam/protocol';
-import { initialProviderId, providerSummary, statusCells } from './providers-model';
+import {
+  authenticationCell,
+  checkedLabel,
+  initialProviderId,
+  providerSummary,
+  runningCell,
+  statusCells,
+} from './providers-model';
 
 const provider = (overrides: Partial<ProviderDescriptor>): ProviderDescriptor => ({
   id: 'claude',
@@ -19,7 +26,7 @@ describe('provider status', () => {
     const [installation, authentication, enabled, running] = statusCells(provider({}));
     expect(installation?.label).toBe('Unknown');
     expect(authentication?.label).toBe('Unknown');
-    expect(enabled?.label).toBe('Unavailable');
+    expect(enabled?.label).toBe('Off');
     expect(running?.label).toBe('Idle');
   });
 
@@ -31,18 +38,54 @@ describe('provider status', () => {
       enabled: true,
       isDefault: true,
       running: true,
+      runningCount: 1,
     });
     expect(statusCells(mock).map((cell) => cell.label)).toEqual([
       'Built in',
       'Not required',
       'Default',
-      'Running',
+      '1 running',
     ]);
     expect(providerSummary(mock)).toBe('Built in · Default');
   });
 
+  it('keeps installed, signed in, enabled and running independent', () => {
+    const claude = provider({
+      installation: 'installed',
+      authentication: 'unauthenticated',
+      enabled: true,
+      runningCount: 2,
+    });
+    expect(statusCells(claude).map((cell) => cell.label)).toEqual([
+      'Installed',
+      'Signed out',
+      'Enabled',
+      '2 running',
+    ]);
+    expect(providerSummary(claude)).toBe('Signed out');
+  });
+
+  it('shows a plan only when the provider reported one', () => {
+    expect(authenticationCell(provider({ authentication: 'authenticated' })).detail).toBe(
+      'by its own CLI',
+    );
+    expect(
+      authenticationCell(
+        provider({ authentication: 'authenticated', account: { method: 'ChatGPT', plan: 'pro' } }),
+      ).detail,
+    ).toBe('ChatGPT · pro');
+  });
+
   it('never calls a disabled provider connected', () => {
-    expect(providerSummary(provider({ installation: 'installed' }))).toBe('Not connected yet');
+    expect(providerSummary(provider({ installation: 'installed' }))).toBe('Off');
+    expect(runningCell(provider({})).label).toBe('Idle');
+  });
+
+  it('says when providers were last checked', () => {
+    const now = Date.parse('2026-09-27T12:00:00Z');
+    expect(checkedLabel(undefined, now)).toBe('Not checked yet');
+    expect(checkedLabel('2026-09-27T11:59:30Z', now)).toBe('Checked just now');
+    expect(checkedLabel('2026-09-27T11:55:00Z', now)).toBe('Checked 5m ago');
   });
 
   it('selects the default provider first', () => {

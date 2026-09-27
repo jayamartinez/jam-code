@@ -5,7 +5,12 @@ import type { DesktopServices } from '../desktop';
 import { useAppearance } from '../appearance/store';
 import { Brand, IconButton, TrafficLightInset, WindowControls } from './Controls';
 import { SettingsIcon, type SettingsIconName } from './settings-icons';
-import type { ProjectChanges, SettingsPageId, SettingsPageProps } from './settings/types';
+import type {
+  ProjectChanges,
+  ProviderControl,
+  SettingsPageId,
+  SettingsPageProps,
+} from './settings/types';
 
 /** The Settings v2 frames' grouping, in their order. */
 const groups: { title: string; items: [SettingsPageId, SettingsIconName][] }[] = [
@@ -65,6 +70,7 @@ export function SettingsPanel({
   transport,
   initialPage = 'General',
   providers,
+  providerControl,
   projects,
   onUpdateProject,
   dedicated,
@@ -77,6 +83,7 @@ export function SettingsPanel({
   transport: JamTransport;
   initialPage?: SettingsPageId;
   providers: ProviderDescriptor[];
+  providerControl: ProviderControl;
   projects: Project[];
   onUpdateProject(projectId: string, changes: ProjectChanges): Promise<void>;
   dedicated: boolean;
@@ -118,6 +125,7 @@ export function SettingsPanel({
       <Suspense fallback={null}>
         <Page
           providers={providers}
+          providerControl={providerControl}
           projects={projects}
           platform={desktop.platform}
           idleThreadDays={idleThreadDays}
