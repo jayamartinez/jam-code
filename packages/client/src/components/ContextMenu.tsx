@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useOccludesNativeViews } from '../state/native-occlusion';
 
 /**
@@ -12,6 +12,10 @@ export interface ContextMenuItem {
   label: string;
   onSelect(): void;
   danger?: boolean;
+  /** A quiet note at the end of the row, such as the gesture that does this. */
+  hint?: string;
+  /** Starts a new group, drawn with a rule above it. */
+  separated?: boolean;
 }
 
 export interface ContextMenuState {
@@ -72,18 +76,21 @@ export function ContextMenu({ menu, onClose }: { menu: ContextMenuState; onClose
       }}
     >
       {menu.items.map((item) => (
-        <button
-          key={item.label}
-          type="button"
-          role="menuitem"
-          className={item.danger ? 'danger' : ''}
-          onClick={() => {
-            onClose();
-            item.onSelect();
-          }}
-        >
-          {item.label}
-        </button>
+        <Fragment key={item.label}>
+          {item.separated && <span className="context-menu-rule" role="separator" />}
+          <button
+            type="button"
+            role="menuitem"
+            className={item.danger ? 'danger' : ''}
+            onClick={() => {
+              onClose();
+              item.onSelect();
+            }}
+          >
+            {item.label}
+            {item.hint && <span className="context-menu-hint">{item.hint}</span>}
+          </button>
+        </Fragment>
       ))}
     </div>
   );

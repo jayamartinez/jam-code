@@ -47,6 +47,12 @@ export function ConversationResource({
     void client.loadConversation(resourceId);
   }, [client, resourceId]);
 
+  // Model and option choices need the provider's own lists, checked once.
+  const providerId = session?.providerId;
+  useEffect(() => {
+    if (providerId && providerId !== 'mock') void client.ensureProviders();
+  }, [client, providerId]);
+
   return (
     <ConversationPane
       {...chrome}

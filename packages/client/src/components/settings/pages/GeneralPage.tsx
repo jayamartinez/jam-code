@@ -17,15 +17,17 @@ import type { SettingsPageProps } from '../types';
 import { NOTIFICATION_EVENTS, defaultProvider } from '../general-model';
 
 /**
- * General: how new chats and threads start. Only the idle-thread suggestion
- * and the default provider are real today; every other control shows its
- * intended shape, disabled, beside a Planned mark.
+ * General: how new chats and threads start. The idle-thread suggestion, the
+ * default provider and streamed replies are real today; every other control
+ * shows its intended shape, disabled, beside a Planned mark.
  */
 export default function GeneralPage({
   providers,
   projects,
   idleThreadDays,
   onIdleThreadDays,
+  streamReplies,
+  onStreamReplies,
   onNavigate,
 }: SettingsPageProps) {
   const provider = defaultProvider(providers);
@@ -50,6 +52,12 @@ export default function GeneralPage({
             ) : (
               <span className="sv-mono">None enabled</span>
             )}
+          </Row>
+          <Row
+            title="Stream replies"
+            sub="Show agent replies as they are written. Off shows each part once it is complete."
+          >
+            <Toggle label="Stream replies" on={streamReplies} onChange={onStreamReplies} />
           </Row>
           <Row
             title={
@@ -88,9 +96,9 @@ export default function GeneralPage({
               label="Default permissions"
               value="ask"
               options={[
-                { value: 'ask', label: 'Ask before edits' },
-                { value: 'edits', label: 'Allow edits' },
-                { value: 'read', label: 'Read only' },
+                { value: 'ask', label: 'Ask for approval' },
+                { value: 'edits', label: 'Auto-accept edits' },
+                { value: 'full', label: 'Full access' },
               ]}
             />
           </Row>

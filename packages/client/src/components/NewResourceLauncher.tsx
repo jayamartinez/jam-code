@@ -371,8 +371,8 @@ export function NewResourceLauncher({
           </div>
         ))}
         <p className="launcher-note">
-          Agent replies come from the deterministic mock provider. No model is called and agents run
-          no commands.
+          Agent chats run your installed Claude Code or Codex in this project’s folder, with their
+          own sign-in. Nothing is sent until you press Send.
         </p>
       </div>
 

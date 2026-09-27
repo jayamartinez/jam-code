@@ -560,3 +560,120 @@ edge cases, Secure Input, final sound audibility, clipboard end-to-end, signed
 release permissions, and prolonged real-keyboard accidental-trigger testing.
 Automated detector tests cover typing/repeats/holds; macOS cannot enumerate
 app-local double-Shift conflicts. Provider integration remains mock-only.
+
+## Providers V0 — Claude Code and Codex (2026-09-27, macOS)
+
+Automated: `pnpm check` and `pnpm check:rust` pass. New Rust tests cover Codex
+item/approval mapping, Claude tool classification, permission and question
+responses, delta/final reconciliation, the interaction broker (answered once,
+stale after withdrawal or restart), the transcript builder, discovery and
+process framing and group termination. `crates/runtime/tests/providers.rs`
+runs the runtime with the demo provider and a scripted adapter: simulated
+approvals and questions through `interaction.respond`, interrupts cancelling
+pending requests, restart expiring them, provider-ID binding and resume after
+restart, option validation, the project-folder requirement and persisted
+provider settings. Client tests cover composer choices, the new-chat provider
+choice and provider status copy; protocol tests cover the new requests, blocks
+and interaction validation.
+
+Live, against the installed CLIs (Claude Code 2.1.283, codex-cli 0.157.1),
+with `crates/runtime/tests/live_providers.rs`:
+
+- `JAM_LIVE_PROVIDERS=1`: both detected, signed in and listed their models in
+  about a second with no inference request; plans were the CLIs' own
+  (`max`, `prolite`); no email reached the client.
+- `JAM_LIVE_TURNS=1` (small inference requests on the signed-in accounts):
+  a streamed reply from each provider with the model and context usage they
+  reported; a Codex command approval (`/bin/zsh -lc ls`, Allow once) and a
+  Claude file-write permission (Write `hello.txt`, Allow once) answered through
+  JAM interactions; interrupting a long reply and sending a follow-up on the
+  same session succeeded for both, about 2 s after Stop.
+- The first interrupt run found a real race: a follow-up accepted while Codex
+  was still stopping became part of the interrupted turn. Turns now wait
+  (bounded) for the previous turn's provider work to end.
+
+Visual QA, browser preview: driven in an offscreen WebKit view (a local Swift
+script using `WKWebView.takeSnapshot`) through the demo provider's `/approval`
+and `/question`, New Chat, a transcript with every block type and Settings →
+Providers with live-shaped provider data. Found and fixed a composer overflow
+that hid Send and a serif fallback in interaction details.
+
+Native QA, macOS, computer use, on a debug bundle with its own identifier and
+database (`dev.jamcode.desktop.providers-qa`) and a scratch Git repository as
+the project folder:
+
+- Settings → Providers showed Claude Code 2.1.283 and Codex 0.157.1 as
+  installed and signed in, the plans each CLI reported, their models, effort
+  levels and permission options, capabilities and the detected executables.
+- Claude Code: a real edit asked for permission (Claude's own reason shown),
+  "Allow once" applied it to disk, and the reply rendered as Markdown with a
+  highlighted code block and context usage. After the app was killed and
+  relaunched, the chat resumed Claude's session with its context; an
+  AskUserQuestion was answered in JAM and a second edit was allowed for the
+  session.
+- Codex: with approval mode Untrusted, Deny declined a command (Codex retried
+  a narrower one); Stop while an approval was pending left the session
+  interrupted and the request cancelled. Closing a running chat's tab did not
+  stop its turn: it finished and was complete when reopened. Explicit Quit
+  ended JAM's `codex app-server`; the user's own Codex and ChatGPT processes
+  were untouched.
+- Found and fixed natively: a stale status cell from duplicate React keys, a
+  new chat's title arriving only at the end of its first turn (a dropped
+  metadata refresh), an unchosen model shown as the provider's listed default
+  rather than what its own configuration selected, "· Interrupted" on tools
+  with no output, an unreadable hovered Allow button, a redundant
+  AskUserQuestion tool row, and outdated "folders are not read" copy.
+
+### Follow-up: chat refinement, access, context and streaming
+
+Automated: `pnpm check`, `pnpm check:rust` and the live suite with
+`JAM_LIVE_PROVIDERS=1 JAM_LIVE_TURNS=1` (access `ask`) pass. New tests cover
+the compaction notice lifecycle and Codex add/delete line counts.
+
+Native, macOS, computer use:
+
+- Claude: an Edit approval rendered inside the Edit card; Allow once collapsed
+  it to "Allowed once" and the reply followed. The context popover showed
+  Claude's reported 40,937 of 1,000,000 tokens; Compact now showed
+  "Compacting context…" at once, then Claude's own notice, and the ring fell
+  from 4% to 3%. Auto-compact switched off and back on.
+- Codex, Access = Ask: command, file-change and read approvals rendered inline
+  (including Codex's "Always allow" amendment); Compact now went from 18k to
+  5k tokens without changing the chat's model.
+- Stream replies off showed "Writing…" and then the complete reply.
+- Found and fixed natively: a compaction reused the previous reply's
+  "Working for" heading and reset the model label; the transcript stopped
+  following a reply that grew without a new message; a new Codex file showed
+  +0 −0 (Codex sends an added file's content, not a diff).
+
+### Follow-up: turn log, approvals, file links and web preview
+
+Designed first in Paper (Core flows 9–12, and the General settings frame).
+Automated: `pnpm check` and `pnpm check:rust` pass. New tests cover file
+references in inline code and prose, local server detection, diff previews
+from both adapters, `completedAt`, and the scoped `file.reveal` and
+`url.openExternal` requests (a folderless project, other sites, `file:`).
+
+Native, macOS, computer use, against Claude Code 2.1.283:
+
+- An edit under Ask for approval showed "Waiting for approval" in the open
+  log and Claude's real diff in the blue approval card; Allow once folded the
+  turn to "Worked for 18s · Edited 1 file" with the changed-files card.
+- `math.ts:20` in Claude's prose was a link; clicking it opened the file
+  beside the chat with line 20 selected. Right-click → Reveal in Finder
+  selected the file in Finder.
+- A command that printed a local address against a running server showed the
+  preview bar; Open web preview opened JAM's browser beside the chat on that
+  page, and Open in browser opened it in the default browser.
+- The access pill and its menu worked in a chat and a new chat's footer.
+- Found and fixed natively: diff text wrapping per character, the access menu
+  clipped by the composer, the file preview opening too narrow beside a chat.
+- Noticed, not fixed: macOS smart quotes replace typed quotes in the composer
+  (a command Claude was asked to run failed on a curly quote).
+
+Not verified: Windows (`.cmd` shims, process groups), provider versions other
+than those listed, Claude sub-agent text, Codex questions (experimental API,
+unsupported), and long-running sessions past the 15-minute idle stop.
+Conversations with real providers are stored in the same local database the
+foundation seeded with demo history (`jam-demo.sqlite`); separating demo and
+user history is a follow-up.

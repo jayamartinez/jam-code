@@ -35,6 +35,8 @@ export interface FileResourceProps extends Pick<
   onOpenUrl?(url: string): void;
   /** A Markdown preview link to another file in the same project. */
   onOpenFile?(path: string): void;
+  /** A line to show, such as one a chat linked to. */
+  reveal?: { line: number; key: number };
 }
 
 export function FileResource({
@@ -44,6 +46,7 @@ export function FileResource({
   saveShortcut,
   onOpenUrl,
   onOpenFile,
+  reveal,
   ...chrome
 }: FileResourceProps) {
   const [markdownMode, setMarkdownMode] = useMarkdownMode(resource.id);
@@ -197,6 +200,7 @@ export function FileResource({
             editable={file.writable}
             onChange={setDraft}
             onSave={() => void save()}
+            reveal={reveal}
           />
         </Suspense>
       )}

@@ -4,6 +4,7 @@ import { listPreviewDirectory, readPreviewFile, writePreviewFile } from './previ
 import { searchPreview } from './preview-search';
 import type {
   Conversation,
+  Interaction,
   JamEvent,
   JamRequest,
   JamTransport,
@@ -44,6 +45,7 @@ export class BrowserPreviewTransport implements JamTransport {
   private readonly conversations: Map<string, Conversation>;
   private readonly listeners = new Set<Listener>();
   private readonly active = new Map<string, ActiveTurn>();
+  private readonly asking = new Map<string, { interaction: Interaction; message: Message }>();
   private readonly receipts = new Map<string, Receipt>();
   private readonly pendingEvents: JamEvent[] = [];
   private publishing = false;
@@ -117,6 +119,17 @@ export class BrowserPreviewTransport implements JamTransport {
         return { ...this.getConversation(request.params.resourceId), cursor: this.cursor() };
       case 'conversation.create':
         return this.createConversation(request.params);
+      case 'session.compact':
+        throw new JamError('unsupported', 'The demo provider has no context to compact.');
+      case 'file.reveal':
+      case 'url.openExternal':
+        throw new JamError('unavailable', 'Opening outside jam needs the desktop app.');
+      case 'provider.list':
+        return { providers: this.workspace.providers };
+      case 'provider.configure':
+        return this.configureProvider(request.params);
+      case 'interaction.respond':
+        return this.respond(request.params);
       case 'turn.start':
         return this.startTurn(request.params);
       case 'turn.interrupt':
@@ -294,12 +307,61 @@ export class BrowserPreviewTransport implements JamTransport {
     return resource;
   }
 
+  private configureProvider(
+    params: RequestMap['provider.configure']['params'],
+  ): RequestMap['provider.configure']['result'] {
+    const provider = this.workspace.providers.find((item) => item.id === params.providerId);
+    if (!provider) throw new JamError('invalid_request', 'Unknown provider.');
+    if (params.executable !== undefined || (params.defaults && provider.id !== 'mock'))
+      throw new JamError('unavailable', 'Provider settings are saved by the jam desktop app.');
+    if (params.enabled !== undefined) provider.enabled = params.enabled;
+    if (params.isDefault)
+      for (const item of this.workspace.providers) item.isDefault = item === provider;
+    return { providers: this.workspace.providers };
+  }
+
+  /** The preview's simulated approval and question, answered like the real path. */
+  private respond(
+    params: RequestMap['interaction.respond']['params'],
+  ): RequestMap['interaction.respond']['result'] {
+    const conversation = this.getConversation(params.resourceId);
+    const session = this.getSession(conversation.sessionId);
+    const pending = this.asking.get(session.id);
+    if (!pending || pending.interaction.id !== params.interactionId)
+      throw new JamError('stale', 'This request is no longer waiting for an answer.');
+    const { interaction, message } = pending;
+    const answer = params.choiceId
+      ? interaction.choices.find((choice) => choice.id === params.choiceId)?.label
+      : Object.values(params.answers ?? {})
+          .flat()
+          .join(', ');
+    if (!answer) throw new JamError('invalid_request', 'That choice is not offered.');
+    this.asking.delete(session.id);
+    interaction.status = 'resolved';
+    interaction.outcome = params.choiceId === 'deny' ? 'Denied' : answer;
+    message.blocks.push({
+      type: 'text',
+      text: `The demo provider received: ${interaction.outcome}. No command ran.`,
+    });
+    session.status = 'idle';
+    session.needsInput = false;
+    this.updateRunningProvider();
+    this.publish({ type: 'message.upserted', resourceId: session.resourceId, message });
+    this.publish({ type: 'session.updated', session });
+    return { accepted: true };
+  }
+
   private createConversation(
     params: RequestMap['conversation.create']['params'],
   ): RequestMap['conversation.create']['result'] {
     if (!this.workspace.projects.some((project) => project.id === params.projectId)) {
       throw new JamError('not_found', 'Project not found.');
     }
+    if (params.providerId && params.providerId !== 'mock')
+      throw new JamError(
+        'unavailable',
+        'Claude Code and Codex run in the jam desktop app. The browser preview only has the demo provider.',
+      );
     const resource: Resource = {
       id: this.makeId('conversation'),
       kind: 'conversation',
@@ -387,6 +449,15 @@ export class BrowserPreviewTransport implements JamTransport {
       resource.title = params.text.trim().slice(0, 70) || 'Context review';
     const result = { accepted: true as const, sessionId: session.id, requestId: params.requestId };
     this.receipts.set(params.requestId, { signature, result });
+    const prompt = params.text.trim();
+    if (prompt === '/approval' || prompt === '/question') {
+      this.ask(session, assistant, prompt === '/question');
+      this.updateRunningProvider();
+      this.publish({ type: 'message.upserted', resourceId: resource.id, message: user });
+      this.publish({ type: 'message.upserted', resourceId: resource.id, message: assistant });
+      this.publish({ type: 'session.updated', session });
+      return result;
+    }
     this.active.set(session.id, {
       message: assistant,
       fail: params.text.trim() === '/fail',
@@ -397,6 +468,48 @@ export class BrowserPreviewTransport implements JamTransport {
     this.publish({ type: 'message.upserted', resourceId: resource.id, message: user });
     this.publish({ type: 'message.upserted', resourceId: resource.id, message: assistant });
     return result;
+  }
+
+  private ask(session: Session, message: Message, question: boolean) {
+    const interaction: Interaction = question
+      ? {
+          id: this.makeId('interaction'),
+          kind: 'question',
+          title: 'Demo provider asks',
+          choices: [],
+          questions: [
+            {
+              id: 'approach',
+              header: 'Approach',
+              question: 'Which approach should the demo describe?',
+              options: [
+                { label: 'Runtime-owned', description: 'Sessions live in the runtime.' },
+                { label: 'View-owned', description: 'Sessions end with their pane.' },
+              ],
+              multiSelect: false,
+              allowOther: true,
+            },
+          ],
+          status: 'pending',
+        }
+      : {
+          id: this.makeId('interaction'),
+          kind: 'command',
+          title: 'Demo provider wants to run a command',
+          detail: 'echo simulated',
+          reason: 'Simulated request · nothing runs whichever you choose.',
+          choices: [
+            { id: 'allow', label: 'Allow once', tone: 'allow' },
+            { id: 'deny', label: 'Deny', tone: 'deny' },
+          ],
+          status: 'pending',
+        };
+    message.blocks = [
+      { type: 'text', text: 'This is a simulated request from the demo provider.' },
+      { type: 'interaction', interaction },
+    ];
+    session.needsInput = true;
+    this.asking.set(session.id, { interaction, message });
   }
 
   private advanceTurn(sessionId: string, step: number) {
@@ -441,6 +554,22 @@ export class BrowserPreviewTransport implements JamTransport {
 
   private interrupt(sessionId: string): RequestMap['turn.interrupt']['result'] {
     const session = this.getSession(sessionId);
+    const asking = this.asking.get(sessionId);
+    if (asking) {
+      this.asking.delete(sessionId);
+      asking.interaction.status = 'cancelled';
+      asking.interaction.outcome = 'Interrupted';
+      session.status = 'interrupted';
+      session.needsInput = false;
+      this.updateRunningProvider();
+      this.publish({
+        type: 'message.upserted',
+        resourceId: session.resourceId,
+        message: asking.message,
+      });
+      this.publish({ type: 'session.updated', session });
+      return { sessionId, interrupted: true };
+    }
     const active = this.active.get(sessionId);
     if (!active) return { sessionId, interrupted: false };
     clearTimeout(active.timer);
@@ -465,8 +594,11 @@ export class BrowserPreviewTransport implements JamTransport {
 
   private updateRunningProvider() {
     const provider = this.workspace.providers.find((item) => item.id === 'mock');
-    if (provider)
-      provider.running = this.workspace.sessions.some((session) => session.status === 'running');
+    if (!provider) return;
+    provider.runningCount = this.workspace.sessions.filter(
+      (session) => session.status === 'running',
+    ).length;
+    provider.running = provider.runningCount > 0;
   }
 
   private publish(

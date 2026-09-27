@@ -11,7 +11,7 @@ import type {
 import { loadRecentSearches, rememberSearch, saveRecentSearches } from '../state/recent-searches';
 import { compactAge } from '../state/threads';
 import { Dialog, IconButton, Shortcut } from './Controls';
-import { ProviderIcon } from './icons';
+import { ProviderIcon, sessionProviderName } from './icons';
 
 /** How many recent chats show before anything is typed. */
 const RECENT_CHAT_LIMIT = 8;
@@ -236,7 +236,10 @@ export function SearchDialog({
                 onMouseMove={() => setSelected(index)}
                 onClick={() => onOpen(chat.id)}
               >
-                <ProviderIcon presentation={sessionOf(chat)?.presentation} />
+                <ProviderIcon
+                  presentation={sessionOf(chat)?.presentation}
+                  providerId={sessionOf(chat)?.providerId}
+                />
                 <span className="search-chat-title truncate">{chat.title}</span>
                 <span className="search-chat-meta">
                   {projects.find((project) => project.id === chat.projectId)?.name}
@@ -254,7 +257,8 @@ export function SearchDialog({
             >
               <ProviderIcon
                 presentation={result.presentation}
-                label={result.presentation === 'codex' ? 'Codex' : 'Claude Code'}
+                providerId={result.providerId}
+                label={sessionProviderName(result)}
               />
               <span className="search-result-copy">
                 <strong>{result.title}</strong>

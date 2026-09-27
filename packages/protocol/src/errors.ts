@@ -6,7 +6,16 @@ export type JamErrorCode =
   | 'not_found'
   | 'conflict'
   | 'unavailable'
-  | 'internal';
+  | 'internal'
+  /** An approval or question that is no longer waiting for an answer. */
+  | 'stale'
+  /** The provider cannot do this, such as images with a text-only model. */
+  | 'unsupported'
+  | 'provider_unavailable'
+  | 'provider_disabled'
+  | 'provider_error'
+  | 'provider_exited'
+  | 'project_folder_required';
 
 /** Stable, safe-to-display error. Provider credentials/details never belong here. */
 export class JamError extends Error {

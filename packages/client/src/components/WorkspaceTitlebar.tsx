@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { AppWindow, Columns2, Plus, X } from 'lucide-react';
-import type { Presentation, Project, Resource, WorkspaceSnapshot } from '@jam/protocol';
+import type { Project, Resource, WorkspaceSnapshot } from '@jam/protocol';
+import type { ChatDraft } from '../state/chat-draft';
 import type { DesktopServices } from '../desktop';
 import type { LayoutState } from '../state/layout';
 import { Brand, IconButton, Shortcut, WindowControls } from './Controls';
@@ -11,7 +12,7 @@ interface WorkspaceTitlebarProps {
   desktop: DesktopServices;
   layout: Pick<LayoutState, 'tabs' | 'activeTabId' | 'mode' | 'focus'>;
   workspace: Pick<WorkspaceSnapshot, 'resources' | 'sessions' | 'projects'>;
-  drafts: Record<string, { projectId: string; presentation: Presentation }>;
+  drafts: Record<string, ChatDraft>;
   project?: Project;
   activeResource?: Resource;
   shortcut: string;
@@ -211,6 +212,7 @@ export function WorkspaceTitlebar({
                 <ResourceIcon
                   kind={resource?.kind ?? 'conversation'}
                   presentation={session?.presentation ?? draft?.presentation}
+                  providerId={session?.providerId ?? draft?.providerId}
                   density="tab"
                 />
                 <span className="tab-title truncate">{title}</span>

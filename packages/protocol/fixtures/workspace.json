@@ -227,6 +227,158 @@
     ],
     "providers": [
       {
+        "id": "claude",
+        "name": "Claude Code",
+        "installation": "unknown",
+        "authentication": "unknown",
+        "enabled": false,
+        "isDefault": false,
+        "running": false,
+        "capabilities": {
+          "create": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "resume": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "fork": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "interrupt": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "streaming": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "toolApproval": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "userInput": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "images": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "steering": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "queue": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "modelSelection": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "effort": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "permissionModes": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "usage": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "compact": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          }
+        },
+        "runningCount": 0,
+        "status": {
+          "tone": "info",
+          "message": "Claude Code runs in the jam desktop app. The browser preview cannot start it."
+        }
+      },
+      {
+        "id": "codex",
+        "name": "Codex",
+        "installation": "unknown",
+        "authentication": "unknown",
+        "enabled": false,
+        "isDefault": false,
+        "running": false,
+        "capabilities": {
+          "create": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "resume": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "fork": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "interrupt": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "streaming": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "toolApproval": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "userInput": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "images": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "steering": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "queue": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "modelSelection": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "effort": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "permissionModes": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "usage": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          },
+          "compact": {
+            "status": "unknown",
+            "reason": "Checked by the jam desktop app."
+          }
+        },
+        "runningCount": 0,
+        "status": {
+          "tone": "info",
+          "message": "Codex runs in the jam desktop app. The browser preview cannot start it."
+        }
+      },
+      {
         "id": "mock",
         "name": "Demo provider",
         "installation": "builtin",
@@ -243,7 +395,7 @@
           },
           "fork": {
             "status": "unsupported",
-            "reason": "Not implemented by the foundation demo."
+            "reason": "Not implemented by the demo provider."
           },
           "interrupt": {
             "status": "supported"
@@ -252,116 +404,47 @@
             "status": "supported"
           },
           "toolApproval": {
-            "status": "unsupported",
-            "reason": "Not implemented by the foundation demo."
+            "status": "supported",
+            "reason": "Simulated with the /approval and /question demo prompts."
           },
           "userInput": {
-            "status": "unsupported",
-            "reason": "Not implemented by the foundation demo."
+            "status": "supported",
+            "reason": "Simulated with the /approval and /question demo prompts."
           },
           "images": {
             "status": "unsupported",
-            "reason": "Not implemented by the foundation demo."
+            "reason": "Not implemented by the demo provider."
           },
           "steering": {
             "status": "unsupported",
-            "reason": "Not implemented by the foundation demo."
+            "reason": "Not implemented by the demo provider."
+          },
+          "queue": {
+            "status": "unsupported",
+            "reason": "Not implemented by the demo provider."
+          },
+          "modelSelection": {
+            "status": "unsupported",
+            "reason": "Not implemented by the demo provider."
+          },
+          "effort": {
+            "status": "unsupported",
+            "reason": "Not implemented by the demo provider."
+          },
+          "permissionModes": {
+            "status": "unsupported",
+            "reason": "Not implemented by the demo provider."
+          },
+          "usage": {
+            "status": "unsupported",
+            "reason": "Not implemented by the demo provider."
+          },
+          "compact": {
+            "status": "unsupported",
+            "reason": "Not implemented by the demo provider."
           }
-        }
-      },
-      {
-        "id": "claude",
-        "name": "Claude Code",
-        "installation": "unknown",
-        "authentication": "unknown",
-        "enabled": false,
-        "isDefault": false,
-        "running": false,
-        "capabilities": {
-          "create": {
-            "status": "conditional",
-            "reason": "Live adapter and subscription eligibility are not established."
-          },
-          "resume": {
-            "status": "conditional",
-            "reason": "Live adapter and subscription eligibility are not established."
-          },
-          "fork": {
-            "status": "conditional",
-            "reason": "Live adapter and subscription eligibility are not established."
-          },
-          "interrupt": {
-            "status": "conditional",
-            "reason": "Live adapter and subscription eligibility are not established."
-          },
-          "streaming": {
-            "status": "conditional",
-            "reason": "Live adapter and subscription eligibility are not established."
-          },
-          "toolApproval": {
-            "status": "conditional",
-            "reason": "Live adapter and subscription eligibility are not established."
-          },
-          "userInput": {
-            "status": "conditional",
-            "reason": "Live adapter and subscription eligibility are not established."
-          },
-          "images": {
-            "status": "conditional",
-            "reason": "Live adapter and subscription eligibility are not established."
-          },
-          "steering": {
-            "status": "conditional",
-            "reason": "Live adapter and subscription eligibility are not established."
-          }
-        }
-      },
-      {
-        "id": "codex",
-        "name": "Codex",
-        "installation": "unknown",
-        "authentication": "unknown",
-        "enabled": false,
-        "isDefault": false,
-        "running": false,
-        "capabilities": {
-          "create": {
-            "status": "unknown",
-            "reason": "Live adapter is not connected in this foundation."
-          },
-          "resume": {
-            "status": "unknown",
-            "reason": "Live adapter is not connected in this foundation."
-          },
-          "fork": {
-            "status": "unknown",
-            "reason": "Live adapter is not connected in this foundation."
-          },
-          "interrupt": {
-            "status": "unknown",
-            "reason": "Live adapter is not connected in this foundation."
-          },
-          "streaming": {
-            "status": "unknown",
-            "reason": "Live adapter is not connected in this foundation."
-          },
-          "toolApproval": {
-            "status": "unknown",
-            "reason": "Live adapter is not connected in this foundation."
-          },
-          "userInput": {
-            "status": "unknown",
-            "reason": "Live adapter is not connected in this foundation."
-          },
-          "images": {
-            "status": "unknown",
-            "reason": "Live adapter is not connected in this foundation."
-          },
-          "steering": {
-            "status": "unknown",
-            "reason": "Live adapter is not connected in this foundation."
-          }
-        }
+        },
+        "runningCount": 0
       }
     ]
   },

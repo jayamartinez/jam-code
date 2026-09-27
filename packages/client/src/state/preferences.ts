@@ -30,6 +30,29 @@ function readIdleDays(): number | null {
   }
 }
 
+const STREAM_REPLIES_KEY = 'jam.streamReplies';
+
+/** Whether agent replies are revealed as they stream (on by default). */
+export function useStreamReplies(): [boolean, (next: boolean) => void] {
+  const [stream, setStream] = useState(true);
+  useEffect(() => {
+    try {
+      setStream(localStorage.getItem(STREAM_REPLIES_KEY) !== 'false');
+    } catch {
+      // Unreadable storage keeps the default.
+    }
+  }, []);
+  const update = useCallback((next: boolean) => {
+    setStream(next);
+    try {
+      localStorage.setItem(STREAM_REPLIES_KEY, String(next));
+    } catch {
+      // Losing the preference only restores the default.
+    }
+  }, []);
+  return [stream, update];
+}
+
 export function useIdleThreadDays(): [number | null, (next: number | null) => void] {
   const [days, setDays] = useState<number | null>(DEFAULT_IDLE_THREAD_DAYS);
   useEffect(() => setDays(readIdleDays()), []);

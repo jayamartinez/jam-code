@@ -125,8 +125,10 @@ export function ProviderIcon({
   label,
   className = '',
 }: ProviderIconProps) {
+  // The demo adapter never borrows a real provider's mark, whatever the
+  // conversation was presented as.
   const id: MarkId | undefined =
-    presentation ?? (providerId === 'mock' ? 'mock' : (providerId as MarkId | undefined));
+    providerId === 'mock' ? 'mock' : (presentation ?? (providerId as MarkId | undefined));
   const mark = id ? MARKS[id] : undefined;
   const slot = ICON_SLOT[density];
   const gradientId = `mark-${useId().replace(/:/g, '')}`;
@@ -156,6 +158,15 @@ export function providerName(presentation?: Presentation) {
   return presentation ? MARKS[presentation].name : 'Unknown provider';
 }
 
+/** The name of the adapter actually running a session. */
+export function sessionProviderName(session?: {
+  providerId: ProviderId;
+  presentation: Presentation;
+}) {
+  if (!session) return 'Unknown provider';
+  return session.providerId === 'mock' ? 'Demo provider' : providerName(session.presentation);
+}
+
 const RESOURCE_GLYPHS = {
   conversation: MessageSquare,
   terminal: Terminal,
@@ -170,6 +181,8 @@ export interface ResourceIconProps {
   kind: ResourceKind;
   /** A conversation shows its agent's mark instead of a generic bubble. */
   presentation?: Presentation;
+  /** The adapter running the conversation, so a demo never shows a real mark. */
+  providerId?: ProviderId;
   density?: IconDensity;
   label?: string;
   className?: string;
@@ -178,6 +191,7 @@ export interface ResourceIconProps {
 export function ResourceIcon({
   kind,
   presentation,
+  providerId,
   density = 'dense',
   label,
   className = '',
@@ -186,6 +200,7 @@ export function ResourceIcon({
     return (
       <ProviderIcon
         presentation={presentation}
+        providerId={providerId}
         density={density}
         label={label}
         className={className}

@@ -259,17 +259,24 @@ function ChatRow({
       title={resource.title}
       aria-current={active ? 'page' : undefined}
     >
-      <ProviderIcon presentation={session?.presentation} />
+      <ProviderIcon presentation={session?.presentation} providerId={session?.providerId} />
       <span className="row-copy">
         <span className="row-title truncate">{resource.title}</span>
         {!pinned && (
           <span className="row-meta truncate">
-            {project?.name} · {session?.status === 'idle' ? 'done' : (session?.status ?? 'saved')}
+            {project?.name} ·{' '}
+            {session?.needsInput
+              ? 'needs input'
+              : session?.status === 'idle'
+                ? 'done'
+                : (session?.status ?? 'saved')}
           </span>
         )}
       </span>
       <span className="row-status">
-        {session?.status === 'running' ? (
+        {session?.needsInput ? (
+          <span className="status-dot needs-input" aria-label="Needs input" />
+        ) : session?.status === 'running' ? (
           <span className="status-dot running" />
         ) : session?.status === 'failed' ? (
           <span className="status-dot failed" />
@@ -337,7 +344,10 @@ function ProjectThreads({
             onMenu(thread, event);
           }}
         >
-          <ProviderIcon presentation={sessionFor(thread)?.presentation} />
+          <ProviderIcon
+            presentation={sessionFor(thread)?.presentation}
+            providerId={sessionFor(thread)?.providerId}
+          />
           <span className="thread-title truncate">{thread.title}</span>
           <span className={`thread-age mono ${idle ? 'idle' : ''}`}>
             {isClosed

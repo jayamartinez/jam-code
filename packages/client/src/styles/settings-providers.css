@@ -306,3 +306,74 @@
     border-bottom: 1px solid var(--color-border-subtle);
   }
 }
+
+/* Live provider state: the intro bar with the last check, versions and notes. */
+.sv-providers-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.sv-providers-bar .sv-button {
+  font-size: calc(11.5px * var(--ui-scale));
+}
+.sv-provider-row:not(.soon) {
+  padding: 0 12px 0 0;
+}
+.sv-provider-select {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0 11px 12px;
+  text-align: left;
+}
+.sv-version {
+  margin-left: 8px;
+  font-family: var(--font-mono-stack);
+  font-weight: 400;
+  font-size: calc(10.5px * var(--ui-scale));
+  letter-spacing: 0;
+  color: var(--color-text-faint);
+}
+.sv-detail-action {
+  flex-shrink: 0;
+}
+.sv-status-cell small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sv-provider-status {
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-fill-subtle);
+  color: var(--color-text-muted);
+  font-size: calc(11.5px * var(--ui-scale));
+  line-height: calc(17px * var(--ui-scale));
+}
+.sv-provider-status.warning {
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+.sv-provider-status.error {
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+.sv-detail-card input.sv-field {
+  min-width: calc(280px * var(--ui-scale));
+}
+@keyframes sv-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spinning {
+  animation: sv-spin 0.9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinning {
+    animation: none;
+  }
+}

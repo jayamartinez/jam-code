@@ -16,10 +16,13 @@ import type {
   ContextItem,
   JamTransport,
   OpenableKind,
-  Presentation,
   ProjectIcon,
+  ProviderId,
+  RequestMap,
   TerminalSession,
 } from '@jam/protocol';
+import { type ChatDraft, draftProvider, presentationFor } from './state/chat-draft';
+import type { InteractionAnswer } from './components/InteractionCard';
 import type { BrowserAnnotation, DesktopServices } from './desktop';
 import {
   activeResourceId,
@@ -32,7 +35,7 @@ import {
   type SplitDirection,
 } from './state/layout';
 import { RuntimeClient } from './state/runtime-client';
-import { useIdleThreadDays } from './state/preferences';
+import { useIdleThreadDays, useStreamReplies } from './state/preferences';
 import { AppearanceContext, AppearanceStore } from './appearance/store';
 import { Brand, Dialog, IconButton } from './components/Controls';
 import { Sidebar } from './components/Sidebar';
@@ -54,6 +57,8 @@ import { FileResource } from './components/FileResource';
 import { TerminalResource } from './components/TerminalResource';
 import { estimateTerminalSize } from './components/terminal-metrics';
 import { ContextMenu, menuPoint, type ContextMenuState } from './components/ContextMenu';
+import type { FileReference } from './markdown/file-refs';
+import { parseAddress } from './state/browser-address';
 import { ProjectEditor } from './components/ProjectEditor';
 import { BrowserResource, describeAnnotation } from './components/BrowserResource';
 
@@ -132,9 +137,9 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   const [launcher, setLauncher] = useState<LauncherTarget>(null);
   const [settingsStartPage, setSettingsStartPage] = useState<'General' | 'Snapshots'>('General');
   const [settingsMode, setSettingsMode] = useState<'dedicated' | null>(null);
-  const [newChats, setNewChats] = useState<
-    Record<string, { projectId: string; presentation: Presentation }>
-  >({});
+  const [newChats, setNewChats] = useState<Record<string, ChatDraft>>({});
+  /** Model, effort or provider options chosen since a session's last Send. */
+  const [pendingOptions, setPendingOptions] = useState<Record<string, Record<string, string>>>({});
   const [context, setContext] = useState<Record<string, ContextItem[]>>({});
   /** Expanded folders per file-browser resource, outside any pane's lifetime. */
   const [treeExpansion, setTreeExpansion] = useState<Record<string, string[]>>({});
@@ -142,6 +147,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [editingProject, setEditingProject] = useState<string | null>(null);
   const [idleThreadDays, setIdleThreadDays] = useIdleThreadDays();
+  const [streamReplies, setStreamReplies] = useStreamReplies();
   /**
    * Projects whose threads the sidebar lists. Any number can be open at once;
    * until the reader toggles one, the current project is shown open.
@@ -156,6 +162,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   const lastConversation = useRef<string | null>(null);
   /** Pages a Browser opened from a Markdown link should load once attached. */
   const [browserUrls, setBrowserUrls] = useState<Record<string, string>>({});
+  /** Lines a chat linked to, per File resource: view state, not a record. */
+  const [fileReveals, setFileReveals] = useState<Record<string, { line: number; key: number }>>({});
   /** Live terminals the launcher offers to reopen; read when it opens. */
   const [runningTerminals, setRunningTerminals] = useState<TerminalSession[]>([]);
   const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
@@ -262,19 +270,35 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     setLauncher(null);
   }, []);
 
-  /** A new chat is an unsaved draft until its first explicit Send. */
+  /**
+   * A new chat is an unsaved draft until its first explicit Send. It starts
+   * with the requested agent when that is enabled, else the default one.
+   */
   const newChat = useCallback(
-    (presentation: Presentation = 'claude', paneId?: string) => {
+    (requested?: ProviderId, paneId?: string) => {
       if (!projectId) return;
       const id = `draft:${crypto.randomUUID()}`;
-      setNewChats((current) => ({ ...current, [id]: { projectId, presentation } }));
+      const providers = client.getSnapshot().workspace?.providers ?? [];
+      const providerId = draftProvider(providers, requested);
+      const defaults = providers.find((provider) => provider.id === providerId)?.defaults;
+      setNewChats((current) => ({
+        ...current,
+        [id]: {
+          projectId,
+          providerId,
+          presentation: presentationFor(providerId, requested === 'codex' ? 'codex' : 'claude'),
+          options: { ...defaults },
+        },
+      }));
+      // The agent picker needs real installation and sign-in state.
+      void client.ensureProviders();
       if (paneId) assignPane(id, paneId);
       else dispatch({ type: 'openTab', resourceId: id });
       setOverlay(null);
       setLauncher(null);
       setSettingsMode(null);
     },
-    [assignPane, projectId],
+    [assignPane, projectId, client],
   );
 
   /**
@@ -411,23 +435,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
    * already holds one, then to an empty pane, and otherwise to a new pane
    * split beside the browser at the Files frame's proportion.
    */
-  const openFileFrom = useCallback(
-    async (path: string, fromPaneId: string | null, inProject?: string) => {
-      const target = inProject ?? projectId;
-      if (!target) return;
-      let resourceId: string;
-      try {
-        const { resource } = await transport.request('resource.open', {
-          projectId: target,
-          kind: 'file',
-          path,
-        });
-        client.addResource(resource);
-        resourceId = resource.id;
-      } catch (cause) {
-        client.reportError(cause);
-        return;
-      }
+  const placeBeside = useCallback(
+    (resourceId: string, fromPaneId: string | null, kind: 'file' | 'browser') => {
       const current = layoutRef.current;
       const tree = activeTree(current);
       const browserPane = fromPaneId ?? focusedPane(current)?.id;
@@ -435,7 +444,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       const kindOf = (id: string | null) =>
         client.getSnapshot().workspace?.resources.find((item) => item.id === id)?.kind;
       const editorPane =
-        others.find((pane) => kindOf(pane.resourceId) === 'file') ??
+        others.find((pane) => kindOf(pane.resourceId) === kind) ??
         others.find((pane) => !pane.resourceId);
       if (editorPane) {
         assignPane(resourceId, editorPane.id);
@@ -449,13 +458,112 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         splitId: newSplitId(),
         newPaneId: newPaneId(),
         resourceId,
-        ratio:
-          kindOf(findLeaf(tree, browserPane ?? '')?.resourceId ?? null) === 'diff'
-            ? 0.5
-            : browserRatio(browserPane),
+        // A chat or a diff keeps half the width; a browser keeps the Files
+        // frame's proportion.
+        ratio: ['diff', 'conversation'].includes(
+          kindOf(findLeaf(tree, browserPane ?? '')?.resourceId ?? null) ?? '',
+        )
+          ? 0.5
+          : browserRatio(browserPane),
       });
     },
-    [assignPane, client, projectId, transport],
+    [assignPane, client],
+  );
+
+  /** A file a chat or preview linked to, beside it, at `line` when given. */
+  const openFileFrom = useCallback(
+    async (path: string, fromPaneId: string | null, inProject?: string, line?: number) => {
+      const target = inProject ?? projectId;
+      if (!target) return;
+      try {
+        const { resource } = await transport.request('resource.open', {
+          projectId: target,
+          kind: 'file',
+          path,
+        });
+        client.addResource(resource);
+        if (line)
+          setFileReveals((current) => ({ ...current, [resource.id]: { line, key: Date.now() } }));
+        placeBeside(resource.id, fromPaneId, 'file');
+      } catch (cause) {
+        client.reportError(cause);
+      }
+    },
+    [client, placeBeside, projectId, transport],
+  );
+
+  /** A local server a chat started, in a JAM browser beside the chat. */
+  const openPreviewFrom = useCallback(
+    async (url: string, fromPaneId: string | null, inProject?: string) => {
+      const target = inProject ?? projectId;
+      if (!target) return;
+      // A preview already beside the chat goes to the new address rather
+      // than gaining a second, blank page.
+      const beside = leaves(activeTree(layoutRef.current)).find(
+        (pane) =>
+          pane.id !== fromPaneId &&
+          client.getSnapshot().workspace?.resources.find((item) => item.id === pane.resourceId)
+            ?.kind === 'browser',
+      );
+      const parsed = parseAddress(url);
+      if (beside?.resourceId && desktop.browser && 'url' in parsed) {
+        void desktop.browser.navigate(beside.resourceId, parsed.url).catch(client.reportError);
+        return;
+      }
+      try {
+        const { resource } = await transport.request('resource.open', {
+          projectId: target,
+          kind: 'browser',
+        });
+        client.addResource(resource);
+        setBrowserUrls((current) => ({ ...current, [resource.id]: url }));
+        placeBeside(resource.id, fromPaneId, 'browser');
+      } catch (cause) {
+        client.reportError(cause);
+      }
+    },
+    [client, desktop.browser, placeBeside, projectId, transport],
+  );
+
+  /** Right-click on a file a chat named. */
+  const fileMenu = useCallback(
+    (
+      file: FileReference,
+      event: React.MouseEvent,
+      fromPaneId: string | null,
+      inProject?: string,
+    ) => {
+      const target = inProject ?? projectId;
+      setContextMenu({
+        ...menuPoint(event),
+        items: [
+          {
+            label: 'Open beside',
+            hint: 'Click',
+            onSelect: () => void openFileFrom(file.path, fromPaneId, target, file.line),
+          },
+          {
+            label: 'Open in new tab',
+            onSelect: () => void openKind('file', file.path, undefined, target),
+          },
+          {
+            label: desktop.platform === 'windows' ? 'Show in Explorer' : 'Reveal in Finder',
+            separated: true,
+            onSelect: () => {
+              if (target)
+                void transport
+                  .request('file.reveal', { projectId: target, path: file.path })
+                  .catch(client.reportError);
+            },
+          },
+          {
+            label: 'Copy path',
+            onSelect: () => void navigator.clipboard?.writeText(file.path).catch(() => {}),
+          },
+        ],
+      });
+    },
+    [client, desktop.platform, openFileFrom, openKind, projectId, transport],
   );
 
   const openSettings = useCallback(() => {
@@ -493,7 +601,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         setOverlay('search');
       } else if (key === 'n') {
         event.preventDefault();
-        if (!overlay && !launcher) newChat(event.shiftKey ? 'codex' : 'claude');
+        if (!overlay && !launcher) newChat(event.shiftKey ? 'codex' : undefined);
       } else if (key === 't') {
         event.preventDefault();
         // The keyboard path hangs from the tab strip's own new-tab button.
@@ -559,6 +667,10 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         const created = await transport.request('conversation.create', {
           projectId: draft.projectId,
           presentation: draft.presentation,
+          providerId: draft.providerId,
+          ...(draft.providerId !== 'mock' && Object.keys(draft.options).length
+            ? { options: draft.options }
+            : {}),
         });
         client.addConversation(created);
         resourceId = created.resource.id;
@@ -572,7 +684,9 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         });
         setContext((current) => ({ ...current, [resourceId]: staged }));
       }
-      const payload = JSON.stringify({ text, context: staged });
+      // Choices made since the last Send apply from this turn on.
+      const options = draft ? undefined : pendingOptions[resourceId];
+      const payload = JSON.stringify({ text, context: staged, options });
       const previous = requests.current.get(resourceId);
       const requestId = previous?.payload === payload ? previous.requestId : crypto.randomUUID();
       requests.current.set(resourceId, { payload, requestId });
@@ -581,9 +695,16 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         text,
         context: staged,
         requestId,
+        ...(options && Object.keys(options).length ? { options } : {}),
       });
       snapshots.refresh();
       requests.current.delete(resourceId);
+      setPendingOptions((current) => {
+        if (!current[resourceId]) return current;
+        const rest = { ...current };
+        delete rest[resourceId];
+        return rest;
+      });
       dispatch({ type: 'draft', resourceId, text: '' });
       setContext((current) => ({ ...current, [resourceId]: [] }));
     } catch (cause) {
@@ -595,12 +716,64 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     }
   }
 
+  const providerControl = {
+    ensure: () => client.ensureProviders(),
+    refresh: () => client.refreshProviders(),
+    configure: async (changes: RequestMap['provider.configure']['params']) => {
+      try {
+        const { providers } = await transport.request('provider.configure', changes);
+        client.updateProviders(providers);
+      } catch (cause) {
+        client.reportError(cause);
+      }
+    },
+  };
+
+  const optionsFor = (resourceId: string, sessionId?: string) => {
+    const draft = newChats[resourceId];
+    if (draft) return draft.options;
+    const session = workspace?.sessions.find((item) => item.id === sessionId);
+    return { ...session?.options, ...pendingOptions[resourceId] };
+  };
+
   const composerFor = (resourceId: string, sessionId?: string) => ({
     draft: layout.drafts[resourceId] ?? '',
     context: contextFor(resourceId),
     snapshotTransport: desktop.snapshots ? transport : undefined,
     busy: busy.has(resourceId),
     shortcut,
+    providers: workspace?.providers ?? [],
+    options: optionsFor(resourceId, sessionId),
+    streamReplies,
+    onCompact: async () => {
+      try {
+        await transport.request('session.compact', {
+          resourceId,
+          requestId: crypto.randomUUID(),
+        });
+      } catch (cause) {
+        client.reportError(cause);
+      }
+    },
+    onOptions: (options: Record<string, string>) => {
+      if (newChats[resourceId])
+        setNewChats((current) => {
+          const draft = current[resourceId];
+          return draft ? { ...current, [resourceId]: { ...draft, options } } : current;
+        });
+      else setPendingOptions((current) => ({ ...current, [resourceId]: options }));
+    },
+    onRespond: async (interactionId: string, answer: InteractionAnswer) => {
+      try {
+        await transport.request('interaction.respond', {
+          resourceId,
+          interactionId,
+          ...answer,
+        });
+      } catch (cause) {
+        client.reportError(cause);
+      }
+    },
     onDraft: (text: string) => dispatch({ type: 'draft', resourceId, text }),
     onSend: () => void send(resourceId),
     onStop: () => {
@@ -623,7 +796,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         [resourceId]: (current[resourceId] ?? emptyContext).filter((item) => item.id !== id),
       }));
     },
-    onOpenDemo: () => void openKind('diff'),
+    onOpenReview: () => void openKind('diff'),
   });
 
   if (!workspace)
@@ -657,12 +830,15 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       initialPage={settingsStartPage}
       transport={transport}
       providers={workspace.providers}
+      providerControl={providerControl}
       projects={workspace.projects}
       onUpdateProject={updateProject}
       dedicated={dedicated}
       desktop={desktop}
       idleThreadDays={idleThreadDays}
       onIdleThreadDays={setIdleThreadDays}
+      streamReplies={streamReplies}
+      onStreamReplies={setStreamReplies}
       onClose={() => setSettingsMode(null)}
       onMode={() => {
         if (dedicated) {
@@ -766,11 +942,37 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             )}
             onOpen={openResource}
             onStarter={(text) => dispatch({ type: 'draft', resourceId, text })}
-            presentationOf={(item) =>
-              workspace.sessions.find((session) => session.id === item.sessionId)?.presentation
+            providerId={draft.providerId}
+            sessionOf={(item) =>
+              workspace.sessions.find((session) => session.id === item.sessionId)
             }
             composer={
-              <Composer {...composerFor(resourceId)} presentation={draft.presentation} isNew />
+              <Composer
+                {...composerFor(resourceId)}
+                project={draftProject}
+                providerId={draft.providerId}
+                presentation={draft.presentation}
+                onProvider={(providerId) =>
+                  setNewChats((current) => {
+                    const previous = current[resourceId];
+                    if (!previous) return current;
+                    const defaults = workspace.providers.find(
+                      (provider) => provider.id === providerId,
+                    )?.defaults;
+                    return {
+                      ...current,
+                      [resourceId]: {
+                        ...previous,
+                        providerId,
+                        presentation: presentationFor(providerId, previous.presentation),
+                        // Options belong to one provider; switching starts from its defaults.
+                        options: { ...defaults },
+                      },
+                    };
+                  })
+                }
+                isNew
+              />
             }
           />
         </PaneChrome>
@@ -795,7 +997,18 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             resource={resource}
             project={workspace.projects.find((item) => item.id === resource.projectId)}
             session={session}
-            composer={composerFor(resource.id, session?.id)}
+            composer={{
+              ...composerFor(resource.id, session?.id),
+              onOpenUrl: (url: string) => void openPreviewFrom(url, paneId, resource.projectId),
+              onOpenFile: (path: string, line?: number) =>
+                void openFileFrom(path, paneId, resource.projectId, line),
+              onFileMenu: (file: FileReference, event: React.MouseEvent) =>
+                fileMenu(file, event, paneId, resource.projectId),
+              ...(desktop.platform !== 'web' && {
+                onOpenExternal: (url: string) =>
+                  void transport.request('url.openExternal', { url }).catch(client.reportError),
+              }),
+            }}
           />
         );
       }
@@ -809,6 +1022,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             saveShortcut={shortcut}
             onOpenUrl={(url) => void openUrl(url, resource.projectId)}
             onOpenFile={(path) => void openKind('file', path, undefined, resource.projectId)}
+            reveal={fileReveals[resource.id]}
           />
         );
       case 'file-browser':

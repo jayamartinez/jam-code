@@ -2,32 +2,38 @@ import {
   ArrowUp,
   ChevronDown,
   File,
-  FileText,
+  FolderOpen,
   GitBranch,
-  Pencil,
   Plus,
-  Search,
   Shield,
   Square,
-  Terminal,
+  TriangleAlert,
 } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type {
   ContextItem,
   JamTransport,
   Conversation,
   Message,
-  MessageBlock,
   Presentation,
   Project,
+  ProviderDescriptor,
+  ProviderId,
   Resource,
   Session,
 } from '@jam/protocol';
 import { IconButton, Shortcut } from './Controls';
 import { PaneChrome, type PaneChromeProps } from './PaneChrome';
-import { ProviderIcon, providerName } from './icons';
+import { ProviderIcon, sessionProviderName } from './icons';
 import { ContextChip } from './ContextChip';
 import { ProjectBadge } from './ProjectBadge';
+import type { InteractionAnswer } from './InteractionCard';
+import { AgentBlocks, type BlockActions } from './TranscriptBlocks';
+import { AccessPill } from './AccessPill';
+import type { FileReference } from '../markdown/file-refs';
+import { ContextMeter } from './ContextMeter';
+import { unavailableReason } from '../state/chat-draft';
+import { composerChoices } from './composer-model';
 
 interface ConversationProps extends Pick<
   PaneChromeProps,
@@ -42,23 +48,47 @@ interface ConversationProps extends Pick<
   snapshotTransport?: Pick<JamTransport, 'request'>;
   busy: boolean;
   shortcut: string;
+  providers: ProviderDescriptor[];
+  /** The session's options with any change the reader made since the last Send. */
+  options: Record<string, string>;
+  /** Reveal agent replies as they stream (General settings). */
+  streamReplies: boolean;
+  onOptions(options: Record<string, string>): void;
   onDraft(text: string): void;
   onSend(): void;
   onStop(): void;
-  onOpenDemo(): void;
+  onCompact(): Promise<void>;
+  onOpenReview(): void;
   onAddContext(): void;
   onPreviewContext(item: ContextItem): void;
   onRemoveContext(id: string): void;
+  onRespond(interactionId: string, answer: InteractionAnswer): Promise<void>;
+  onOpenUrl?(url: string): void;
+  onOpenFile?(path: string, line?: number): void;
+  onFileMenu?(file: FileReference, event: React.MouseEvent): void;
+  onOpenExternal?(url: string): void;
 }
 
 export function ConversationPane(props: ConversationProps) {
   const { resource, project, session, conversation } = props;
   const transcript = useRef<HTMLDivElement>(null);
+  const column = useRef<HTMLDivElement>(null);
   const follow = useRef(true);
+  // Follow the thread's height, not its messages: a reply also grows while
+  // it is revealed and when a finished turn shows its text.
   useEffect(() => {
-    if (follow.current && transcript.current)
-      transcript.current.scrollTop = transcript.current.scrollHeight;
-  }, [conversation?.messages]);
+    const element = column.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() => {
+      if (follow.current && transcript.current)
+        transcript.current.scrollTop = transcript.current.scrollHeight;
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  const demo = session?.providerId === 'mock';
+  const name = sessionProviderName(session);
+  const messages = conversation?.messages ?? [];
   return (
     <PaneChrome
       className="conversation-pane"
@@ -82,10 +112,14 @@ export function ConversationPane(props: ConversationProps) {
       }
       status={
         <span className="provider-status">
-          <span className={`status-dot ${session?.status ?? ''}`} />
-          {providerName(session?.presentation)}{' '}
-          <span className="subtle">{session?.status ?? 'idle'}</span>
-          <span className="demo-label">Mock</span>
+          <span
+            className={`status-dot ${session?.needsInput ? 'needs-input' : (session?.status ?? '')}`}
+          />
+          {name}{' '}
+          <span className="subtle">
+            {session?.needsInput ? 'needs input' : (session?.status ?? 'idle')}
+          </span>
+          {demo && <span className="demo-label">Demo</span>}
         </span>
       }
     >
@@ -98,21 +132,31 @@ export function ConversationPane(props: ConversationProps) {
             follow.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
         }}
       >
-        <div className="thread-column">
+        <div className="thread-column" ref={column}>
           {conversation ? (
-            conversation.messages.length ? (
-              conversation.messages.map((message) => (
+            messages.length ? (
+              messages.map((message, index) => (
                 <MessageView
                   key={message.id}
                   message={message}
                   session={session}
-                  onOpenDemo={props.onOpenDemo}
+                  live={
+                    session?.status === 'running' &&
+                    message.role === 'assistant' &&
+                    index === messages.length - 1
+                  }
+                  streamReplies={props.streamReplies}
+                  actions={props}
                 />
               ))
             ) : (
               <div className="empty-conversation">
                 <h2>Ready when you are.</h2>
-                <p>This is a mock conversation. Describe a task to try streaming.</p>
+                <p>
+                  {demo
+                    ? 'This is a demo conversation. Describe a task to try streaming.'
+                    : `Messages go to ${name} in this project's folder. Nothing is sent until you press Send.`}
+                </p>
               </div>
             )
           ) : (
@@ -122,40 +166,79 @@ export function ConversationPane(props: ConversationProps) {
           )}
         </div>
       </div>
-      <Composer {...props} />
+      <Composer {...props} providerId={session?.providerId} />
     </PaneChrome>
   );
 }
 
-export function Composer(
-  props: Pick<
-    ConversationProps,
-    | 'draft'
-    | 'context'
-    | 'snapshotTransport'
-    | 'busy'
-    | 'shortcut'
-    | 'onDraft'
-    | 'onSend'
-    | 'onStop'
-    | 'onAddContext'
-    | 'onPreviewContext'
-    | 'onRemoveContext'
-  > & {
-    session?: Session;
-    isNew?: boolean;
-    /** A new chat has no session yet, but already knows which agent it is for. */
-    presentation?: Presentation;
-  },
-) {
+type ComposerProps = Pick<
+  ConversationProps,
+  | 'draft'
+  | 'context'
+  | 'snapshotTransport'
+  | 'busy'
+  | 'shortcut'
+  | 'providers'
+  | 'options'
+  | 'onOptions'
+  | 'onDraft'
+  | 'onSend'
+  | 'onStop'
+  | 'onAddContext'
+  | 'onPreviewContext'
+  | 'onRemoveContext'
+> & {
+  session?: Session;
+  project?: Project;
+  isNew?: boolean;
+  /** The adapter this chat runs on; a new chat has no session yet. */
+  providerId?: ProviderId;
+  /** A new chat also knows how it is presented before it has a session. */
+  presentation?: Presentation;
+  /** New chats only: choose the agent before the first Send. */
+  onProvider?(providerId: ProviderId): void;
+  onCompact?(): Promise<void>;
+};
+
+/** Options shown as composer pills; the rest live where they belong. */
+const PILL_OPTIONS = new Set(['access']);
+
+export function Composer(props: ComposerProps) {
   const running = props.session?.status === 'running';
+  const providerId = props.providerId ?? props.session?.providerId;
+  const descriptor = props.providers.find((provider) => provider.id === providerId);
+  const demo = providerId === 'mock';
+  const name = descriptor?.name ?? sessionProviderName(props.session);
+  const reported =
+    props.session?.model && props.session.model !== 'Default model'
+      ? props.session.model
+      : undefined;
+  const choices = composerChoices(descriptor, props.options, reported);
+  const pills = choices.options.filter((option) => PILL_OPTIONS.has(option.id));
+  const blocked = demo
+    ? null
+    : !props.project?.paths?.length
+      ? 'Add a folder to this project in its details. Agents run in the project’s folder.'
+      : props.isNew
+        ? unavailableReason(descriptor)
+        : null;
+  const set = (key: string, value: string) => props.onOptions({ ...props.options, [key]: value });
+  const switchable = props.isNew
+    ? props.providers.filter((provider) => provider.enabled || provider.id === providerId)
+    : [];
+  const glyph = (
+    <ProviderIcon
+      providerId={providerId}
+      presentation={props.session?.presentation ?? props.presentation}
+    />
+  );
   return (
     <div className="composer-area">
       <form
         className="composer"
         onSubmit={(event) => {
           event.preventDefault();
-          props.onSend();
+          if (!blocked) props.onSend();
         }}
       >
         {!!props.context.length && (
@@ -175,10 +258,12 @@ export function Composer(
           aria-label="Message"
           placeholder={
             running
-              ? 'Draft a follow-up while Mock works…'
+              ? `Draft a follow-up while ${name} works…`
               : props.isNew
                 ? 'Describe a task, paste an error, or add context…'
-                : 'Reply, or try /fail to test a failed turn…'
+                : demo
+                  ? 'Reply, or try /fail, /approval or /question…'
+                  : `Reply to ${name}…`
           }
           value={props.draft}
           onChange={(event) => props.onDraft(event.target.value)}
@@ -188,55 +273,133 @@ export function Composer(
           onKeyDown={(event) => {
             if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
               event.preventDefault();
-              if (!running && !props.busy) props.onSend();
+              if (!running && !props.busy && !blocked) props.onSend();
             }
           }}
         />
         <div className="composer-toolbar">
-          <IconButton label="Add demo context" onClick={props.onAddContext}>
-            <Plus size={15} />
-          </IconButton>
-          <span className="model-label">
-            <ProviderIcon presentation={props.session?.presentation ?? props.presentation} />
-            Demo model
-          </span>
-          <button
-            className="composer-option"
-            disabled
-            title="Model selection requires a live provider"
-          >
-            <ChevronDown size={10} />
-          </button>
-          <button
-            className="composer-option"
-            disabled
-            title="Reasoning effort is not available for Mock"
-          >
-            High effort
-            <ChevronDown size={10} />
-          </button>
-          <span className="composer-policy">
-            <Shield size={12} />
-            No tools execute
-          </span>
+          <div className="composer-choices">
+            {demo && (
+              <IconButton label="Add demo context" onClick={props.onAddContext}>
+                <Plus size={15} />
+              </IconButton>
+            )}
+            {switchable.length > 1 && (
+              <div className="provider-switch" role="radiogroup" aria-label="Agent">
+                {switchable.map((provider) => {
+                  const reason = unavailableReason(provider);
+                  return (
+                    <button
+                      key={provider.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={provider.id === providerId}
+                      className={`provider-choice ${provider.id === providerId ? 'selected' : ''} ${reason ? 'unavailable' : ''}`}
+                      title={reason ?? provider.name}
+                      onClick={() => props.onProvider?.(provider.id)}
+                    >
+                      <ProviderIcon providerId={provider.id} />
+                      {provider.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {demo ? (
+              <span className="composer-pill static">
+                {glyph}
+                Demo model
+              </span>
+            ) : choices.models.length ? (
+              <OptionSelect
+                label="Model"
+                className="composer-pill strong"
+                icon={switchable.length > 1 ? undefined : glyph}
+                value={choices.model}
+                values={choices.models}
+                disabled={props.busy}
+                onChange={(value) => {
+                  const next: Record<string, string> = { ...props.options, model: value };
+                  if (!value) delete next.model;
+                  // An effort the new model does not offer is dropped.
+                  if (
+                    next.effort &&
+                    !composerChoices(descriptor, next).efforts.some((e) => e.value === next.effort)
+                  )
+                    delete next.effort;
+                  props.onOptions(next);
+                }}
+              />
+            ) : (
+              switchable.length <= 1 && (
+                <span className="composer-pill static strong">
+                  {glyph}
+                  {props.session?.model ?? name}
+                </span>
+              )
+            )}
+            {!demo && choices.efforts.length > 0 && (
+              <OptionSelect
+                label="Effort"
+                className="composer-pill"
+                value={choices.effort}
+                values={choices.efforts}
+                disabled={props.busy}
+                onChange={(value) => {
+                  const next = { ...props.options };
+                  if (value) next.effort = value;
+                  else delete next.effort;
+                  props.onOptions(next);
+                }}
+              />
+            )}
+            {demo ? (
+              <span className="composer-pill static policy">
+                <Shield size={12} />
+                No tools execute
+              </span>
+            ) : (
+              // A new chat shows access in its footer, as in the design.
+              !props.isNew &&
+              pills.map((option) => (
+                <AccessPill
+                  key={option.id}
+                  value={option.value}
+                  values={option.values}
+                  disabled={props.busy}
+                  onChange={(value) => set(option.id, value)}
+                />
+              ))
+            )}
+          </div>
           <span className="composer-spacer" />
+          {!props.isNew && !demo && props.onCompact && (
+            <ContextMeter
+              usage={props.session?.usage}
+              provider={descriptor}
+              options={props.options}
+              running={running}
+              onOptions={props.onOptions}
+              onCompact={props.onCompact}
+            />
+          )}
           {running ? (
             <button
               type="button"
               className="send-button stop-button"
               onClick={props.onStop}
-              aria-label="Stop mock turn"
-              title="Stop mock turn"
+              aria-label={`Stop ${name}`}
+              title={`Stop this turn. The ${name} session stays resumable.`}
             >
-              <Square size={10} fill="currentColor" />
+              <Square size={9} fill="currentColor" />
             </button>
           ) : (
             <button
               type="submit"
               className="send-button"
-              disabled={props.busy || (!props.draft.trim() && !props.context.length)}
+              disabled={props.busy || !!blocked || (!props.draft.trim() && !props.context.length)}
               aria-label="Send message"
-              title={`${props.shortcut}+Enter to send`}
+              title={blocked ?? `${props.shortcut}+Enter to send`}
             >
               <ArrowUp size={16} />
             </button>
@@ -244,9 +407,30 @@ export function Composer(
         </div>
         {props.isNew && (
           <div className="new-run-target">
-            <span>
-              <Shield size={11} /> Mock · no repository changes
-            </span>
+            {demo ? (
+              <span>
+                <Shield size={11} /> Demo provider · no repository changes
+              </span>
+            ) : blocked ? (
+              <span className="warning">
+                <TriangleAlert size={11} /> {blocked}
+              </span>
+            ) : (
+              <span className="new-run-choices">
+                <FolderOpen size={11} />
+                <span className="mono truncate">{props.project?.paths?.[0]}</span>
+                {pills.map((option) => (
+                  <AccessPill
+                    key={option.id}
+                    compact
+                    value={option.value}
+                    values={option.values}
+                    disabled={props.busy}
+                    onChange={(value) => set(option.id, value)}
+                  />
+                ))}
+              </span>
+            )}
             <Shortcut>{props.shortcut} ↵ send</Shortcut>
           </div>
         )}
@@ -255,14 +439,57 @@ export function Composer(
   );
 }
 
+function OptionSelect({
+  label,
+  value,
+  values,
+  onChange,
+  disabled,
+  className,
+  icon,
+}: {
+  label: string;
+  value: string;
+  values: { value: string; label: string; description?: string }[];
+  onChange(value: string): void;
+  disabled?: boolean;
+  className: string;
+  icon?: React.ReactNode;
+}) {
+  const current = values.find((item) => item.value === value);
+  return (
+    <label className={`${className} composer-select`} title={current?.description ?? label}>
+      {icon}
+      <span className="composer-select-value">{current?.label ?? label}</span>
+      <ChevronDown size={10} className="composer-chevron" />
+      <select
+        aria-label={label}
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        {values.map((item) => (
+          <option key={item.value} value={item.value}>
+            {item.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function MessageView({
   message,
   session,
-  onOpenDemo,
+  live,
+  streamReplies,
+  actions,
 }: {
   message: Message;
   session?: Session;
-  onOpenDemo(): void;
+  live: boolean;
+  streamReplies: boolean;
+  actions: BlockActions;
 }) {
   if (message.role === 'user')
     return (
@@ -286,96 +513,49 @@ function MessageView({
         <time>{formatTime(message.createdAt)}</time>
       </article>
     );
+  const demo = session?.providerId === 'mock';
   return (
     <article className="agent-message">
       <header className="agent-heading">
-        <ProviderIcon presentation={session?.presentation} />
-        <strong>Mock</strong>
-        <span>Demonstration</span>
+        <ProviderIcon presentation={session?.presentation} providerId={session?.providerId} />
+        <strong>{sessionProviderName(session)}</strong>
+        <span>
+          {live ? (
+            <Working since={message.createdAt} waiting={!!session?.needsInput} />
+          ) : demo ? (
+            'Demonstration'
+          ) : (
+            session?.model
+          )}
+        </span>
         <span className="agent-rule" />
       </header>
       <div className="agent-content">
-        {message.blocks.map((block, index) => (
-          <Block
-            key={block.type === 'tool' ? block.id : index}
-            block={block}
-            onOpenDemo={onOpenDemo}
-          />
-        ))}
+        <AgentBlocks message={message} live={live} stream={streamReplies} actions={actions} />
       </div>
     </article>
   );
 }
 
-function Block({ block, onOpenDemo }: { block: MessageBlock; onOpenDemo(): void }) {
-  if (block.type === 'text') return <p className="message-text">{block.text}</p>;
-  if (block.type === 'context')
-    return (
-      <div className="sent-context">
-        {block.items.map((item) => (
-          <span key={item.id}>
-            <File size={11} />
-            {item.label}
-          </span>
-        ))}
-      </div>
-    );
-  if (block.kind === 'read' || block.kind === 'search')
-    return (
-      <details className="tool-summary">
-        <summary>
-          {block.kind === 'read' ? <FileText size={12} /> : <Search size={12} />}
-          <span>{block.title}</span>
-          <code className="truncate">{block.detail}</code>
-        </summary>
-        <pre>{block.detail}</pre>
-      </details>
-    );
-  if (block.kind === 'edit')
-    return (
-      <div className="edit-block">
-        <div className="tool-block-header">
-          <Pencil size={12} />
-          <strong>{block.title}</strong>
-          <span className="success">
-            +{block.files?.reduce((sum, file) => sum + file.added, 0) ?? 0}
-          </span>
-          <span className="danger">
-            −{block.files?.reduce((sum, file) => sum + file.removed, 0) ?? 0}
-          </span>
-          <button onClick={onOpenDemo}>Review working tree →</button>
-        </div>
-        {block.files?.map((file, index) => (
-          <button
-            key={file.path}
-            className={`changed-file ${index === 1 ? 'highlight' : ''}`}
-            onClick={onOpenDemo}
-          >
-            <code className="truncate">{file.path}</code>
-            {index === 0 ? (
-              <span className="new-file">new</span>
-            ) : index === 1 ? (
-              <span className="open-diff">open diff</span>
-            ) : null}
-            <span className="file-count mono">
-              +{file.added} −{file.removed}
-            </span>
-          </button>
-        ))}
-      </div>
-    );
+/** "Working for 1m 12s", ticking only while a turn runs. */
+function Working({ since, waiting }: { since: string; waiting: boolean }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const seconds = Math.max(0, Math.floor((now - Date.parse(since)) / 1000));
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
   return (
-    <div className="command-block">
-      <div className="tool-block-header">
-        <Terminal size={12} />
-        <strong className="mono truncate">{block.title}</strong>
-        <span className={`tool-state ${block.status === 'failed' ? 'danger' : ''}`}>
-          <span className={`status-dot ${block.status === 'running' ? 'running' : ''}`} />
-          {block.status}
-        </span>
-      </div>
-      <pre>{block.detail}</pre>
-    </div>
+    <>
+      {waiting ? 'Waiting for you · ' : 'Working for '}
+      {hours
+        ? `${hours}h ${minutes % 60}m`
+        : minutes
+          ? `${minutes}m ${seconds % 60}s`
+          : `${seconds}s`}
+    </>
   );
 }
 

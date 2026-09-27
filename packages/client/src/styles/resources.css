@@ -578,6 +578,21 @@ span.icon-slot {
   font-size: calc(12.5px * var(--ui-scale));
   color: var(--color-text-secondary);
 }
+.context-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.context-menu-hint {
+  color: var(--color-text-faint);
+  font-size: calc(11px * var(--ui-scale));
+}
+.context-menu-rule {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--color-border);
+}
 .context-menu button:hover,
 .context-menu button:focus-visible {
   background: var(--color-accent-soft);

@@ -304,7 +304,7 @@ function ProjectDetail({
       <div className="sv-detail-group">
         <h3>
           Folders
-          <span className="sv-detail-hint">Recorded only; JAM doesn't read them yet</span>
+          <span className="sv-detail-hint">Agents and Review use the first folder</span>
         </h3>
         <div className="sv-detail-card">
           {paths.map((path, index) => (

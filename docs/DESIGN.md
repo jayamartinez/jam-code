@@ -314,7 +314,7 @@ native opener with its own permission.
 
 ## Foundation deviations and honesty
 
-Only the deterministic Mock provider runs in this milestone. Reference Claude/Codex model versions, connected plan labels and running indicators are illustrative and must not be presented as live detection. Real providers display unavailable/unknown status. Compact Demo labeling is part of chrome; browser development preview is volatile and distinct from native SQLite persistence.
+Claude Code and Codex chats are real (PROVIDERS.md). Versions, sign-in, plan labels, models, effort levels and running counts come from the providers; anything they did not report stays unknown, and a plan appears only when the CLI reported one. The demo provider is labelled Demo, draws its own dashed mark, never borrows a real provider's mark, and is off by default in the desktop app. The browser development preview is volatile, has only the demo provider, and says real providers run in the desktop app.
 
 Review is lazy-loaded and uses real Git state (ADR 0010). It retains Paper’s changed-files column, unified hunks and semantic diff colors. The shared pane header remains 42px; a compact summary and staged/unstaged controls replace illustrative agent attribution and review/commit actions. Counts load only for the selected file/version. Refresh, Stage file, Unstage file and Open file are explicit actions. Annotations and destructive actions are deferred. Terminal is real (see Terminal above) and Browser is a native-webview prototype (see Browser above). Repository picker, worktree creation, native capture and provider configuration are deferred. Disabled controls explain their state. The initial app implements shared provider Settings and reserves navigation for future pages without pretending settings were persisted.
 
@@ -327,10 +327,37 @@ enabling writes is a change of capability, not of architecture. Local folders
 found on disk are not listed in the launcher, because detecting them needs
 native folder access; the column says so instead of showing example paths.
 
-Claude Code and Codex chats in the launcher create conversations that
-_present_ as those agents while running on the deterministic mock adapter, the
-same convention the demo history already uses. The launcher says so in place,
-and provider status pills keep their `Mock` label.
+Live providers follow the Core flows frames designed for them: "8 · Context
+window popover", "9 · Approvals & access", "10 · Live activity",
+"11 · File links & web preview" and "12 · Reply states", with focus mode
+(44U-0) for the transcript's geometry.
+
+- **Turn log.** A turn's reads, searches, edits and commands are one log,
+  open while the agent works and folded to "Worked for …" with its edits and
+  commands when it ends. The agent's words between actions sit in the log;
+  the answer after the last action, the files it changed and any local server
+  stay outside.
+- **Approvals.** Waiting for the reader uses the accent, never the warning
+  colour. A pending approval always shows outside the fold, in the card of the
+  action it gates, with the change's lines and exactly the provider's choices;
+  allowing choices lead, denying ones end the row. Answered, it is one quiet
+  line in the log. Titles and reasons are the provider's own words.
+- **Access.** One pill per level: muted Ask for approval, warning Auto-accept
+  edits, danger Full access. The menu describes each level in the adapter's
+  words for that agent rather than the frame's generic copy.
+- **File links.** Project files in inline code, file links and unambiguous
+  prose (`src/a.ts`, `a.ts:20`) get a file icon, link colour and an underline.
+  Click opens beside the chat at the line; right-click opens in a tab, reveals
+  in Finder or Explorer, or copies the path.
+- **Diff previews** have no line numbers for Claude, whose edit input has none.
+- **Local servers.** A command's localhost address gets "Open web preview"
+  (JAM's browser, beside the chat) and, in the desktop app, "Open in browser".
+- **Composer.** New Chat follows frame 1a; existing chats show model, effort
+  and access pills, the context ring and Stop while running.
+- **Settings → Providers.** Frame 604-0 with live data: "Checked … ago" with a
+  refresh, version beside the name, Test connection, a status note for version
+  or sign-in warnings, and an executable override. Config directory and launch
+  arguments remain Planned. Settings → General gains Stream replies.
 
 Window buttons call injected desktop services. The shared client imports no native API. Windows controls sit right; macOS retains the host's native traffic lights with an explicit left inset in sidebar, collapsed and focus presentations, avoiding duplicate web controls. Only noninteractive titlebar space initiates native dragging. Browser preview window actions are unavailable.
 

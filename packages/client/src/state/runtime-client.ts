@@ -4,6 +4,7 @@ import type {
   JamEvent,
   JamTransport,
   Project,
+  ProviderDescriptor,
   Resource,
   Session,
   WorkspaceSnapshot,
@@ -32,7 +33,9 @@ export class RuntimeClient {
   private recent: JamEvent[] = [];
   private loading = new Map<string, symbol>();
   private metadataPending = false;
+  private metadataAgain = false;
   private bufferOverflow = false;
+  private providersChecked?: Promise<void>;
 
   constructor(readonly transport: JamTransport) {}
 
@@ -166,16 +169,7 @@ export class RuntimeClient {
             session.id === event.session.id ? event.session : session,
           )
         : [...workspace.sessions, event.session];
-      workspace = {
-        ...workspace,
-        sessions,
-        providers: workspace.providers.map((provider) => ({
-          ...provider,
-          running: sessions.some(
-            (session) => session.providerId === provider.id && session.status === 'running',
-          ),
-        })),
-      };
+      workspace = { ...workspace, sessions, providers: withRunning(workspace.providers, sessions) };
     }
     const conversations = new Map(this.state.conversations);
     const conversation = conversations.get(event.resourceId);
@@ -198,8 +192,14 @@ export class RuntimeClient {
   }
 
   private refreshMetadata() {
-    if (this.metadataPending) return;
+    // A change after an in-flight read started (a title set by the first
+    // Send) must not be lost: read once more when that read finishes.
+    if (this.metadataPending) {
+      this.metadataAgain = true;
+      return;
+    }
     this.metadataPending = true;
+    this.metadataAgain = false;
     const generation = this.generation;
     const revision = this.readRevision;
     void this.transport
@@ -220,6 +220,7 @@ export class RuntimeClient {
       )
       .finally(() => {
         this.metadataPending = false;
+        if (this.metadataAgain && generation === this.generation) this.refreshMetadata();
       });
   }
 
@@ -258,6 +259,45 @@ export class RuntimeClient {
     } finally {
       if (this.loading.get(resourceId) === token) this.loading.delete(resourceId);
     }
+  }
+
+  /**
+   * Asks the runtime to check providers once, on first need rather than at
+   * launch: checking starts each installed CLI briefly. Later calls reuse
+   * the same answer until `refreshProviders`.
+   */
+  ensureProviders(): Promise<void> {
+    this.providersChecked ??= this.loadProviders(false);
+    return this.providersChecked;
+  }
+
+  /** Checks every provider again, such as from Settings → Providers. */
+  refreshProviders(): Promise<void> {
+    this.providersChecked = this.loadProviders(true);
+    return this.providersChecked;
+  }
+
+  private async loadProviders(refresh: boolean) {
+    const generation = this.generation;
+    try {
+      const { providers } = await this.transport.request(
+        'provider.list',
+        refresh ? { refresh: true } : {},
+      );
+      if (generation === this.generation) this.updateProviders(providers);
+    } catch (error) {
+      this.providersChecked = undefined;
+      if (generation === this.generation) this.reportError(error);
+    }
+  }
+
+  /** Reflect provider descriptors the runtime just returned. */
+  updateProviders(providers: ProviderDescriptor[]) {
+    const workspace = this.state.workspace;
+    if (!workspace) return;
+    this.update({
+      workspace: { ...workspace, providers: withRunning(providers, workspace.sessions) },
+    });
   }
 
   /** Reflect a project the runtime just updated without a full reread. */
@@ -311,6 +351,16 @@ export class RuntimeClient {
       conversations,
     });
   }
+}
+
+/** Running is derived from sessions, the one authority for it. */
+function withRunning(providers: ProviderDescriptor[], sessions: Session[]): ProviderDescriptor[] {
+  return providers.map((provider) => {
+    const runningCount = sessions.filter(
+      (session) => session.providerId === provider.id && session.status === 'running',
+    ).length;
+    return { ...provider, running: runningCount > 0, runningCount };
+  });
 }
 
 export function applyEvent(conversation: Conversation, event: JamEvent): Conversation {

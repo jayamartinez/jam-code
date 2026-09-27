@@ -19,11 +19,22 @@ export function installationCell(provider: ProviderDescriptor): StatusCell {
     case 'builtin':
       return { label: 'Built in', detail: 'part of JAM', tone: 'success' };
     case 'installed':
-      return { label: 'Installed', detail: 'found on this computer', tone: 'success' };
+      return {
+        label: 'Installed',
+        detail:
+          provider.executableSource === 'override'
+            ? 'at the path set here'
+            : 'found on this computer',
+        tone: 'success',
+      };
     case 'missing':
-      return { label: 'Not installed', detail: 'CLI not found', tone: 'warning' };
+      return {
+        label: provider.executableOverride ? 'Not found' : 'Not installed',
+        detail: provider.executableOverride ? 'the path set here is not runnable' : 'CLI not found',
+        tone: 'warning',
+      };
     default:
-      return { label: 'Unknown', detail: 'not checked', tone: 'muted' };
+      return { label: 'Unknown', detail: 'not checked yet', tone: 'muted' };
   }
 }
 
@@ -31,26 +42,35 @@ export function authenticationCell(provider: ProviderDescriptor): StatusCell {
   switch (provider.authentication) {
     case 'not-required':
       return { label: 'Not required', detail: 'no sign-in', tone: 'success' };
-    case 'authenticated':
-      return { label: 'Signed in', detail: 'by its own CLI', tone: 'success' };
+    case 'authenticated': {
+      // A plan appears only when the provider itself reported one.
+      const account = [provider.account?.method, provider.account?.plan]
+        .filter(Boolean)
+        .join(' · ');
+      return { label: 'Signed in', detail: account || 'by its own CLI', tone: 'success' };
+    }
     case 'unauthenticated':
-      return { label: 'Signed out', detail: 'sign in with its CLI', tone: 'warning' };
+      return { label: 'Signed out', detail: 'sign in with its own CLI', tone: 'warning' };
     default:
-      return { label: 'Unknown', detail: 'not checked', tone: 'muted' };
+      return { label: 'Unknown', detail: 'not checked yet', tone: 'muted' };
   }
 }
 
 export function enabledCell(provider: ProviderDescriptor): StatusCell {
-  if (!provider.enabled)
-    return { label: 'Unavailable', detail: 'not connected yet', tone: 'muted' };
+  if (!provider.enabled) return { label: 'Off', detail: 'hidden from new chats', tone: 'muted' };
   return provider.isDefault
     ? { label: 'Default', detail: 'used for new chats', tone: 'success' }
-    : { label: 'Enabled', detail: 'can start chats', tone: 'success' };
+    : { label: 'Enabled', detail: 'shown in new chats', tone: 'success' };
 }
 
 export function runningCell(provider: ProviderDescriptor): StatusCell {
-  return provider.running
-    ? { label: 'Running', detail: 'a session is active', tone: 'accent' }
+  const count = provider.runningCount ?? (provider.running ? 1 : 0);
+  return count > 0
+    ? {
+        label: `${count} running`,
+        detail: count === 1 ? 'a turn is active' : 'turns are active',
+        tone: 'accent',
+      }
     : { label: 'Idle', detail: 'nothing running', tone: 'muted' };
 }
 
@@ -63,10 +83,15 @@ export function statusCells(provider: ProviderDescriptor): StatusCell[] {
   ];
 }
 
-/** One line under the provider's name, in the list and the detail header. */
+/** One line under the provider's name, in the list. */
 export function providerSummary(provider: ProviderDescriptor): string {
-  if (!provider.enabled) return 'Not connected yet';
-  const parts = [installationCell(provider).label];
+  if (!provider.enabled) return 'Off';
+  if (provider.installation === 'missing') return installationCell(provider).label;
+  const parts: string[] = [];
+  if (provider.installation === 'unknown') parts.push('Not checked');
+  else if (provider.authentication === 'authenticated') parts.push('Signed in');
+  else if (provider.authentication === 'unauthenticated') parts.push('Signed out');
+  else parts.push(installationCell(provider).label);
   if (provider.isDefault) parts.push('Default');
   return parts.join(' · ');
 }
@@ -76,12 +101,22 @@ export function providerDescription(provider: ProviderDescriptor): string {
     case 'mock':
       return 'Built-in demonstration · no external execution';
     case 'claude':
-      return 'Anthropic · live integration is not implemented yet';
+      return 'Anthropic · runs your installed claude CLI in each chat’s project folder';
     case 'codex':
-      return 'OpenAI · live integration is not implemented yet';
+      return 'OpenAI · runs your installed codex app-server in each chat’s project folder';
     default:
-      return 'Live integration is not implemented yet';
+      return 'Runs its installed CLI';
   }
+}
+
+/** "Checked 3m ago", from the most recent provider check. */
+export function checkedLabel(checkedAt: string | undefined, now = Date.now()): string {
+  if (!checkedAt) return 'Not checked yet';
+  const minutes = Math.floor((now - Date.parse(checkedAt)) / 60_000);
+  if (!Number.isFinite(minutes) || minutes < 1) return 'Checked just now';
+  if (minutes < 60) return `Checked ${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  return hours < 24 ? `Checked ${hours}h ago` : 'Checked over a day ago';
 }
 
 /** The default provider, else the first enabled one, else the first listed. */
@@ -103,6 +138,12 @@ export const CAPABILITY_LABELS: Record<ProviderCapability, string> = {
   userInput: 'Questions',
   images: 'Images',
   steering: 'Steering',
+  queue: 'Queued messages',
+  modelSelection: 'Models',
+  effort: 'Effort',
+  permissionModes: 'Permission modes',
+  usage: 'Usage',
+  compact: 'Compact',
 };
 
 export const CAPABILITY_STATUS: Record<CapabilitySupport['status'], string> = {
