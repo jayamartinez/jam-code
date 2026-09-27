@@ -1,5 +1,5 @@
-import type { Project, ProjectIcon, ProviderDescriptor } from '@jam/protocol';
-import type { DesktopServices } from '../../desktop';
+import type { JamTransport, Project, ProjectIcon, ProviderDescriptor } from '@jam/protocol';
+import type { DesktopServices, SnapshotHost } from '../../desktop';
 
 export type SettingsPageId =
   | 'General'
@@ -33,4 +33,8 @@ export interface SettingsPageProps {
   onUpdateProject(projectId: string, changes: ProjectChanges): Promise<void>;
   /** Moves to another Settings page, e.g. from a "Providers ›" link. */
   onNavigate(page: SettingsPageId): void;
+  /** Runtime requests for pages backed by runtime settings (Snapshots). */
+  transport: JamTransport;
+  /** Present only in the desktop app, where capture exists. */
+  snapshots?: SnapshotHost;
 }

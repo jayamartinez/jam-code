@@ -19,6 +19,9 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",
     "core:window:allow-start-dragging",
-    "core:window:allow-is-maximized"
+    "core:window:allow-is-maximized",
+    "allow-snapshot-host",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
   ]
 }

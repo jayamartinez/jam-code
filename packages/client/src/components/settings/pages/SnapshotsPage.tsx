@@ -1,11 +1,17 @@
+import { useEffect, useState } from 'react';
 import { Play, Volume2 } from 'lucide-react';
+import type { Resource, SnapshotSettings } from '@jam/protocol';
+import type { SnapshotShortcutStatus } from '../../../desktop';
+import { useSnapshots } from '../../../state/snapshots';
+import { SnapshotCard } from '../../SnapshotToast';
 import { Card, Keys, PageHeader, Planned, Row, Section, Select, Toggle } from '../controls';
 import { SNAPSHOT_SOUNDS } from '../tools-model';
+import type { SettingsPageProps } from '../types';
 
 const CAPTURE_MODES = [
-  { id: 'window', label: 'Active window' },
-  { id: 'region', label: 'Region' },
-  { id: 'screen', label: 'Full screen' },
+  { id: 'window', label: 'Active window', planned: false },
+  { id: 'region', label: 'Region', planned: true },
+  { id: 'screen', label: 'Full screen', planned: true },
 ] as const;
 
 const DESTINATIONS = [
@@ -14,43 +20,188 @@ const DESTINATIONS = [
   {
     id: 'stage',
     label: 'Stage in the last-focused chat',
-    sub: 'Added to its composer as context, for you to send.',
+    sub: 'Added to its composer as context. Never sent automatically.',
   },
 ] as const;
 
+const RETENTION = [
+  { value: '1', label: '1 day, unless sent in a chat' },
+  { value: '7', label: '7 days, unless sent in a chat' },
+  { value: '30', label: '30 days, unless sent in a chat' },
+] as const;
+
+const DESCRIPTION =
+  "Capture whatever you're looking at without leaving it, and hand it to an agent as context.";
+
 /**
- * Snapshots are designed but not built: capture needs native shortcut and
- * screen-capture work. The page shows the intended settings, all disabled,
- * and invents no files or sizes.
+ * Snapshot preferences are runtime settings; the shortcut and capture belong to
+ * the desktop host. Choices the host cannot honour yet stay visible but planned.
  */
-export default function SnapshotsPage() {
+export default function SnapshotsPage({ transport, snapshots: host }: SettingsPageProps) {
+  const [settings, setSettings] = useState<SnapshotSettings>();
+  const [status, setStatus] = useState<SnapshotShortcutStatus>();
+  const [busy, setBusy] = useState(false);
+  const [selected, setSelected] = useState<string>();
+  const [conversations, setConversations] = useState<Resource[]>([]);
+  const { snapshots, refresh, error, report } = useSnapshots(transport, host);
+
+  useEffect(() => {
+    if (!host) return;
+    let disposed = false;
+    void Promise.all([
+      transport.request('snapshot.settings.get', {}),
+      host.action('status'),
+      transport.request('workspace.get', {}),
+    ])
+      .then(([next, shortcut, workspace]) => {
+        if (disposed) return;
+        setSettings(next);
+        setStatus(shortcut);
+        setConversations(
+          workspace.resources.filter((item) => item.kind === 'conversation' && item.sessionId),
+        );
+      })
+      .catch(report);
+    return () => {
+      disposed = true;
+    };
+  }, [host, transport, report]);
+
+  useEffect(() => {
+    if (!host) return;
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    const refreshStatus = () =>
+      void host
+        .action('status')
+        .then((next) => {
+          if (!disposed) setStatus(next);
+        })
+        .catch(report);
+    void host
+      .subscribe(refreshStatus)
+      .then((stop) => {
+        if (disposed) stop();
+        else unlisten = stop;
+      })
+      .catch(report);
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [host, report]);
+
+  async function update(patch: Partial<SnapshotSettings>) {
+    if (!settings || !host) return;
+    setBusy(true);
+    try {
+      setSettings(await transport.request('snapshot.settings.update', { ...settings, ...patch }));
+      setStatus(await host.action('retry'));
+    } catch (cause) {
+      report(cause);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function hostAction(action: 'retry' | 'permissions') {
+    if (!host) return;
+    try {
+      setStatus(await host.action(action));
+    } catch (cause) {
+      report(cause);
+    }
+  }
+
+  if (!host)
+    return (
+      <div className="sv-page">
+        <PageHeader
+          title="Snapshots"
+          description={DESCRIPTION}
+          aside={<Planned>Desktop app</Planned>}
+        />
+        <p className="tools-snapshot-status">
+          Active window capture is available in the macOS desktop app. Browser preview cannot
+          capture other applications.
+        </p>
+      </div>
+    );
+
+  if (!settings)
+    return (
+      <div className="sv-page">
+        <PageHeader title="Snapshots" description={DESCRIPTION} />
+        <p className="tools-snapshot-status" role="status">
+          {error || 'Loading Snapshot settings…'}
+        </p>
+      </div>
+    );
+
+  const unavailable = status?.state === 'unavailable';
+  const inbox = snapshots.filter((item) => !item.resourceId);
+  const selectedSnapshot = snapshots.find((item) => item.id === selected);
   return (
     <div className="sv-page">
       <PageHeader
         title="Snapshots"
-        description="Capture whatever you're looking at without leaving it, and hand it to an agent as context."
+        description={DESCRIPTION}
         aside={
           <>
-            <Planned />
             <span className="tools-inline-label">Enabled</span>
-            <Toggle label="Snapshots enabled" on={false} />
+            <Toggle
+              label="Snapshots enabled"
+              on={settings.enabled}
+              disabled={busy}
+              onChange={(enabled) => void update({ enabled })}
+            />
           </>
         }
       />
+      {error && (
+        <p className="tools-snapshot-status error" role="alert">
+          {error}
+        </p>
+      )}
 
       <Section label="Capture">
         <Card>
-          <Row title="Shortcut" sub="Works while JAM is in the background, without taking focus.">
+          <Row
+            title="Shortcut"
+            sub="Works while JAM is in the background. macOS needs Input Monitoring to hear the double-tap and Screen Recording to capture."
+          >
             <Keys keys={['⇧ Shift', '⇧ Shift']} />
             <span className="tools-inline-label">double-tap</span>
-            <button type="button" className="sv-button" disabled>
+            <button
+              type="button"
+              className="sv-button"
+              disabled
+              title="Other shortcuts are planned"
+            >
               Change
             </button>
           </Row>
+          <div className="tools-snapshot-shortcut">
+            <p className={`tools-snapshot-status ${unavailable ? 'error' : ''}`} role="status">
+              {status?.message}
+            </p>
+            <span>
+              <button
+                type="button"
+                className="sv-button"
+                onClick={() => void hostAction('permissions')}
+              >
+                Allow macOS permissions
+              </button>
+              <button type="button" className="sv-button" onClick={() => void hostAction('retry')}>
+                Retry shortcut
+              </button>
+            </span>
+          </div>
           <div className="sv-row tools-capture">
             <div className="sv-row-text">
               <strong>What to capture</strong>
-              <p>Hold ⌥ with the shortcut to pick a region once.</p>
+              <p>Two deliberate taps, without other keys or typing.</p>
             </div>
             <div className="tools-capture-tiles" role="radiogroup" aria-label="What to capture">
               {CAPTURE_MODES.map((mode) => (
@@ -64,6 +215,7 @@ export default function SnapshotsPage() {
                 >
                   <span className="tools-capture-picture" />
                   {mode.label}
+                  {mode.planned && <Planned />}
                 </button>
               ))}
             </div>
@@ -71,20 +223,20 @@ export default function SnapshotsPage() {
         </Card>
       </Section>
 
-      <Section label="After capture">
+      <Section label="After capture" hint="You can switch destination from the capture toast">
         <Card className="tools-destinations">
           <div role="radiogroup" aria-label="After capture">
             {DESTINATIONS.map((destination) => (
               <label
                 key={destination.id}
-                className={`tools-radio ${destination.id === 'stage' ? 'active' : ''}`}
+                className={`tools-radio ${settings.afterCapture === destination.id ? 'active' : ''}`}
               >
                 <input
                   type="radio"
                   name="snapshot-destination"
-                  checked={destination.id === 'stage'}
-                  disabled
-                  readOnly
+                  checked={settings.afterCapture === destination.id}
+                  disabled={busy}
+                  onChange={() => void update({ afterCapture: destination.id })}
                 />
                 <span>
                   <strong>{destination.label}</strong>
@@ -93,27 +245,46 @@ export default function SnapshotsPage() {
               </label>
             ))}
           </div>
-          <Row title="Also bring JAM to the front">
-            <Toggle label="Also bring JAM to the front" on={false} />
+          <Row title="Also copy to clipboard">
+            <Toggle
+              label="Also copy to clipboard"
+              on={settings.copyToClipboard}
+              disabled={busy}
+              onChange={(copyToClipboard) => void update({ copyToClipboard })}
+            />
+          </Row>
+          <Row title="Also bring JAM to the front" disabled>
+            <Planned />
+            <Toggle label="Also bring JAM to the front" on={false} disabled />
           </Row>
         </Card>
       </Section>
 
-      <Section label="Feedback">
+      <Section label="Feedback" hint="How you know a capture happened">
         <Card>
-          <Row title="Flash the captured window" sub="A quick blink over what was captured.">
-            <Toggle label="Flash the captured window" on />
+          <Row title="Flash the captured window" sub="A quick white blink over what was captured.">
+            <Toggle
+              label="Flash the captured window"
+              on={settings.flash}
+              disabled={busy}
+              onChange={(flash) => void update({ flash })}
+            />
           </Row>
           <Row
             title="Show a toast"
-            sub="Says where the snapshot went, with Undo and Change destination."
+            sub="Says where the snapshot went, with Remove and Change destination."
           >
-            <Toggle label="Show a toast" on />
+            <Toggle
+              label="Show a toast"
+              on={settings.toast}
+              disabled={busy}
+              onChange={(toast) => void update({ toast })}
+            />
           </Row>
-          <Row title="Play a sound" sub="Shutter, Tick, Pop, Soft chime, or a system sound.">
+          <Row title="Play a sound" sub="A quiet macOS tick. Choosing another sound is planned.">
             <span className="tools-sound">
               <Volume2 size={13} aria-hidden="true" />
-              <Select label="Snapshot sound" value="shutter" options={SNAPSHOT_SOUNDS} />
+              <Select label="Snapshot sound" value="tick" options={SNAPSHOT_SOUNDS} disabled />
             </span>
             <button
               type="button"
@@ -123,25 +294,75 @@ export default function SnapshotsPage() {
             >
               <Play size={11} />
             </button>
-            <Toggle label="Play a sound" on />
+            <Toggle
+              label="Play a sound"
+              on={settings.sound}
+              disabled={busy}
+              onChange={(sound) => void update({ sound })}
+            />
           </Row>
         </Card>
       </Section>
 
       <Section label="Storage">
         <Card>
-          <Row title="Keep snapshots" sub="A snapshot attached to a chat stays with that chat.">
+          <Row
+            title="Keep snapshots"
+            sub={`JAM app data · ${snapshots.length} unsent ${snapshots.length === 1 ? 'capture' : 'captures'}`}
+          >
             <Select
               label="Keep snapshots"
-              value="7d"
-              options={[{ value: '7d', label: '7 days, unless attached to a chat' }]}
+              value={String(settings.retentionDays) as '1' | '7' | '30'}
+              options={RETENTION}
+              disabled={busy}
+              onChange={(days) => void update({ retentionDays: Number(days) as 1 | 7 | 30 })}
             />
-            <button type="button" className="sv-button" disabled>
+            <button
+              type="button"
+              className="sv-button"
+              disabled={busy || !snapshots.length}
+              onClick={() =>
+                void transport
+                  .request('snapshot.cleanup', { all: true })
+                  .then(refresh)
+                  .catch(report)
+              }
+            >
               Clear now
             </button>
           </Row>
         </Card>
       </Section>
+
+      {!!inbox.length && (
+        <Section label="Inbox" hint="Captures with no chat yet. Nothing is sent.">
+          <Card className="tools-snapshot-inbox">
+            {inbox.slice(0, 50).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={item.id === selected ? 'active' : ''}
+                onClick={() => setSelected(item.id === selected ? undefined : item.id)}
+              >
+                <span className="truncate">{item.context.label}</span>
+                <small>{new Date(item.capturedAt).toLocaleString()}</small>
+              </button>
+            ))}
+          </Card>
+          {selectedSnapshot && (
+            <SnapshotCard
+              key={selectedSnapshot.id}
+              snapshot={selectedSnapshot}
+              conversations={conversations}
+              transport={transport}
+              onChanged={refresh}
+              report={report}
+              onDismiss={() => setSelected(undefined)}
+              onOpen={() => void host.action('open', selectedSnapshot.id).catch(report)}
+            />
+          )}
+        </Section>
+      )}
     </div>
   );
 }

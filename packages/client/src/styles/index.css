@@ -16,6 +16,7 @@
 @import './settings-tools.css';
 @import './settings-system.css';
 @import './settings-usage.css';
+@import './snapshots.css';
 
 :root {
   /*

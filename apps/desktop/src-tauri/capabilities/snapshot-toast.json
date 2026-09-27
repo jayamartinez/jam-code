@@ -1,0 +1,12 @@
+{
+  "identifier": "snapshot-toast",
+  "description": "Trusted local snapshot toast; no terminal, browser or general runtime mutation permissions.",
+  "webviews": ["snapshot-toast"],
+  "local": true,
+  "permissions": [
+    "allow-snapshot-host",
+    "allow-snapshot-toast-request",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
+  ]
+}

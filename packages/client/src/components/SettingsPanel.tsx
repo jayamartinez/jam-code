@@ -1,5 +1,5 @@
 import { AppWindow, Check, ChevronRight, Expand, Search, X } from 'lucide-react';
-import type { Project, ProviderDescriptor } from '@jam/protocol';
+import type { JamTransport, Project, ProviderDescriptor } from '@jam/protocol';
 import { Suspense, lazy, useState, type ComponentType } from 'react';
 import type { DesktopServices } from '../desktop';
 import { useAppearance } from '../appearance/store';
@@ -62,6 +62,8 @@ const PAGES: Record<SettingsPageId, ComponentType<SettingsPageProps>> = {
 };
 
 export function SettingsPanel({
+  transport,
+  initialPage = 'General',
   providers,
   projects,
   onUpdateProject,
@@ -72,6 +74,8 @@ export function SettingsPanel({
   onClose,
   onMode,
 }: {
+  transport: JamTransport;
+  initialPage?: SettingsPageId;
   providers: ProviderDescriptor[];
   projects: Project[];
   onUpdateProject(projectId: string, changes: ProjectChanges): Promise<void>;
@@ -82,7 +86,7 @@ export function SettingsPanel({
   onClose(): void;
   onMode(): void;
 }) {
-  const [page, setPage] = useState<SettingsPageId>('General');
+  const [page, setPage] = useState<SettingsPageId>(initialPage);
   const { error: appearanceError } = useAppearance();
   const navigation = (
     <nav className="settings-nav-sections" aria-label="Settings sections">
@@ -120,6 +124,8 @@ export function SettingsPanel({
           onIdleThreadDays={onIdleThreadDays}
           onUpdateProject={onUpdateProject}
           onNavigate={setPage}
+          transport={transport}
+          snapshots={desktop.snapshots}
         />
       </Suspense>
     </div>

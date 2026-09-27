@@ -134,8 +134,8 @@ export function ProjectEditor({
       <div className="editor-field">
         <span>Folders</span>
         <p className="editor-hint">
-          Where this project lives on disk. Recorded for now — JAM does not read these folders yet,
-          so the file browser still shows the demo tree.
+          The first folder supplies Git review and read-only files. Projects without folders keep
+          the demo file tree.
         </p>
         {paths.map((path, index) => (
           <div className="editor-path" key={index}>

@@ -1,0 +1,188 @@
+.snapshot-toast {
+  width: 400px;
+  max-width: 100%;
+  padding: 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 14px;
+  background: var(--color-surface-overlay);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: calc(12.5px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
+}
+.snapshot-toast header,
+.snapshot-toast footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.snapshot-toast header strong {
+  font-weight: 500;
+  white-space: nowrap;
+}
+.snapshot-toast header span {
+  flex: 1;
+  color: var(--color-text-subtle);
+  font-size: calc(11.5px * var(--ui-scale));
+}
+.snapshot-toast header button {
+  padding: 0;
+  color: var(--color-text-subtle);
+}
+.snapshot-accent {
+  color: var(--color-accent);
+}
+.snapshot-thumbnail {
+  height: 150px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  background: var(--color-bg-base);
+}
+.snapshot-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.snapshot-image-placeholder {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--color-text-muted);
+}
+.snapshot-destination {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-inline: 2px;
+  color: var(--color-text-subtle);
+  font-size: calc(11.5px * var(--ui-scale));
+}
+.snapshot-destination select {
+  min-width: 0;
+  max-width: 285px;
+  height: 24px;
+  color: var(--color-text-primary);
+  background: var(--color-fill);
+  border: none;
+  border-radius: 6px;
+}
+.snapshot-note {
+  height: 32px;
+  flex-shrink: 0;
+  padding: 0 10px;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 8px;
+  background: var(--color-bg-base) !important;
+}
+.snapshot-toast footer {
+  gap: 6px;
+}
+.snapshot-toast footer .button {
+  height: 30px;
+  border-radius: 8px;
+}
+.snapshot-dismiss {
+  margin-left: auto;
+  font-size: calc(12px * var(--ui-scale));
+  color: var(--color-text-muted);
+}
+.snapshot-error {
+  color: var(--color-danger);
+  font-size: calc(12px * var(--ui-scale));
+}
+.snapshot-inbox {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+.snapshot-inbox > button {
+  display: flex;
+  justify-content: space-between;
+  text-align: left;
+  padding: 8px;
+  background: var(--color-fill-subtle);
+  border-radius: 6px;
+}
+.snapshot-inbox small {
+  color: var(--color-text-subtle);
+  font-size: calc(11px * var(--ui-scale));
+}
+/* Composer chip preview: the whole capture, framed like the staged-snapshot card. */
+.context-dialog.snapshot-preview-dialog {
+  width: min(760px, calc(100vw - 96px));
+  padding: 18px 20px 16px;
+}
+.snapshot-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.snapshot-preview > header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.snapshot-preview-dialog .snapshot-preview h2 {
+  margin: 0;
+}
+.snapshot-preview-meta {
+  color: var(--color-text-subtle);
+  font-size: calc(12px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
+}
+.snapshot-preview-frame {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  max-height: 56vh;
+  aspect-ratio: 16 / 10;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-base);
+}
+.snapshot-preview-frame .snapshot-image {
+  max-height: 56vh;
+}
+.snapshot-preview-dialog .snapshot-preview-note {
+  margin: 0;
+  color: var(--color-text-body);
+}
+.snapshot-preview > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.snapshot-preview-dialog .snapshot-preview > footer p {
+  margin: 0;
+  font-size: calc(12px * var(--ui-scale));
+  line-height: calc(18px * var(--ui-scale));
+}
+.snapshot-preview-dialog .snapshot-preview > footer .button {
+  flex-shrink: 0;
+  margin-top: 0;
+}
+.context-chip {
+  position: relative;
+}
+.snapshot-chip-thumbnail {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: 240px;
+  height: 150px;
+  padding: 6px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  background: var(--color-surface-overlay);
+  z-index: 10;
+  pointer-events: none;
+}

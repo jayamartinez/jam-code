@@ -89,8 +89,30 @@ export class BrowserPreviewTransport implements JamTransport {
 
   private dispatch(request: JamRequest): RequestMap[RequestMethod]['result'] {
     switch (request.method) {
+      case 'snapshot.list':
+      case 'snapshot.settings.get':
+      case 'snapshot.settings.update':
+      case 'snapshot.focus':
+      case 'snapshot.stage':
+      case 'snapshot.remove':
+      case 'snapshot.asset':
+      case 'snapshot.cleanup':
+        throw new JamError('unavailable', 'Snapshots require the desktop app.');
       case 'workspace.get':
         return this.workspace;
+      case 'git.status':
+        this.requireProject(request.params.projectId);
+        return {
+          projectId: request.params.projectId,
+          state: 'unavailable',
+          detached: false,
+          unborn: false,
+          files: [],
+          truncated: false,
+        };
+      case 'git.diff':
+      case 'git.setStaged':
+        throw new JamError('unavailable', 'Git runs in the jam desktop app.');
       case 'conversation.get':
         return { ...this.getConversation(request.params.resourceId), cursor: this.cursor() };
       case 'conversation.create':

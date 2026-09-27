@@ -474,3 +474,89 @@ Single and Tiles were compared against the canonical Paper frames. Corrected tab
 A development-only issue appeared when Windows formatting briefly truncated files and Vite cached an empty transform. The watcher now waits for stable writes; the final source was formatted, rebuilt and reloaded successfully. Standard pnpm startup works through the documented npm-exec workaround for this machine's broken global pnpm launcher.
 
 Not run: macOS native build/interaction, a packaged or signed release, large-history performance benchmarks, assistive-technology testing, and developer manual testing. Tray Quit's UI interaction still needs a hands-on pass; graceful shutdown is covered in runtime tests. Mock-only integration is intentional: real providers, PTY/editor/browser services, snapshots and remote access are not implemented. No performance target is claimed from this small demo corpus.
+
+## Git / Review Changes milestone
+
+Automated temporary repositories cover detection/non-repositories, unborn and
+detached HEAD, clean/modified/index/untracked states, renames, deletions, Unicode,
+spaces/tabs/newlines and literal pathspec-looking names, binary content, conflicts,
+multiple hunks, missing final newlines, bounded status/patches, safe stage/unstage,
+scoped File-resource reads and symlink rejection. A shared JSON diff fixture checks
+the Rust/TypeScript wire shape. Client tests cover coalescing, stale folder responses,
+mutation refresh and selection surviving pane remounts.
+
+Native macOS computer-use QA used an isolated app identity/database/port and a
+throwaway repository. Review matched Git status and `+2 −1` for a text change;
+stage then unstage updated both the UI and Git index without changing working
+contents. A staged rename and Unicode untracked addition rendered correctly.
+Open file produced a separate, read-only File pane alongside Review and preserved
+the selection. Clean and non-Git folders displayed explicit empty states. Paper's
+Review frame was inspected and compared with the running surface. These are agent
+QA observations, not developer-reported testing. Windows remains unverified.
+
+Repeat locally: configure a project's first folder in project details, open Review,
+compare `git status --short` and `git diff`/`git diff --cached`, stage/unstage a
+throwaway file, and open it beside Review. Make an external edit then focus JAM or
+use Refresh. No automatic background watcher is claimed. Native directory browsing,
+real file writes, hunk mutations, discard/revert, commits and review annotations
+remain deferred; see ADR 0010.
+
+The ignored `observe_large_repository_costs` integration test is an explicit
+performance observation, run with `cargo test -p jam-runtime --test git
+observe_large_repository_costs -- --ignored --nocapture`. It creates 10,000 tracked
+files with 100 modifications and reports medians over five warm status/selected-diff
+reads. It measures a debug build and local filesystem, not a cross-platform SLA.
+The development launcher also reports the existing Tauri Rust 2.12 / JavaScript
+2.11 version mismatch; the isolated native app nevertheless built and ran. Dependency
+alignment is outside this Git milestone.
+
+## Snapshots — macOS, 2026-09-27
+
+The Snapshot branch was based on integrated main `9cfcb7d`, in an isolated
+worktree. Native QA used a separate app identifier and app-data database, an
+ad-hoc local app bundle and its own Vite port. It did not open the Appearance
+agent's app data. This is development-build evidence, not signed-release QA. Replacing the ad-hoc
+QA binary invalidated macOS grants despite enabled toggles. Resetting only its
+Input Monitoring grant, re-adding the bundle and restarting restored the active
+listener. Screen Recording was also refreshed for the same approved QA app.
+
+Frontend format/lint/types, 99 tests across 18 files and the production frontend
+build passed. Rust format, workspace check, Clippy with warnings denied and 52
+tests passed (5 host, 12 runtime unit, 15 runtime integration, 6 Snapshot storage
+integration, 14 Terminal integration). Snapshot tests cover gesture timing,
+quiet period/cooldown/reset, enabled settings, destination/inbox, metadata and
+restart, explicit-send canonical context and retry deduplication, retention,
+traversal/symlink rejection, private permissions and crash-orphan recovery.
+JPEG-shaped bytes in storage tests are opaque fixtures, not fake capture evidence.
+
+With user-approved Input Monitoring and Screen Recording, the actual app captured
+external Terminal windows at 3358×2016, approximately 1.1 MiB including thumbnail.
+The developer reported that focus stayed in the current app and visual shutter
+feedback appeared. The real images appeared as composer context in the last
+focused mock conversation. Read-only QA database checks found no sent snapshots
+and the same 18 seeded messages after capture, destination changes and removal.
+Computer use cannot synthesize modifier-only presses on this host, so the physical
+Shift Shift trigger was developer-operated.
+
+Native UI checks verified unavailable/registered/disabled shortcut states,
+re-registration, composer removal to the inbox, changing destination, saving a
+note, and Open in chat navigating to that destination. After selecting a non-agent
+review resource, the stored last-focused conversation remained unchanged. The
+shared Paper card and Settings surface were inspected in the running app. The
+three-second toast lifetime supersedes Paper's six seconds at the developer's
+request; interaction state is scoped to each capture so it cannot pause later
+captures. Captures and local QA output are excluded from Git.
+
+The developer did not hear the initial sound. A small native playback probe
+confirmed that macOS resolved Tink and started playback at 18%; the current output
+was AirPods. JAM's volume was raised to 35% without changing system settings.
+Audibility at the final level remains a hands-on check. The native flash is 120 ms.
+Idle behavior was reviewed for event-only input handling, on-demand capture and
+one-shot retention timers; no CPU/latency benchmark or broad performance claim.
+
+Not verified: Windows (explicitly unavailable), region/full-screen capture,
+ordinary key-combination registration, protected/fullscreen/multi-display window
+edge cases, Secure Input, final sound audibility, clipboard end-to-end, signed
+release permissions, and prolonged real-keyboard accidental-trigger testing.
+Automated detector tests cover typing/repeats/holds; macOS cannot enumerate
+app-local double-Shift conflicts. Provider integration remains mock-only.

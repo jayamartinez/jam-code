@@ -93,9 +93,10 @@ const providerId = oneOf('mock', 'claude', 'codex');
 
 /** Project-relative only: a client may never address a location by escape. */
 const relativePath: Check = (value) => {
-  text(512)(value);
+  text(512, true)(value);
   const candidate = value as string;
   if (
+    !candidate.length ||
     candidate.startsWith('/') ||
     candidate.startsWith('\\') ||
     candidate.includes('//') ||
@@ -360,6 +361,112 @@ const terminalSession: Check = (value) =>
   );
 const accepted: Check = (value) => shape(value, { accepted: oneOf(true) });
 
+const nullableId: Check = (value) => {
+  if (value !== null) id(value);
+};
+const snapshotSettings: Check = (value) =>
+  shape(value, {
+    enabled: boolean,
+    shortcut: (shortcut) => {
+      if (object(shortcut).kind === 'doubleShift') shape(shortcut, { kind: oneOf('doubleShift') });
+      else shape(shortcut, { kind: oneOf('keyCombination'), accelerator: text(128) });
+    },
+    captureMode: oneOf('activeWindow', 'region', 'fullScreen'),
+    afterCapture: oneOf('stage', 'save', 'clipboard'),
+    flash: boolean,
+    sound: boolean,
+    toast: boolean,
+    copyToClipboard: boolean,
+    retentionDays: oneOf(1, 7, 30),
+  });
+const snapshot: Check = (value) =>
+  shape(value, {
+    id,
+    capturedAt: integer,
+    application: text(256, true),
+    windowTitle: text(512, true),
+    width: range(1, 4096),
+    height: range(1, 4096),
+    bytes: range(1, 9_000_000),
+    resourceId: nullableId,
+    note: text(2000, true),
+    sent: boolean,
+    context,
+  });
+
+const gitChange = oneOf(
+  'none',
+  'modified',
+  'added',
+  'deleted',
+  'renamed',
+  'copied',
+  'type-changed',
+  'unmerged',
+  'untracked',
+);
+const gitSide = oneOf('staged', 'unstaged');
+const gitFile: Check = (value) =>
+  shape(
+    value,
+    {
+      path: text(4096, true),
+      staged: gitChange,
+      workingTree: gitChange,
+      untracked: boolean,
+      conflict: boolean,
+      submodule: boolean,
+    },
+    { previousPath: text(4096, true), filePath: relativePath },
+  );
+const gitStatus: Check = (value) =>
+  shape(
+    value,
+    {
+      projectId: id,
+      state: oneOf('repository', 'not-repository', 'no-folder', 'unavailable'),
+      detached: boolean,
+      unborn: boolean,
+      files: array(gitFile, 2000),
+      truncated: boolean,
+    },
+    { repositoryRoot: text(16384), branch: text(4096), head: text(128) },
+  );
+const gitDiff: Check = (value) =>
+  shape(value, {
+    projectId: id,
+    path: text(4096, true),
+    side: gitSide,
+    file: gitFile,
+    binary: boolean,
+    truncated: boolean,
+    additions: integer,
+    deletions: integer,
+    metadata: array(text(524288, true), 40),
+    hunks: array(
+      (hunk) =>
+        shape(hunk, {
+          header: text(524288),
+          oldStart: integer,
+          oldLines: integer,
+          newStart: integer,
+          newLines: integer,
+          lines: array(
+            (line) =>
+              shape(
+                line,
+                {
+                  kind: oneOf('context', 'addition', 'deletion', 'notice'),
+                  text: text(524288, true),
+                },
+                { oldLine: integer, newLine: integer },
+              ),
+            5000,
+          ),
+        }),
+      5000,
+    ),
+  });
 const hexColor: Check = (value) => {
   if (typeof value !== 'string' || !HEX_COLOR.test(value)) invalid('Expected a #rrggbb colour.');
 };
@@ -412,6 +519,17 @@ const wallpaper: Check = (value) => {
 };
 
 const params: Record<RequestMethod, Check> = {
+  'git.status': (value) => shape(value, { projectId: id }),
+  'git.diff': (value) => shape(value, { projectId: id, path: relativePath, side: gitSide }),
+  'git.setStaged': (value) => shape(value, { projectId: id, path: relativePath, staged: boolean }),
+  'snapshot.list': (v) => shape(v, {}),
+  'snapshot.settings.get': (v) => shape(v, {}),
+  'snapshot.settings.update': snapshotSettings,
+  'snapshot.focus': (v) => shape(v, { resourceId: id }),
+  'snapshot.stage': (v) => shape(v, { id, resourceId: nullableId, note: text(2000, true) }),
+  'snapshot.remove': (v) => shape(v, { id }),
+  'snapshot.asset': (v) => shape(v, { id, thumbnail: boolean }),
+  'snapshot.cleanup': (v) => shape(v, { all: boolean }),
   'workspace.get': (value) => shape(value, {}),
   'conversation.get': (value) => shape(value, { resourceId: id }),
   'conversation.create': (value) => shape(value, { projectId: id, presentation }),
@@ -475,6 +593,24 @@ const params: Record<RequestMethod, Check> = {
 };
 
 const responses: Record<RequestMethod, Check> = {
+  'git.status': gitStatus,
+  'git.diff': gitDiff,
+  'git.setStaged': gitStatus,
+  'snapshot.list': (v) => shape(v, { snapshots: array(snapshot, 500) }),
+  'snapshot.settings.get': snapshotSettings,
+  'snapshot.settings.update': snapshotSettings,
+  'snapshot.focus': accepted,
+  'snapshot.stage': snapshot,
+  'snapshot.remove': accepted,
+  'snapshot.asset': (v) =>
+    shape(v, {
+      dataUrl: (data) => {
+        text(12_000_000)(data);
+        if (!(data as string).startsWith('data:image/jpeg;base64,'))
+          invalid('Invalid snapshot image.');
+      },
+    }),
+  'snapshot.cleanup': (v) => shape(v, { removed: integer }),
   'workspace.get': workspace,
   'conversation.get': conversation,
   'conversation.create': (value) => shape(value, { resource, session, conversation }),

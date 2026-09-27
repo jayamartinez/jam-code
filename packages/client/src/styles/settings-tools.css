@@ -482,3 +482,54 @@
     align-items: stretch;
   }
 }
+
+/* Snapshots: shortcut state from the desktop host, and the unassigned inbox. */
+.tools-snapshot-shortcut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 0 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.tools-snapshot-shortcut > span {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+.tools-snapshot-status {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: calc(12px * var(--ui-scale));
+  line-height: calc(17px * var(--ui-scale));
+}
+.tools-snapshot-status.error {
+  color: var(--color-danger);
+}
+.tools-snapshot-inbox {
+  padding: 6px;
+}
+.tools-snapshot-inbox + .snapshot-toast {
+  margin-top: 12px;
+}
+.tools-snapshot-inbox > button {
+  display: flex;
+  width: 100%;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-size: calc(13px * var(--ui-scale));
+  text-align: left;
+}
+.tools-snapshot-inbox > button:hover,
+.tools-snapshot-inbox > button.active {
+  background: var(--color-fill);
+}
+.tools-snapshot-inbox small {
+  flex-shrink: 0;
+  color: var(--color-text-subtle);
+  font-size: calc(11.5px * var(--ui-scale));
+}

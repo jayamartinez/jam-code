@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-snapshot-toast-request"
+description = "Enables the snapshot_toast_request command without any pre-configured scope."
+commands.allow = ["snapshot_toast_request"]
+
+[[permission]]
+identifier = "deny-snapshot-toast-request"
+description = "Denies the snapshot_toast_request command without any pre-configured scope."
+commands.deny = ["snapshot_toast_request"]

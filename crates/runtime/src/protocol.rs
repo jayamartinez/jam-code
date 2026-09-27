@@ -22,8 +22,8 @@ pub struct Project {
     /// How the project's badge is drawn. Absent means its initials.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon: Option<ProjectIcon>,
-    /// Folders the user associates with the project. Recorded only: nothing
-    /// is read from them yet, and they are never a grant to a remote client.
+    /// Local folders: the first selects Git review and read-only files.
+    /// A future remote host must authorize project access separately.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub paths: Vec<String>,
     /// Pinned projects sort first in the sidebar.

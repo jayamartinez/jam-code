@@ -2,7 +2,7 @@
 
 JAM Code is a local-first desktop workspace for coding agents. This repository is the initial architecture and running-shell milestone: Paper-derived UI, shared product/protocol packages, a Tauri host and a Rust runtime with SQLite/FTS5.
 
-**This build uses a deterministic mock provider.** It does not call Claude/Codex, use credentials, execute displayed commands or edit project files. Native demo conversations persist locally. Browser development preview is in memory and resets on reload. Terminal is a real shell in a runtime-owned PTY (see [ADR 0006](docs/adr/0006-terminal-sessions.md)); agents never run commands in it. Browser embeds the platform webview in the desktop app only (not the web preview) and loads real pages (see [ADR 0007](docs/adr/0007-native-browser.md)). The file browser serves an isolated demo tree. Review is a static demo.
+**This build uses a deterministic mock provider.** It does not call Claude/Codex, use credentials, execute displayed commands or edit project files. Native demo conversations persist locally. Browser development preview is in memory and resets on reload. Terminal is a real shell in a runtime-owned PTY (see [ADR 0006](docs/adr/0006-terminal-sessions.md)); agents never run commands in it. Browser embeds the platform webview in the desktop app only (not the web preview) and loads real pages (see [ADR 0007](docs/adr/0007-native-browser.md)). The file browser serves an isolated demo tree. Review uses the installed Git CLI for real status, selected-file diffs and explicit file stage/unstage. Configure the project’s first folder in project details; see [ADR 0010](docs/adr/0010-git-review.md). Real files open read-only from Review.
 
 ## Run
 

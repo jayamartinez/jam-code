@@ -9,14 +9,23 @@ use std::sync::Arc;
 use tauri::{State, ipc::Channel};
 
 #[tauri::command]
-pub async fn jam_request(request: Value, host: State<'_, Host>) -> Result<Value, JamError> {
+pub async fn jam_request(
+    app: tauri::AppHandle,
+    request: Value,
+    host: State<'_, Host>,
+) -> Result<Value, JamError> {
     let request: Request = serde_json::from_value(request)
         .map_err(|_| JamError::invalid("Invalid JAM request envelope."))?;
     let runtime = Arc::clone(&host.runtime);
     // SQLite does not run on the window event loop or block Tokio's async workers.
-    tauri::async_runtime::spawn_blocking(move || runtime.request(request))
+    let method = request.method.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || runtime.request(request))
         .await
-        .map_err(|_| JamError::new("internal", "The runtime request could not complete."))?
+        .map_err(|_| JamError::new("internal", "The runtime request could not complete."))?;
+    if result.is_ok() {
+        crate::snapshots::after_request(&app, &method);
+    }
+    result
 }
 
 #[tauri::command]
