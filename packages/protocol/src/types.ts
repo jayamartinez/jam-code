@@ -129,7 +129,26 @@ export interface Session {
   providerId: ProviderId;
   presentation: Presentation;
   status: 'idle' | 'running' | 'interrupted' | 'failed';
+  /** A display label: the provider-reported model, or its default when unknown. */
   model: string;
+  /**
+   * Provider-specific choices for this session, keyed by `ProviderOption.id`
+   * plus `model` and `effort`. Values come from the provider's descriptor.
+   */
+  options?: Record<string, string>;
+  /** True while an approval or question in this session waits for the reader. */
+  needsInput?: boolean;
+  /** The last provider-reported usage. Values are the provider's own counts. */
+  usage?: SessionUsage;
+}
+
+export interface SessionUsage {
+  /** Tokens the provider reports as currently occupying the context window. */
+  contextTokens?: number;
+  contextWindow?: number;
+  /** Cumulative for the session as reported by the provider, when it does so. */
+  inputTokens?: number;
+  outputTokens?: number;
 }
 
 export type ProviderCapability =
@@ -141,11 +160,59 @@ export type ProviderCapability =
   | 'toolApproval'
   | 'userInput'
   | 'images'
-  | 'steering';
+  | 'steering'
+  | 'queue'
+  | 'modelSelection'
+  | 'effort'
+  | 'permissionModes'
+  | 'usage';
+
+export const PROVIDER_CAPABILITIES = [
+  'create',
+  'resume',
+  'fork',
+  'interrupt',
+  'streaming',
+  'toolApproval',
+  'userInput',
+  'images',
+  'steering',
+  'queue',
+  'modelSelection',
+  'effort',
+  'permissionModes',
+  'usage',
+] as const satisfies readonly ProviderCapability[];
 
 export interface CapabilitySupport {
   status: 'supported' | 'unsupported' | 'unknown' | 'conditional';
   reason?: string;
+}
+
+/** A model the provider itself reported. Never a hardcoded marketing list. */
+export interface ProviderModel {
+  id: string;
+  label: string;
+  description?: string;
+  isDefault?: boolean;
+  /** Reasoning effort values this model accepts, as the provider names them. */
+  efforts?: string[];
+  defaultEffort?: string;
+  /** Whether the provider says this model accepts image input. */
+  images?: 'supported' | 'unsupported' | 'unknown';
+}
+
+/**
+ * One provider-specific setting (a permission mode, a sandbox). Values and
+ * their meaning are the provider's own; JAM never maps one provider's
+ * policy onto another's.
+ */
+export interface ProviderOption {
+  id: string;
+  label: string;
+  description?: string;
+  values: { value: string; label: string; description?: string }[];
+  default: string;
 }
 
 /** These states are independent; installation is not proof of authentication. */
@@ -158,6 +225,26 @@ export interface ProviderDescriptor {
   isDefault: boolean;
   running: boolean;
   capabilities: Record<ProviderCapability, CapabilitySupport>;
+  /** Sessions currently running a turn. */
+  runningCount?: number;
+  /** The installed CLI's version, as it reports it. */
+  version?: string;
+  /** Resolved executable, for display. */
+  executable?: string;
+  /** How the executable was chosen. */
+  executableSource?: 'detected' | 'override';
+  /** The override saved in Settings, when there is one. */
+  executableOverride?: string;
+  /** A problem or note from the last check, such as an untested version. */
+  status?: { tone: 'info' | 'warning' | 'error'; message: string };
+  /** Only what the provider itself reports; absent means unknown. */
+  account?: { method?: string; plan?: string };
+  models?: ProviderModel[];
+  options?: ProviderOption[];
+  /** Saved defaults for new chats, keyed like `Session.options`. */
+  defaults?: Record<string, string>;
+  /** When JAM last asked the provider. Absent means not checked yet. */
+  checkedAt?: string;
 }
 
 export interface ContextItem {
@@ -187,18 +274,63 @@ export interface FileChange {
   removed: number;
 }
 
+export type ToolKind = 'read' | 'search' | 'edit' | 'command' | 'tool' | 'web' | 'agent';
+
+export interface InteractionChoice {
+  id: string;
+  label: string;
+  /** How the choice is drawn. Semantics stay with the provider. */
+  tone: 'allow' | 'deny' | 'neutral';
+}
+
+export interface InteractionQuestion {
+  id: string;
+  header?: string;
+  question: string;
+  options: { label: string; description?: string }[];
+  multiSelect: boolean;
+  /** Whether a free-text answer is accepted in addition to the options. */
+  allowOther: boolean;
+}
+
+/**
+ * A provider asking the reader: a tool permission or a question. It has its
+ * own JAM ID; the provider's request ID never leaves the runtime. Choices are
+ * exactly those the provider offers for this request.
+ */
+export interface Interaction {
+  id: string;
+  kind: 'command' | 'file-change' | 'tool' | 'question' | 'plan';
+  title: string;
+  detail?: string;
+  reason?: string;
+  choices: InteractionChoice[];
+  questions?: InteractionQuestion[];
+  /**
+   * `expired` means the provider can no longer receive an answer (it exited
+   * or JAM restarted); `cancelled` means the turn was interrupted or the
+   * provider withdrew the request.
+   */
+  status: 'pending' | 'resolved' | 'cancelled' | 'expired';
+  /** What was answered, for the transcript. */
+  outcome?: string;
+}
+
 export type MessageBlock =
   | { type: 'text'; text: string }
+  | { type: 'reasoning'; text: string }
   | {
       type: 'tool';
       id: string;
-      kind: 'read' | 'search' | 'edit' | 'command';
+      kind: ToolKind;
       title: string;
       detail: string;
       status: 'running' | 'completed' | 'failed';
       files?: FileChange[];
     }
-  | { type: 'context'; items: ContextItem[] };
+  | { type: 'context'; items: ContextItem[] }
+  | { type: 'interaction'; interaction: Interaction }
+  | { type: 'notice'; tone: 'info' | 'warning' | 'error'; text: string };
 
 export interface Message {
   id: string;
@@ -243,12 +375,51 @@ export interface RequestMap
   'workspace.get': { params: Record<string, never>; result: WorkspaceSnapshot };
   'conversation.get': { params: { resourceId: string }; result: Conversation };
   'conversation.create': {
-    params: { projectId: string; presentation: Presentation };
+    params: {
+      projectId: string;
+      presentation: Presentation;
+      /** The adapter that runs it. Absent means the demo provider. */
+      providerId?: ProviderId;
+      options?: Record<string, string>;
+    };
     result: { resource: Resource; session: Session; conversation: Conversation };
   };
   'turn.start': {
-    params: { resourceId: string; text: string; context: ContextItem[]; requestId: string };
+    params: {
+      resourceId: string;
+      text: string;
+      context: ContextItem[];
+      requestId: string;
+      /** Changes model/effort/provider options from this turn on. */
+      options?: Record<string, string>;
+    };
     result: { accepted: true; sessionId: string; requestId: string };
+  };
+  'provider.list': {
+    /** `refresh` asks every provider again; otherwise the last check is reused. */
+    params: { refresh?: boolean };
+    result: { providers: ProviderDescriptor[] };
+  };
+  'provider.configure': {
+    params: {
+      providerId: ProviderId;
+      enabled?: boolean;
+      isDefault?: boolean;
+      /** An executable path; the empty string returns to automatic detection. */
+      executable?: string;
+      defaults?: Record<string, string>;
+    };
+    result: { providers: ProviderDescriptor[] };
+  };
+  'interaction.respond': {
+    params: {
+      resourceId: string;
+      interactionId: string;
+      choiceId?: string;
+      /** Question ID to the chosen option labels or free text. */
+      answers?: Record<string, string[]>;
+    };
+    result: { accepted: true };
   };
   'turn.interrupt': {
     params: { sessionId: string };

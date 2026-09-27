@@ -1,5 +1,5 @@
 import { JamError } from './errors';
-import { OPENABLE_KINDS, PROJECT_ICONS } from './types';
+import { OPENABLE_KINDS, PROJECT_ICONS, PROVIDER_CAPABILITIES } from './types';
 import { TERMINAL_LIMITS } from './terminal';
 import { SNAPSHOT_KEY_COMBINATIONS } from './snapshots';
 import {
@@ -179,15 +179,36 @@ const resource: Check = (value) =>
       closeSuggestionDismissedAt: timestamp,
     },
   );
+/** Provider option choices: a few short keys and values, never free-form data. */
+const optionKey = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/;
+const optionMap: Check = (value) => {
+  const record = object(value);
+  const keys = Object.keys(record);
+  if (keys.length > 32) invalid('Too many provider options.');
+  for (const key of keys) {
+    if (!optionKey.test(key)) invalid('Invalid provider option name.');
+    text(256)(record[key]);
+  }
+};
+const usage: Check = (value) =>
+  shape(
+    value,
+    {},
+    { contextTokens: integer, contextWindow: integer, inputTokens: integer, outputTokens: integer },
+  );
 const session: Check = (value) =>
-  shape(value, {
-    id,
-    resourceId: id,
-    providerId,
-    presentation,
-    status: oneOf('idle', 'running', 'interrupted', 'failed'),
-    model: text(256),
-  });
+  shape(
+    value,
+    {
+      id,
+      resourceId: id,
+      providerId,
+      presentation,
+      status: oneOf('idle', 'running', 'interrupted', 'failed'),
+      model: text(256),
+    },
+    { options: optionMap, needsInput: boolean, usage },
+  );
 
 const support: Check = (value) =>
   shape(
@@ -195,28 +216,65 @@ const support: Check = (value) =>
     { status: oneOf('supported', 'unsupported', 'unknown', 'conditional') },
     { reason: text(2048) },
   );
+const tristate = oneOf('supported', 'unsupported', 'unknown');
+const providerModel: Check = (value) =>
+  shape(
+    value,
+    { id: text(256), label: text(256) },
+    {
+      description: text(2048, true),
+      isDefault: boolean,
+      efforts: array(text(64), 16),
+      defaultEffort: text(64),
+      images: tristate,
+    },
+  );
+const providerOption: Check = (value) => {
+  shape(
+    value,
+    {
+      id: text(64),
+      label: text(256),
+      values: array(
+        (choice) =>
+          shape(choice, { value: text(256), label: text(256) }, { description: text(2048, true) }),
+        32,
+      ),
+      default: text(256),
+    },
+    { description: text(2048, true) },
+  );
+  if (!optionKey.test(object(value).id as string)) invalid('Invalid provider option name.');
+};
 const provider: Check = (value) =>
-  shape(value, {
-    id: providerId,
-    name: text(256),
-    installation: oneOf('installed', 'missing', 'unknown', 'builtin'),
-    authentication: oneOf('authenticated', 'unauthenticated', 'unknown', 'not-required'),
-    enabled: boolean,
-    isDefault: boolean,
-    running: boolean,
-    capabilities: (capabilities) =>
-      shape(capabilities, {
-        create: support,
-        resume: support,
-        fork: support,
-        interrupt: support,
-        streaming: support,
-        toolApproval: support,
-        userInput: support,
-        images: support,
-        steering: support,
-      }),
-  });
+  shape(
+    value,
+    {
+      id: providerId,
+      name: text(256),
+      installation: oneOf('installed', 'missing', 'unknown', 'builtin'),
+      authentication: oneOf('authenticated', 'unauthenticated', 'unknown', 'not-required'),
+      enabled: boolean,
+      isDefault: boolean,
+      running: boolean,
+      capabilities: (capabilities) =>
+        shape(capabilities, Object.fromEntries(PROVIDER_CAPABILITIES.map((key) => [key, support]))),
+    },
+    {
+      runningCount: integer,
+      version: text(128),
+      executable: text(4096),
+      executableSource: oneOf('detected', 'override'),
+      executableOverride: text(4096),
+      status: (status) =>
+        shape(status, { tone: oneOf('info', 'warning', 'error'), message: text(2048) }),
+      account: (account) => shape(account, {}, { method: text(128), plan: text(128) }),
+      models: array(providerModel, 200),
+      options: array(providerOption, 16),
+      defaults: optionMap,
+      checkedAt: timestamp,
+    },
+  );
 
 const context: Check = (value) =>
   shape(
@@ -242,6 +300,48 @@ const context: Check = (value) =>
 
 const fileChange: Check = (value) =>
   shape(value, { path: text(4096), added: integer, removed: integer });
+const interaction: Check = (value) =>
+  shape(
+    value,
+    {
+      id,
+      kind: oneOf('command', 'file-change', 'tool', 'question', 'plan'),
+      title: text(512),
+      choices: array(
+        (choice) =>
+          shape(choice, {
+            id: text(64),
+            label: text(256),
+            tone: oneOf('allow', 'deny', 'neutral'),
+          }),
+        8,
+      ),
+      status: oneOf('pending', 'resolved', 'cancelled', 'expired'),
+    },
+    {
+      detail: text(100_000, true),
+      reason: text(4096, true),
+      outcome: text(4096, true),
+      questions: array(
+        (question) =>
+          shape(
+            question,
+            {
+              id: text(64),
+              question: text(4096),
+              options: array(
+                (option) => shape(option, { label: text(512) }, { description: text(2048, true) }),
+                16,
+              ),
+              multiSelect: boolean,
+              allowOther: boolean,
+            },
+            { header: text(256, true) },
+          ),
+        8,
+      ),
+    },
+  );
 const block: Check = (value) => {
   const record = object(value);
   switch (record.type) {
@@ -249,19 +349,29 @@ const block: Check = (value) => {
       return shape(value, { type: oneOf('text'), text: text(200_000, true) });
     case 'context':
       return shape(value, { type: oneOf('context'), items: array(context, 16) });
+    case 'reasoning':
+      return shape(value, { type: oneOf('reasoning'), text: text(200_000, true) });
     case 'tool':
       return shape(
         value,
         {
           type: oneOf('tool'),
-          id,
-          kind: oneOf('read', 'search', 'edit', 'command'),
+          id: text(256),
+          kind: oneOf('read', 'search', 'edit', 'command', 'tool', 'web', 'agent'),
           title: text(512),
           detail: text(100_000, true),
           status: oneOf('running', 'completed', 'failed'),
         },
         { files: array(fileChange, 1000) },
       );
+    case 'interaction':
+      return shape(value, { type: oneOf('interaction'), interaction });
+    case 'notice':
+      return shape(value, {
+        type: oneOf('notice'),
+        tone: oneOf('info', 'warning', 'error'),
+        text: text(20_000),
+      });
     default:
       return invalid('Unknown message block.');
   }
@@ -538,14 +648,46 @@ const params: Record<RequestMethod, Check> = {
   'snapshot.cleanup': (v) => shape(v, { all: boolean }),
   'workspace.get': (value) => shape(value, {}),
   'conversation.get': (value) => shape(value, { resourceId: id }),
-  'conversation.create': (value) => shape(value, { projectId: id, presentation }),
+  'conversation.create': (value) =>
+    shape(value, { projectId: id, presentation }, { providerId, options: optionMap }),
+  'provider.list': (value) => shape(value, {}, { refresh: boolean }),
+  'provider.configure': (value) =>
+    shape(
+      value,
+      { providerId },
+      { enabled: boolean, isDefault: boolean, executable: text(4096, true), defaults: optionMap },
+    ),
+  'interaction.respond': (value) => {
+    shape(
+      value,
+      { resourceId: id, interactionId: id },
+      {
+        choiceId: text(64),
+        answers: (answers) => {
+          const record = object(answers);
+          if (Object.keys(record).length > 8) invalid('Too many answers.');
+          for (const [key, list] of Object.entries(record)) {
+            text(64)(key);
+            array(text(4096), 16)(list);
+          }
+        },
+      },
+    );
+    const record = object(value);
+    if ((record.choiceId === undefined) === (record.answers === undefined))
+      invalid('Answer with a choice or with answers.');
+  },
   'turn.start': (value) => {
-    shape(value, {
-      resourceId: id,
-      text: text(20_000, true),
-      context: array(context, 16),
-      requestId: id,
-    });
+    shape(
+      value,
+      {
+        resourceId: id,
+        text: text(20_000, true),
+        context: array(context, 16),
+        requestId: id,
+      },
+      { options: optionMap },
+    );
     const record = object(value);
     if (!(record.text as string).trim() && !(record.context as unknown[]).length) {
       invalid('A turn needs text or staged context.');
@@ -621,6 +763,9 @@ const responses: Record<RequestMethod, Check> = {
   'conversation.get': conversation,
   'conversation.create': (value) => shape(value, { resource, session, conversation }),
   'turn.start': (value) => shape(value, { accepted: oneOf(true), sessionId: id, requestId: id }),
+  'provider.list': (value) => shape(value, { providers: array(provider, 20) }),
+  'provider.configure': (value) => shape(value, { providers: array(provider, 20) }),
+  'interaction.respond': accepted,
   'turn.interrupt': (value) => shape(value, { sessionId: id, interrupted: boolean }),
   'directory.list': directoryListing,
   'file.read': fileContents,

@@ -15,8 +15,12 @@ export function searchDocument(resource: Resource, conversation: Conversation): 
     resource.title,
     ...conversation.messages.flatMap((message) =>
       message.blocks.map((block) => {
-        if (block.type === 'text') return block.text;
+        if (block.type === 'text' || block.type === 'notice') return block.text;
+        // A reasoning summary is the provider's, not something said to the reader.
+        if (block.type === 'reasoning') return '';
         if (block.type === 'context') return block.items.map((item) => item.label).join(' ');
+        if (block.type === 'interaction')
+          return [block.interaction.title, block.interaction.detail ?? ''].join(' ');
         return [block.title, block.detail, ...(block.files?.map((file) => file.path) ?? [])].join(
           ' ',
         );
