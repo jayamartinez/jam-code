@@ -1,48 +1,114 @@
 # Provider integration boundary
 
-JAM is a client for locally installed coding agents, not an inference reseller or a terminal wrapper. The foundation executes only the deterministic mock adapter. Claude Code and Codex names in demo conversations describe presentation; their actual `providerId` is `mock`. No live provider is connected, no provider credentials are read, and demo tool activity never executes commands or changes files.
+JAM is a client for locally installed coding agents, not an inference reseller, a hosted proxy or a terminal wrapper. It runs the Claude Code and Codex CLIs the user already installed and signed in to, through their structured interfaces, and presents their work as normalized JAM conversations. A deterministic demo provider remains for tests, development and the browser preview. See [ADR 0011](adr/0011-live-providers.md).
 
-## Research baseline
+JAM's structured integrations and JAM Terminal are independent. `claude` or `codex` typed in a Terminal is an ordinary terminal process; JAM does not intercept, detect or convert it.
 
-Integration research was checked on 2026-09-25 against installed CLI help (Codex CLI 0.157.0 and Claude Code 2.1.283) and official documentation. Installed versions are observations, not compatibility promises or dependencies. Before implementing a real adapter, record its tested version range and capture representative protocol fixtures from that version. Models, effort values, plan labels and available features must come from provider discovery, not this document or hardcoded marketing names.
+## Research baseline (2026-09-27)
+
+Checked against the CLIs installed on the development machine and current public documentation. Installed versions are observations, not compatibility promises; the adapters record the version they were tested with and warn when an older one is found. Models, effort levels, plan labels and account methods come from provider discovery at run time, never from this document.
+
+| Provider    | Tested version  | Interface JAM uses                                                      |
+| ----------- | --------------- | ----------------------------------------------------------------------- |
+| Claude Code | 2.1.283         | `claude` stream-json stdio with the control protocol (below)            |
+| Codex       | codex-cli 0.157 | `codex app-server` JSON-RPC over stdio, stable surface (no experiments) |
 
 ### Codex
 
-Use a runtime-owned `codex app-server` process with stdio JSONL. Its bidirectional JSON-RPC-style protocol separates threads, turns and items. Initialize each connection before issuing commands. Native methods cover starting/resuming/forking threads, starting/steering/interruption of turns, model discovery and account inspection. Notifications carry incremental text and completed items; completed items are authoritative. Server-initiated approval requests need correlated replies with the decisions and scope the provider offers. Codex-managed authentication keeps tokens outside JAM. Generate schemas using the installed CLI and keep experimental API opt-in disabled unless a specific tested feature needs it. WebSocket transport remains experimental; the local JAM foundation does not expose it. Enterprise integrations should also verify client registration expectations. See [official app-server documentation](https://learn.chatgpt.com/docs/app-server).
+`codex app-server` speaks JSON-RPC 2.0 over stdio lines **without** the `"jsonrpc"` field. JAM sends `initialize` (client `jam`, `experimentalApi: false`, and it opts out of `remoteControl/status/changed`, which carries host and installation identifiers), then `initialized`. The whole surface JAM needs is stable:
+
+- Account: `account/read {refreshToken:false}` → signed in or out, sign-in kind and a provider-reported plan. Email and account identifiers are dropped at the adapter. `getAuthStatus` is never called with `includeToken`.
+- Models: `model/list` (paginated) → id, display name, default, `supportedReasoningEfforts`, `defaultReasoningEffort` and `inputModalities` (image support).
+- Threads: `thread/start` and `thread/resume` (falling back to a new thread, with a visible notice, when Codex no longer has it). `thread/fork`, `thread/read` and `thread/list` exist and are the seam for provider history (not used yet).
+- Turns: `turn/start` (text, `localImage`), `turn/interrupt`. The `turn/start` result only acknowledges; the turn ends at `turn/completed` with `completed`, `interrupted` or `failed`. `turn/steer` exists; JAM does not offer steering yet.
+- Items: `item/started`, deltas (`item/agentMessage/delta`, reasoning summary deltas, command output deltas, `item/fileChange/patchUpdated`) and `item/completed`, which is authoritative and replaces what deltas built.
+- Approvals: `item/commandExecution/requestApproval` and `item/fileChange/requestApproval` answered with `accept`, `acceptForSession`, `decline`, `cancel` or, when Codex proposes one, `acceptWithExecpolicyAmendment`; `item/permissions/requestApproval` answered with a turn or session grant or an empty denial. `serverRequest/resolved` withdraws a request. Every server request is answered: unknown ones get a JSON-RPC error and MCP elicitations are declined with a notice, so Codex is never left waiting on JAM.
+- Questions: `item/tool/requestUserInput` is experimental; JAM keeps `experimentalApi` off, so Codex questions are reported as unsupported.
+- Usage: `thread/tokenUsage/updated` → context tokens, context window and cumulative input/output.
+
+Sources: [App Server documentation](https://developers.openai.com/codex/app-server) and the JSON Schema/TypeScript generated by `codex app-server generate-json-schema` / `generate-ts` from the installed binary. The protocol is labelled experimental upstream and drifts between releases (for example `on-failure` approval and `thread/rollback` were removed); the adapter tolerates unknown fields, items and notifications.
 
 ### Claude Code
 
-**Subscription reuse is unresolved for JAM.** Anthropic's [Agent SDK overview](https://code.claude.com/docs/en/agent-sdk/overview) says third-party products may not offer claude.ai login or rate limits without prior approval. Its [credential policy](https://code.claude.com/docs/en/legal-and-compliance) prohibits third-party developers routing users' subscription credentials or collecting/intermediating session tokens. A detected, signed-in CLI is not sufficient evidence that a third-party product may reuse its subscription. Resolve permission with Anthropic before promising that experience. API-key or supported cloud-provider authentication is a documented alternative; JAM must not silently change the user's billing arrangement.
+The official Claude Agent SDK is a proprietary package that starts the user's `claude` executable with `--output-format stream-json --verbose --input-format stream-json` and speaks a stdio control protocol with it. JAM speaks that same documented CLI interface directly from the Rust runtime; it does not bundle or copy the SDK. The process is started with:
 
-The official Agent SDK's [streaming input mode](https://code.claude.com/docs/en/agent-sdk/streaming-vs-single-mode) provides a persistent process, images, queued messages and interruption. This is a stronger basis for an interactive adapter than repeatedly starting one-shot queries. The [headless CLI](https://code.claude.com/docs/en/headless) exposes structured JSONL output and partial messages, but output parsing alone does not establish a complete interactive approval protocol.
+```
+claude --output-format stream-json --verbose --input-format stream-json
+       --include-partial-messages --permission-prompt-tool stdio
+       --permission-mode <mode> [--model <m>] [--effort <e>]
+       (--session-id=<uuid JAM chose> | --resume=<claude session id>)
+```
 
-The [TypeScript SDK](https://code.claude.com/docs/en/agent-sdk/typescript) supports an explicit installed executable path, model/account discovery and live session controls. A future bridge introduces a JavaScript runtime/packaging decision; benchmark it before adopting or bundling a second runtime. No bridge is scaffolded now. Keep SDK and executable compatibility explicit.
+- Control requests are `{"type":"control_request","request_id","request":{"subtype"}}` in both directions, answered by `control_response`. JAM sends `initialize` (no system prompt override), `interrupt`, `set_model` and `set_permission_mode`. `initialize` returns the model list (value, display name, effort levels) without any inference request.
+- `can_use_tool` requests become JAM interactions: allow once, allow for this session (Claude's own permission suggestions re-scoped to `destination: "session"`, never written to settings files), deny, or deny and stop (`interrupt: true`). `control_cancel_request` withdraws one.
+- `AskUserQuestion` arrives as `can_use_tool`; JAM answers `allow` with `updatedInput: {questions, answers}` keyed by question text. `ExitPlanMode` becomes a plan approval.
+- Streaming: `stream_event` deltas (text, thinking, tool input JSON) are primary; complete `assistant` messages only fill a message whose deltas never arrived, so text is not duplicated even though several complete blocks share one message ID. Tool calls are keyed by `tool_use.id` and completed by `tool_result`. Messages with `parent_tool_use_id` (subagents) are not merged into the parent transcript; the spawning `Agent`/`Task` tool shows as a sub-agent card.
+- Each turn ends with one `result`. `is_error` (not only the subtype) marks failure; a logged-out turn reports `Not logged in`, which JAM turns into a sign-in instruction. `terminal_reason` `aborted_*` marks an interruption.
+- Sign-in state comes from `claude auth status` (JSON; exit 0 signed in, 1 signed out). JAM reads only `loggedIn`, `authMethod`, `apiProvider` and `subscriptionType`, and drops email and organization fields.
+- Images are base64 content blocks placed before the text block (a message is a slash command only when its last block is text).
 
-[Sessions](https://code.claude.com/docs/en/agent-sdk/sessions) support resume, fork and history inspection. Resuming a conversation does not restore its filesystem. [Streaming output](https://code.claude.com/docs/en/agent-sdk/streaming-output) contains partial deltas and complete blocks; multiple complete blocks may share one provider message ID, so adapters must reconcile them without duplicating text. Parent attribution and partial-event coverage differ for subagents.
+JAM never passes `--bare` (which ignores the user's login), never sets an authentication variable, and never uses the SDK's `claude_authenticate`/OAuth control requests. If `ANTHROPIC_API_KEY` is present in JAM's own environment, Settings warns that Claude Code may bill that key instead of the user's sign-in.
 
-Claude's [approval and user-input callback](https://code.claude.com/docs/en/agent-sdk/user-input) can represent both tool permission and a question to the user. It may remain pending until answered. Earlier [permission rules](https://code.claude.com/docs/en/agent-sdk/permissions) can resolve a tool before the callback, so it is not a universal policy enforcement hook. Interrupting current work, cancelling queued inputs and terminating the process are separate operations. Never translate them into a single optimistic “stopped” flag.
+Sources: [Agent SDK overview](https://code.claude.com/docs/en/agent-sdk/overview), [headless mode](https://code.claude.com/docs/en/headless), [streaming input](https://code.claude.com/docs/en/agent-sdk/streaming-vs-single-mode), [user input and approvals](https://code.claude.com/docs/en/agent-sdk/user-input), `claude --help` and `claude auth status --help` from 2.1.283, and the type definitions shipped in `@anthropic-ai/claude-agent-sdk` 0.3.283 (read for protocol shapes only).
+
+### Reference: T3 Code
+
+T3 Code (MIT) was read as architectural evidence, not copied. It runs the user's installed `claude` through the Agent SDK's streaming `query()` (with the SDK's bundled binaries removed), one long-lived process per thread, and `codex app-server` for Codex. It treats deltas as primary with per-block backfill, keys Claude question answers by question text, re-scopes "allow for session" to session permissions, and settles open approvals before interrupting Codex. Its Stop closes the Claude process rather than sending `interrupt`, and it defaults to full access. One T3 feature reads the Claude OAuth token from `.credentials.json` to call a usage endpoint; JAM does not and must not do anything similar.
+
+## Claude subscription use: conclusion
+
+**Status: unresolved for third-party apps; JAM uses the only pattern that stays within Anthropic's stated rules and keeps authentication entirely provider-native.**
+
+Evidence (retrieved 2026-09-27):
+
+- The Agent SDK overview: "Unless previously approved, Anthropic does not allow third party developers to offer claude.ai login or rate limits for their products, including agents built on the Claude Agent SDK."
+- [Legal and compliance](https://code.claude.com/docs/en/legal-and-compliance): third-party developers may not offer Claude.ai login, "route requests through Free, Pro, or Max plan credentials on behalf of their users", or "collect, store, or intermediate Claude.ai credentials or session tokens"; the same page says this does not prevent an end user from signing in to the unmodified Claude Code binary with their own subscription.
+- Anthropic's Help Center (after the June 2026 changes) states that Agent SDK, `claude -p` and third-party app usage draw from the subscription's usage limits.
+
+What this means for JAM:
+
+1. Prohibited, and not done: a JAM-owned Claude.ai login, reading or storing tokens, proxying requests, or presenting subscription limits as a JAM feature.
+2. What JAM does: run the user's own, unmodified `claude`, which authenticates itself from the user's own sign-in. JAM sees no credential and makes no request of its own to Anthropic.
+3. Still ambiguous: whether a desktop app starting the CLI counts as "routing requests on behalf of users", and how the Consumer Terms' limit on automated access applies. JAM does not claim subscription use is endorsed. Settings says what happens ("Runs your installed Claude Code with its own sign-in…") and that Anthropic's terms govern it. A definitive answer needs Anthropic; revisit before any public release or marketing claim.
 
 ## JAM contract
 
-The platform-neutral `@jam/protocol` package defines version 1 request envelopes, typed results, scoped events and the `JamTransport` interface. Provider wire messages stay in runtime adapters. UI components consume JAM resources, sessions, messages, context and capability descriptions. Provider-specific option schemas may be added without pretending different permission policies or effort values are equivalent.
+Version 1 of `@jam/protocol`, extended additively:
 
-The mock milestone implements workspace/conversation reads, conversation creation, turn start/interruption and local search. Mutation receipts acknowledge acceptance, not completion. Retried `turn.start` submissions are deduplicated by request ID; another start while the session runs returns a conflict. A reused ID with different content is an error. Closing a view or removing a subscription does not interrupt work. Explicit interruption prevents later completion from overwriting the interrupted state. The `/fail` demo prompt creates a deterministic failed turn.
+- `ProviderDescriptor`: installation, authentication, enabled, default and running (with `runningCount`) stay independent. Optional fields appear only when known: version, executable and how it was found, a provider-reported `account {method, plan}`, discovered `models` (with effort levels and image support), provider-specific `options` (Claude `permissionMode`; Codex `approvalPolicy`, `sandbox`), saved `defaults`, a status note and `checkedAt`.
+- Capabilities: `create, resume, fork, interrupt, streaming, toolApproval, userInput, images, steering, queue, modelSelection, effort, permissionModes, usage`, each `supported | unsupported | conditional | unknown` with a reason.
+- `Session`: `providerId` is the adapter actually running it; `options`, `needsInput` and provider-reported `usage` are optional. A real session presents as its own provider; only the demo provider may present as another.
+- Blocks: `text` (Markdown, rendered through `markdown/render.tsx`), `reasoning`, `tool` (`read | search | edit | command | tool | web | agent`), `context`, `notice` and `interaction`.
+- `Interaction`: a JAM ID, kind (`command | file-change | tool | question | plan`), title, detail, reason, exactly the choices the provider offers, optional questions, and a status (`pending | resolved | cancelled | expired`) with an outcome. Provider request IDs never leave the adapter.
+- Requests: `provider.list {refresh?}`, `provider.configure {providerId, enabled?, isDefault?, executable?, defaults?}`, `interaction.respond {resourceId, interactionId, choiceId | answers}`, `conversation.create {…, providerId?, options?}`, `turn.start {…, options?}`.
 
-Events use a runtime identity and monotonic sequence cursor. Subscribe before reading a snapshot, then reconcile buffered events against its cursor. Message upserts replace messages with the same JAM ID. A new runtime identity or a missed update requires an authoritative reread. The runtime stores source records before publishing updates. Browser preview is intentionally volatile, separately imported and explicitly identified; it must never silently replace a failed native connection.
+Answers are validated against the offered choices and questions and delivered exactly once; a second answer, an answer after the provider withdrew its request, or an answer after a restart is `stale`.
 
-## Capability and state model
+## Lifecycle and processes
 
-Installation, authentication, enabled preference, default preference and current running state are independent. Missing or unverified information remains `unknown`. A future plan label needs a reliable provider-reported source. Capability availability is `supported`, `unsupported`, `unknown` or `conditional`, with a reason where relevant. The mock advertises only behavior it actually implements.
+- Providers are checked on first need (the New Chat picker, a real conversation, Settings → Providers), not at launch; "Check again" re-asks. A check runs `--version`, reads sign-in state and lists models. It makes no inference request.
+- Codex: one shared `codex app-server`, started on the first turn and stopped after 15 idle minutes or on Quit. Threads are resumed on a new process.
+- Claude Code: one process per JAM session while it is in use, stopped after 15 idle minutes, on Quit, or when it cannot be reused (a different effort). The next turn resumes it by Claude's session ID.
+- Processes run in their own process group, without a shell, with the login shell's PATH; stdout lines are bounded (32 MiB) and stderr keeps an 8 KiB tail for local error messages only.
+- **Interrupt** asks the provider to stop the current turn (`turn/interrupt`, control `interrupt`) and withdraws open requests. The session is marked interrupted at once; the provider gets up to ten seconds to settle, and a Claude process that does not settle is ended and resumed next turn. A new turn waits (bounded) for the old one to finish stopping. Interrupting is not closing the conversation, cancelling queued input or ending the provider's session.
+- A provider crash fails the turn with a notice; the next Send restarts the process and resumes. On restart, unanswered requests become `expired` and running sessions `interrupted`.
+- Closing panes, switching tabs, Single ↔ Tiles and reloading the interface never touch a provider process.
 
-Real adapters should separately describe resume/fork/history read, text/image input, streaming, tool approvals, questions, queueing, steering, interruption, model changes and provider option definitions. Do not render a queue action as steering unless the adapter guarantees those semantics. An interaction request needs its own ID, session/turn scope, allowed responses and cancellation resolution. Unsupported operations must fail clearly rather than simulate success.
+## Persistence and provider history
 
-## Data and lifecycle invariants
+`provider_bindings` (migration 005) links a JAM session to the provider's own session or thread ID, with provider ID, origin (`jam` today), timestamps and version. JAM resource, session and message IDs remain the primary keys; provider IDs never reach the client. This is the seam for the next milestone, which discovers and imports history created outside JAM (Codex `thread/list`/`thread/read`, Claude session files through the CLI): an imported thread gets a JAM resource and session and a binding with a different origin. Nothing is scanned or imported now.
 
-- Resource IDs, JAM session IDs and opaque provider IDs are distinct. Provider resumable history remains provider-owned; JAM stores searchable normalized projections with provenance.
-- Runtime supervisors own processes and task handles. Panes, subscriptions and React lifetimes do not own them. Process exit, user cancellation, resource closure and filesystem rollback have different meanings.
-- Context is staged with typed provenance and opaque asset references. Only an explicit send attaches it to a turn. Selection metadata is not an authority to read arbitrary paths.
-- Command arguments and environment are constructed in the runtime without shell concatenation. Never read, copy or log provider tokens in JAM.
-- Unknown events, version mismatches, partial output, process failures and stale approval responses must be handled explicitly. Bounded raw diagnostics may support debugging locally; they must not become a second frontend protocol.
-- Usage records must identify whether values are incremental or cumulative and whether they include subagents. Provider cost estimates are not billing statements.
+## Known limits
 
-Before a real provider is enabled, contract tests must cover authentication failure, interrupted approval, resumed history, duplicate delivery, partial/final reconciliation, unsupported options and process restart. Real-provider smoke tests require an explicitly configured account and must disclose cost. The foundation tests use no account and make no inference requests.
+- Steering, queued messages and forking are supported by both providers but not offered by JAM yet, and are reported as unsupported.
+- Codex questions need its experimental API and are unsupported.
+- Claude subagent text is not shown (only the sub-agent's tool card), and Codex sub-agent items show as sub-agent cards without their inner activity.
+- A project needs a folder before an agent chat can start; agents run in that folder with the provider's own sandbox and permission rules.
+- Account-level usage and rate limits (Settings → Usage) are not collected.
+- Windows has not been tested; `.cmd` shims and process-group termination behave differently there.
+
+## Tests
+
+- Unit tests cover Codex item and approval mapping, Claude tool classification, permission responses and question answers, delta/final reconciliation, the interaction broker, the transcript builder, discovery and process framing.
+- `crates/runtime/tests/providers.rs` drives the runtime with the demo provider and a scripted adapter: answers delivered once, stale and expired requests, interrupts, provider-ID binding and resume after restart, option validation, the project-folder requirement and persisted settings.
+- `crates/runtime/tests/live_providers.rs` is ignored by default and runs against the installed CLIs: `JAM_LIVE_PROVIDERS=1` checks detection without inference; `JAM_LIVE_TURNS=1` sends a few short turns, one approval each and an interrupt/resume on the signed-in accounts. It uses the reader's own plans and counts toward their usage.

@@ -11,7 +11,7 @@ flowchart LR
   Contract --> Local[Tauri local transport]
   Local --> Host[Tauri host: trusted main window]
   Host --> Core[Rust runtime]
-  Core --> Providers[Provider adapters: mock now]
+  Core --> Providers[Provider adapters: Claude Code, Codex, demo]
   Core --> Storage[SQLite records + FTS5]
   Core --> Services[Terminal / Git / files / snapshot storage]
   Web[Future authenticated web client] -.-> UI
@@ -29,6 +29,8 @@ The dashed path is a reserved boundary, not implemented software. No server, Web
 | Projects, resource identities, conversations, messages | Runtime / SQLite | Cache and render                        |
 | Sessions, in-flight turns, task handles, subscribers   | Runtime          | Render normalized state                 |
 | Provider installation/auth/capabilities                | Runtime adapters | Display unknown faithfully              |
+| Provider processes, pending approvals/questions        | Runtime adapters | Answer by JAM interaction ID            |
+| Provider session/thread IDs (`provider_bindings`)      | Runtime / SQLite | Never sees them                         |
 | Open views, layout tree, focus, Single/Tiles, drafts   | Client           | Never use view cleanup to stop work     |
 | Project files and directory listings                   | Runtime          | Address by project ID and relative path |
 | Search index                                           | Runtime storage  | Query and paginate/bound                |
@@ -102,7 +104,7 @@ must not collapse when a file opens beside it.
 
 Send commands carry a client-generated request ID. The runtime rejects conflicting in-flight work and deduplicates retried submissions; it must not double-run a turn after an acknowledgement is lost. An accepted receipt is separate from completion. Cancel/interrupt is distinct from closing, deleting history or rolling back files. Errors use stable codes and useful messages; unknown methods/versions fail before mutation.
 
-Commit accepted input and normalized updates before publishing events. Never hold a storage lock across provider waits or UI delivery. On restart, running records become interrupted; a dead process is not reported as live. Real provider adapters will require version-specific reconciliation.
+Commit accepted input and normalized updates before publishing events. Never hold a storage lock across provider waits or UI delivery. On restart, running records become interrupted and unanswered provider requests expire; a dead process is not reported as live. Provider adapters reconcile streamed deltas with authoritative items and record the CLI version they were tested with.
 
 ## Lifecycle
 
@@ -133,7 +135,11 @@ The isolated `jam-demo.sqlite` database preserves all recorded messages. A conve
 
 Each subscription has a 256-event FIFO and one coalesced latest event. When a slow client overflows that FIFO, the latest cursor is still delivered after buffered events: skipped sequences trigger the client's authoritative reread, including when the skipped update was the end of a turn. At most 128 subscriptions can coexist. The host clears old subscriptions at page reload and window destruction. The current shared client uses a workspace subscription; resource-scoped subscriptions are available for later scaling. A gap in a resource-scoped global sequence can also reflect activity in another resource, so a conservative reread is safe rather than evidence of data loss.
 
-Request limits match the TypeScript contract in UTF-16 units: identifiers 128, prompt text 20,000, 16 context items, and search queries 256. Context-only sends are allowed, but the mock adapter never resolves assets or reads their source URIs. Most draft context is client-owned until explicit Send. Snapshots are an exception: their staged metadata and assets survive restart in runtime-owned app data. Sending atomically commits the canonical context with the turn receipt and retains the asset with history. The mock provider does not inspect image contents or call a model. Machine access is limited to explicit terminal shells, project-scoped Git CLI commands, bounded file reads and user-triggered snapshot capture by the desktop host.
+Request limits match the TypeScript contract in UTF-16 units: identifiers 128, prompt text 20,000, 16 context items, and search queries 256. Context-only sends are allowed. On Send the runtime resolves snapshot assets it owns into images for the provider and composes other context as text with its provenance; it never reads arbitrary source URIs. Most draft context is client-owned until explicit Send. Snapshots are an exception: their staged metadata and assets survive restart in runtime-owned app data. Sending atomically commits the canonical context with the turn receipt and retains the asset with history. The demo provider does not inspect image contents or call a model; a real provider receives a snapshot image only if its model reports image support. Machine access is limited to explicit terminal shells, project-scoped Git CLI commands, bounded file reads and user-triggered snapshot capture by the desktop host.
+
+## Providers
+
+The runtime's `ProviderManager` holds the adapters (Claude Code, Codex, demo), the saved provider settings and the last check. Checks run on first need, never at launch and never on a timer. A turn is a runtime task that drives the adapter's future; the adapter owns its processes, speaks its provider's wire protocol, and reports normalized blocks, interactions, model, usage and the provider's own session ID. Approvals and questions wait in a runtime broker keyed by JAM interaction ID. Interrupting asks the provider to stop the turn and lets it settle (bounded) before another turn starts; processes end on Quit or after 15 idle minutes and resume by provider ID. See [PROVIDERS.md](PROVIDERS.md) and [ADR 0011](adr/0011-live-providers.md).
 
 ## Native services and platform differences
 

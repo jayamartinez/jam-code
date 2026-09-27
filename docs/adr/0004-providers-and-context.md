@@ -1,6 +1,6 @@
 # 0004 — Capability-aware normalized providers and explicit context
 
-Status: accepted; live integrations deferred.
+Status: accepted. Live Claude Code and Codex adapters: see ADR 0011.
 
 Codex app-server and Claude Agent SDK have different turn/input/approval models. Normalize messages, tool activity, lifecycle and errors at the adapter boundary, while exposing supported/unsupported/unknown/conditional capabilities. Keep provider options explicit instead of pretending identical models or permission policies. Ship a deterministic mock adapter first. Subscription authorization is independent of technical CLI capability; see PROVIDERS.md.
 

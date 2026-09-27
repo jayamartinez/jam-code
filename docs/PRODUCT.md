@@ -19,7 +19,7 @@ Single mode displays one active resource. Tiles displays a set simultaneously in
 
 ## Foundation milestone
 
-Build the Paper shell with projects, pinned and recent conversations, Settings footer, resource tabs, Single/Tiles, normalized messages, composer and representative tool activity. Prove the architecture with deterministic mock turns, native persistence and local search. Mock provider work must be labeled and must not execute commands, edit repositories, call models or imply live authentication.
+Build the Paper shell with projects, pinned and recent conversations, Settings footer, resource tabs, Single/Tiles, normalized messages, composer and representative tool activity. The foundation proved the architecture with deterministic mock turns, native persistence and local search. Providers V0 adds real Claude Code and Codex chats through the installed CLIs; demo provider work stays labelled and never executes commands, edits repositories, calls models or implies live authentication.
 
 The reference project names and example transcript are synthetic demo content. Demo seed is idempotent and belongs in an isolated demo database. A browser-only development preview may be volatile; it must identify itself as preview and never claim native persistence.
 

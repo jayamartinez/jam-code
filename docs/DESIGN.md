@@ -314,7 +314,7 @@ native opener with its own permission.
 
 ## Foundation deviations and honesty
 
-Only the deterministic Mock provider runs in this milestone. Reference Claude/Codex model versions, connected plan labels and running indicators are illustrative and must not be presented as live detection. Real providers display unavailable/unknown status. Compact Demo labeling is part of chrome; browser development preview is volatile and distinct from native SQLite persistence.
+Claude Code and Codex chats are real (PROVIDERS.md). Versions, sign-in, plan labels, models, effort levels and running counts come from the providers; anything they did not report stays unknown, and a plan appears only when the CLI reported one. The demo provider is labelled Demo, draws its own dashed mark, never borrows a real provider's mark, and is off by default in the desktop app. The browser development preview is volatile, has only the demo provider, and says real providers run in the desktop app.
 
 Review is lazy-loaded and uses real Git state (ADR 0010). It retains Paper’s changed-files column, unified hunks and semantic diff colors. The shared pane header remains 42px; a compact summary and staged/unstaged controls replace illustrative agent attribution and review/commit actions. Counts load only for the selected file/version. Refresh, Stage file, Unstage file and Open file are explicit actions. Annotations and destructive actions are deferred. Terminal is real (see Terminal above) and Browser is a native-webview prototype (see Browser above). Repository picker, worktree creation, native capture and provider configuration are deferred. Disabled controls explain their state. The initial app implements shared provider Settings and reserves navigation for future pages without pretending settings were persisted.
 
@@ -327,10 +327,21 @@ enabling writes is a change of capability, not of architecture. Local folders
 found on disk are not listed in the launcher, because detecting them needs
 native folder access; the column says so instead of showing example paths.
 
-Claude Code and Codex chats in the launcher create conversations that
-_present_ as those agents while running on the deterministic mock adapter, the
-same convention the demo history already uses. The launcher says so in place,
-and provider status pills keep their `Mock` label.
+Deliberate deviations for live providers (no Paper frame exists for these):
+
+- **Approval and question card.** Inline in the transcript, warning edge and
+  "Needs your input" matching the theme sheet's "Needs input · approval" role;
+  buttons are exactly the provider's choices. Resolved cards keep their outcome.
+- **Composer.** New Chat follows frame 1a (agent switch, model, effort, the
+  project folder and permission in the footer). Existing chats show the model,
+  effort and provider options in the toolbar; options are native selects
+  styled as the design's pills. A Stop button replaces Send while running.
+- **Edited files.** The demo's "new" and "open diff" labels were positional;
+  real edits show path and line counts only, and "Review changes" opens Review.
+- **Settings → Providers.** Frame 604-0 with live data: "Checked … ago" with a
+  refresh, version beside the name, Test connection, a status note for version
+  or sign-in warnings, and an executable override. Config directory and launch
+  arguments remain Planned.
 
 Window buttons call injected desktop services. The shared client imports no native API. Windows controls sit right; macOS retains the host's native traffic lights with an explicit left inset in sidebar, collapsed and focus presentations, avoiding duplicate web controls. Only noninteractive titlebar space initiates native dragging. Browser preview window actions are unavailable.
 

@@ -560,3 +560,52 @@ edge cases, Secure Input, final sound audibility, clipboard end-to-end, signed
 release permissions, and prolonged real-keyboard accidental-trigger testing.
 Automated detector tests cover typing/repeats/holds; macOS cannot enumerate
 app-local double-Shift conflicts. Provider integration remains mock-only.
+
+## Providers V0 — Claude Code and Codex (2026-09-27, macOS)
+
+Automated: `pnpm check` and `pnpm check:rust` pass. New Rust tests cover Codex
+item/approval mapping, Claude tool classification, permission and question
+responses, delta/final reconciliation, the interaction broker (answered once,
+stale after withdrawal or restart), the transcript builder, discovery and
+process framing and group termination. `crates/runtime/tests/providers.rs`
+runs the runtime with the demo provider and a scripted adapter: simulated
+approvals and questions through `interaction.respond`, interrupts cancelling
+pending requests, restart expiring them, provider-ID binding and resume after
+restart, option validation, the project-folder requirement and persisted
+provider settings. Client tests cover composer choices, the new-chat provider
+choice and provider status copy; protocol tests cover the new requests, blocks
+and interaction validation.
+
+Live, against the installed CLIs (Claude Code 2.1.283, codex-cli 0.157.1),
+with `crates/runtime/tests/live_providers.rs`:
+
+- `JAM_LIVE_PROVIDERS=1`: both detected, signed in and listed their models in
+  about a second with no inference request; plans were the CLIs' own
+  (`max`, `prolite`); no email reached the client.
+- `JAM_LIVE_TURNS=1` (small inference requests on the signed-in accounts):
+  a streamed reply from each provider with the model and context usage they
+  reported; a Codex command approval (`/bin/zsh -lc ls`, Allow once) and a
+  Claude file-write permission (Write `hello.txt`, Allow once) answered through
+  JAM interactions; interrupting a long reply and sending a follow-up on the
+  same session succeeded for both, about 2 s after Stop.
+- The first interrupt run found a real race: a follow-up accepted while Codex
+  was still stopping became part of the interrupted turn. Turns now wait
+  (bounded) for the previous turn's provider work to end.
+
+Visual QA: the browser preview was driven in an offscreen WebKit view (a local
+Swift script using `WKWebView.takeSnapshot`; no screen recording) through the
+demo provider's `/approval` and `/question`, New Chat, a transcript with every
+block type and Settings → Providers, including a run with provider data shaped
+like the live descriptors. This found and fixed a composer overflow that hid
+Send and a serif fallback in interaction details. The native QA bundle
+(`dev.jamcode.desktop.providers-qa`, its own database) built and launched, but
+computer-use screenshots were refused in this session, so the native
+conversation and Settings screens were not inspected by eye; native behaviour
+is covered by the live runtime tests above.
+
+Not verified: Windows (`.cmd` shims, process groups), provider versions other
+than those listed, Claude sub-agent text, Codex questions (experimental API,
+unsupported), and long-running sessions past the 15-minute idle stop.
+Conversations with real providers are stored in the same local database the
+foundation seeded with demo history (`jam-demo.sqlite`); separating demo and
+user history is a follow-up.
