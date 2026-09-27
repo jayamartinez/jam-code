@@ -6,6 +6,7 @@ import {
   validateRequest,
   validateResponse,
   validateScope,
+  validateTerminalEvent,
 } from '@jam/protocol';
 import type {
   JamErrorCode,
@@ -14,6 +15,8 @@ import type {
   RequestMap,
   RequestMethod,
   SubscriptionScope,
+  TerminalAttachment,
+  TerminalStreamEvent,
 } from '@jam/protocol';
 
 export interface NativeBridge {
@@ -103,6 +106,40 @@ export class TauriTransport implements JamTransport {
       void this.bridge.invoke('jam_unsubscribe', { subscriptionId }).catch(() => {
         // The runtime also drops dead channels when their owning window is destroyed.
       });
+    };
+  }
+
+  async attachTerminal(
+    resourceId: string,
+    listener: (event: TerminalStreamEvent) => void,
+  ): Promise<TerminalAttachment> {
+    if (typeof resourceId !== 'string' || !resourceId.trim() || resourceId.length > 128)
+      throw new JamError('invalid_request', 'Invalid terminal resource.');
+    let active = true;
+    const onEvent = this.bridge.channel((payload) => {
+      if (active) listener(validateTerminalEvent(payload));
+    });
+    let attachmentId: string;
+    try {
+      const result = await this.bridge.invoke('jam_terminal_attach', { resourceId, onEvent });
+      if (typeof result !== 'string' || !result) {
+        throw new JamError('invalid_response', 'The runtime returned an invalid attachment.');
+      }
+      attachmentId = result;
+    } catch (error) {
+      active = false;
+      throw transportError(error);
+    }
+    return {
+      id: attachmentId,
+      detach: () => {
+        if (!active) return;
+        active = false;
+        // Detaching a view never stops the shell.
+        void this.bridge.invoke('jam_terminal_detach', { attachmentId }).catch(() => {
+          // A reloaded or destroyed window detaches its views in the runtime too.
+        });
+      },
     };
   }
 }

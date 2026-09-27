@@ -280,11 +280,40 @@ Browser annotations, file selections, diffs, terminal excerpts, conversations an
 
 Review comments are pending until explicitly sent. Review sends one message containing file/line references into the selected existing conversation. Commit is a separate action. An agent's quick acknowledgement is not an edit or completed task.
 
+## Terminal
+
+The Files and Tiles frames define the terminal: the terminal surface token,
+Geist Mono at 12px on a 19px line in the muted text role, 10px/14px padding,
+and a header with the terminal glyph, the shell's name, its directory in mono
+and a live dot. JAM uses the shared 42px pane header rather than the frames'
+34–36px one, so split, focus and the pane menu mean the same thing in every
+pane. The frames' Run menu and agent shells are not implemented and are not
+drawn. When a project records no folder, the shell starts at home and the
+header says the project has no folder rather than implying a project path.
+
+xterm is themed from semantic roles scoped to the pane (`styles/terminal.css`):
+the ANSI colours map to danger, success, warning, accent, violet and the
+secondary accent, with brights from the diff text roles and mixes towards
+strong text; bright black is the subtle role so dim suggestions stay legible.
+Selection uses the accent border role, the background is transparent over the
+pane surface, the cursor does not blink (no idle timer), and the scrollbar
+uses the fill roles. Italic renders upright because only the upright Geist
+Mono is bundled.
+
+Closing a terminal's pane or tab leaves its shell running; the launcher lists
+running terminals under **Running** so one can be reopened, and **Terminate
+shell** in the pane menu is the explicit way to end one. An ended shell keeps
+its output with a **Restart shell** action. On a Mac, ⌘C/⌘V copy and paste and
+⌘F finds; elsewhere Ctrl+Shift+C/V and Ctrl+Shift+F, Ctrl+C copies only while
+text is selected, and Ctrl and Escape keys stay with the shell rather than
+triggering window shortcuts. Links are not clickable yet: opening one needs a
+native opener with its own permission.
+
 ## Foundation deviations and honesty
 
 Only the deterministic Mock provider runs in this milestone. Reference Claude/Codex model versions, connected plan labels and running indicators are illustrative and must not be presented as live detection. Real providers display unavailable/unknown status. Compact Demo labeling is part of chrome; browser development preview is volatile and distinct from native SQLite persistence.
 
-Diff and terminal are lazy-loaded static demo surfaces. They show explicit demo labels, execute nothing, and own no process. Repository picker, worktree creation, native capture, theme controls and provider configuration are deferred; Browser is a native-webview prototype (see Browser above). Disabled controls explain their state. The initial app implements shared provider Settings and reserves navigation for future pages without pretending settings were persisted.
+Diff is a lazy-loaded static demo surface: it shows an explicit demo label and executes nothing. Terminal is real (see Terminal above) and Browser is a native-webview prototype (see Browser above). Repository picker, worktree creation, native capture, theme controls and provider configuration are deferred. Disabled controls explain their state. The initial app implements shared provider Settings and reserves navigation for future pages without pretending settings were persisted.
 
 The file browser and File resource are real surfaces over a runtime file
 service, but that service serves an isolated demo tree rather than this

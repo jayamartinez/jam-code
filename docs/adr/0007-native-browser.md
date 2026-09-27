@@ -1,4 +1,4 @@
-# 0006 — Browser is a native child webview owned by the desktop host
+# 0007 — Browser is a native child webview owned by the desktop host
 
 Status: accepted for the Browser prototype. Validated on macOS 26 (WKWebView) in the native app; Windows (WebView2) untested.
 

@@ -7,6 +7,7 @@ pub mod protocol;
 pub mod providers;
 mod runtime;
 mod storage;
+pub mod terminal;
 mod turns;
 
 pub use error::JamError;

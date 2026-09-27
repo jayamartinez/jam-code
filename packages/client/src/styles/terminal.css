@@ -1,0 +1,213 @@
+/*
+ * Terminal resource.
+ *
+ * The Files and Tiles frames define the surface: the terminal surface token,
+ * Geist Mono at 12px on a 19px line, muted default text, 10px/14px padding.
+ * The ANSI palette is derived from the semantic roles so programs' colours sit
+ * inside Nightglass rather than beside it. The view reads these roles when it
+ * creates a terminal; nothing below is a literal colour.
+ */
+.terminal-pane {
+  /* Clip, not hide: a focused field inside must not scroll the pane. */
+  overflow: clip;
+  background: var(--color-surface-terminal);
+  --terminal-foreground: var(--color-text-muted);
+  --terminal-cursor: var(--color-text-secondary);
+  --terminal-cursor-accent: var(--color-bg-base);
+  --terminal-selection: var(--color-accent-border);
+  --terminal-selection-inactive: var(--color-accent-soft);
+  --terminal-scrollbar: var(--color-fill-strong);
+  --terminal-scrollbar-hover: var(--color-border-strong);
+  --terminal-black: var(--color-text-ghost);
+  --terminal-red: var(--color-danger);
+  --terminal-green: var(--color-success);
+  --terminal-yellow: var(--color-warning);
+  --terminal-blue: var(--color-accent);
+  --terminal-magenta: var(--color-tone-violet);
+  --terminal-cyan: var(--color-accent-secondary);
+  --terminal-white: var(--color-text-secondary);
+  /* Dim text such as shell suggestions uses bright black, so it stays legible. */
+  --terminal-bright-black: var(--color-text-subtle);
+  --terminal-bright-red: var(--color-diff-del-text);
+  --terminal-bright-green: var(--color-diff-add-text);
+  --terminal-bright-yellow: color-mix(in srgb, var(--color-warning) 62%, var(--color-text-strong));
+  --terminal-bright-blue: var(--color-accent-strong);
+  --terminal-bright-magenta: color-mix(
+    in srgb,
+    var(--color-tone-violet) 62%,
+    var(--color-text-strong)
+  );
+  --terminal-bright-cyan: color-mix(
+    in srgb,
+    var(--color-accent-secondary) 62%,
+    var(--color-text-strong)
+  );
+  --terminal-bright-white: var(--color-text-strong);
+  --terminal-match: var(--color-accent-soft);
+  --terminal-match-active: var(--color-accent-glow);
+}
+
+.terminal-pane .pane-header {
+  padding-left: 14px;
+}
+.terminal-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.terminal-heading .terminal-glyph {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+.terminal-shell {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 16px;
+}
+.terminal-cwd {
+  min-width: 4ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  color: var(--color-text-subtle);
+  font-family: var(--font-mono-stack);
+  font-size: 11px;
+  line-height: 14px;
+}
+.terminal-note {
+  color: var(--color-text-faint);
+  font-size: 11px;
+  line-height: 14px;
+}
+.terminal-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-subtle);
+  font-size: 11px;
+  line-height: 14px;
+  white-space: nowrap;
+}
+.terminal-state::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-text-ghost);
+}
+.terminal-state.running::before {
+  background: var(--color-success);
+}
+.terminal-state.failed {
+  color: var(--color-danger);
+}
+.terminal-state.failed::before {
+  background: var(--color-danger);
+}
+@container pane-header (max-width: 520px) {
+  .terminal-note {
+    display: none;
+  }
+}
+@container pane-header (max-width: 380px) {
+  .terminal-cwd,
+  .terminal-state span {
+    display: none;
+  }
+}
+
+.terminal-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* The padding lives outside xterm's element so fitting measures the text area. */
+.terminal-screen {
+  flex: 1;
+  min-height: 0;
+  padding: 10px 14px;
+}
+.terminal-screen > div {
+  width: 100%;
+  height: 100%;
+}
+.terminal-screen .xterm {
+  height: 100%;
+}
+.terminal-screen .xterm-viewport {
+  background-color: transparent !important;
+}
+.terminal-screen .xterm .xterm-scrollable-element > .scrollbar.vertical {
+  width: 7px !important;
+}
+.terminal-screen .xterm .xterm-scrollable-element > .scrollbar > .slider {
+  border-radius: 8px;
+}
+.terminal-screen .xterm-helper-textarea:focus-visible {
+  outline: none;
+}
+
+/* Exit, not-started and unavailable states sit under the output, not over it. */
+.terminal-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 6px 10px 6px 14px;
+  border-top: 1px solid var(--color-border-subtle);
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.terminal-footer p {
+  flex: 1;
+  min-width: 0;
+}
+.terminal-footer.error {
+  color: var(--color-danger);
+}
+.terminal-footer .button {
+  flex-shrink: 0;
+}
+
+.terminal-find {
+  position: absolute;
+  top: 8px;
+  right: 14px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 4px 0 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-overlay);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+}
+.terminal-find input {
+  width: 180px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: 12px;
+}
+.terminal-find:focus-within {
+  border-color: var(--color-accent-border);
+}
+.terminal-find input:focus-visible {
+  outline: none;
+}
+.terminal-find input::placeholder {
+  color: var(--color-text-faint);
+}
+.terminal-find output {
+  min-width: 5ch;
+  color: var(--color-text-subtle);
+  font-size: 11px;
+  text-align: right;
+}

@@ -7,6 +7,7 @@ export type ResourceKind =
   'conversation' | 'terminal' | 'browser' | 'file' | 'file-browser' | 'diff' | 'settings';
 
 import projectIconsJson from '../fixtures/project-icons.json';
+import type { TerminalAttachment, TerminalRequestMap, TerminalStreamEvent } from './terminal';
 
 /**
  * Presets, tones and limits for project badges. Shared with the Rust runtime
@@ -235,7 +236,7 @@ export interface SearchResult {
   updatedAt: string;
 }
 
-export interface RequestMap {
+export interface RequestMap extends TerminalRequestMap {
   'workspace.get': { params: Record<string, never>; result: WorkspaceSnapshot };
   'conversation.get': { params: { resourceId: string }; result: Conversation };
   'conversation.create': {
@@ -312,6 +313,15 @@ export interface JamTransport {
     params: RequestMap[M]['params'],
   ): Promise<RequestMap[M]['result']>;
   subscribe(scope: SubscriptionScope, listener: (event: JamEvent) => void): Promise<() => void>;
+  /**
+   * Streams one terminal to one view, separately from workspace events so
+   * output never reaches anything but that view. The first event delivered to
+   * `listener` is always the snapshot.
+   */
+  attachTerminal(
+    resourceId: string,
+    listener: (event: TerminalStreamEvent) => void,
+  ): Promise<TerminalAttachment>;
 }
 
 export interface DemoFixture {

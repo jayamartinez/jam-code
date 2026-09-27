@@ -8,6 +8,8 @@
     "allow-jam-request",
     "allow-jam-subscribe",
     "allow-jam-unsubscribe",
+    "allow-jam-terminal-attach",
+    "allow-jam-terminal-detach",
     "allow-browser-attach",
     "allow-browser-bounds",
     "allow-browser-navigate",

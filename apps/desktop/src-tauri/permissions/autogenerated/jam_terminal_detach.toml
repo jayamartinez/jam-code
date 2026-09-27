@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-jam-terminal-detach"
+description = "Enables the jam_terminal_detach command without any pre-configured scope."
+commands.allow = ["jam_terminal_detach"]
+
+[[permission]]
+identifier = "deny-jam-terminal-detach"
+description = "Denies the jam_terminal_detach command without any pre-configured scope."
+commands.deny = ["jam_terminal_detach"]

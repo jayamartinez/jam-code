@@ -2,7 +2,7 @@
 
 JAM Code is a local-first desktop workspace for coding agents. This repository is the initial architecture and running-shell milestone: Paper-derived UI, shared product/protocol packages, a Tauri host and a Rust runtime with SQLite/FTS5.
 
-**This build uses a deterministic mock provider.** It does not call Claude/Codex, use credentials, execute displayed commands or edit project files. Native demo conversations persist locally. Browser development preview is in memory and resets on reload. Terminal and review are static demos. The file browser serves an isolated demo tree. Browser embeds the platform webview in the desktop app only (not the web preview) and loads real pages.
+**This build uses a deterministic mock provider.** It does not call Claude/Codex, use credentials, execute displayed commands or edit project files. Native demo conversations persist locally. Browser development preview is in memory and resets on reload. Terminal is a real shell in a runtime-owned PTY (see [ADR 0006](docs/adr/0006-terminal-sessions.md)); agents never run commands in it. Browser embeds the platform webview in the desktop app only (not the web preview) and loads real pages (see [ADR 0007](docs/adr/0007-native-browser.md)). The file browser serves an isolated demo tree. Review is a static demo.
 
 ## Run
 
@@ -40,4 +40,4 @@ The frontend checks format, lint, strict types, core/contract tests and producti
 
 Start with [product](docs/PRODUCT.md), [architecture](docs/ARCHITECTURE.md), [design](docs/DESIGN.md) and [providers](docs/PROVIDERS.md). The architecture reserves future remote clients without implementing a network server. Live integration eligibility and capability differences must be resolved before adding real providers.
 
-No JAM account, remote access, capture shortcut, production PTY/editor or release packaging is implemented; Browser is a prototype. Windows and macOS need separate hands-on validation. The owner has not yet selected a public license.
+No JAM account, remote access, capture shortcut, production editor or release packaging is implemented; Browser is a prototype. Windows and macOS need separate hands-on validation. The owner has not yet selected a public license.

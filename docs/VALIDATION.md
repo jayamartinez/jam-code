@@ -257,6 +257,50 @@ now follows pointer movement only. A client test covers recent-search
 ordering, de-duplication and bounds. Native rendering of the gradient mark is
 checked below the gate; Windows was not run.
 
+## Terminal (2026-09-26, macOS)
+
+Automated: `pnpm check` (84 frontend tests) and `pnpm check:rust` pass. Runtime
+tests start real PTYs with `/bin/sh`: several independent terminals with
+distinct titles, input and output in order, ANSI and UTF-8 output, `stty size`
+following resize, detaching a view and a window reload leaving the shell
+running with output replayed on reattach, two views of one terminal, a shell
+that exits by itself reporting its code and restarting in the same resource,
+explicit termination ending the shell and its foreground job, Ctrl+C
+interrupting only the foreground program, a requested working directory, flow
+control pausing near 256 KiB for a view that never acknowledges and resuming
+when it does, Quit refusing further requests, and invalid requests failing
+before any shell starts. Client tests cover ordered input, split pastes,
+coalesced resizes, acknowledgement steps, restart clearing the screen, and a
+closed view detaching without ever sending `terminal.kill`.
+
+Native, in a debug `.app` built from this branch with a temporary identifier so
+it could not share the running app's single-instance lock or database: created
+a terminal beside a conversation; `pwd` at home with the "has no folder" note;
+`TERM`/`COLORTERM`; 16 ANSI colours, true colour, underline and bold;
+arrows, CJK, a double-width emoji, λ and box drawing; 3000 lines and
+scrollback by wheel and scrollbar; Ctrl+C (exit 130); double-click selection,
+⌘C (clipboard read back) and ⌘V; ⌘F find with a match count; dragging the
+split changed `stty size` to 42×111; a second terminal on its own tty below the
+first; a running loop kept ticking while its tab was not shown and while its
+pane was closed, and was reopened from the launcher's Running list;
+Single ↔ Tiles; Terminate shell released its tty while the other shell ran
+on; Restart shell; terminal above a file browser and file; Quit ended both
+shells (checked with `ps`).
+
+Found and fixed natively: zsh's end-of-line mark stuck on the first row
+because the shell started at 80 columns inside a 77-column view (shells now
+start at the pane's size); explicit termination read as "exited with code 1"
+(now "Shell terminated"); two terminals were indistinguishable (now `zsh`,
+`zsh 2`); the launcher overflowed the window once Running rows arrived.
+
+Not verified: Escape in the find field (synthetic Escape does not reach this
+WebView under computer use); a window reload in the native app (covered by the
+runtime test only); Windows and ConPTY, which were neither compiled nor run
+(the Windows shell selection and key handling are written but untested); the browser preview,
+which reports terminals as unavailable by design. Flow control was measured
+in tests, not under a real flood in the app; memory under many terminals was
+not measured.
+
 ## Native Browser prototype (2026-09-26, macOS 26)
 
 Automated: format, lint, typecheck, 79 frontend tests (13 files) and the

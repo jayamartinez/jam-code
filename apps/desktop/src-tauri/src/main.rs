@@ -23,6 +23,8 @@ fn main() {
             bridge::jam_request,
             bridge::jam_subscribe,
             bridge::jam_unsubscribe,
+            bridge::jam_terminal_attach,
+            bridge::jam_terminal_detach,
             browser::browser_attach,
             browser::browser_bounds,
             browser::browser_navigate,

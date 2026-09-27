@@ -16,6 +16,7 @@ import type {
   OpenableKind,
   Presentation,
   ProjectIcon,
+  TerminalSession,
 } from '@jam/protocol';
 import type { BrowserAnnotation, DesktopServices } from './desktop';
 import {
@@ -45,6 +46,8 @@ import { EmptyPane } from './components/EmptyPane';
 import { FileBrowser } from './components/FileBrowser';
 import { FileIconThemeProvider, useFileIconThemeChoice } from './components/file-icons';
 import { FileResource } from './components/FileResource';
+import { TerminalResource } from './components/TerminalResource';
+import { estimateTerminalSize } from './components/terminal-metrics';
 import { ContextMenu, menuPoint, type ContextMenuState } from './components/ContextMenu';
 import { ProjectEditor } from './components/ProjectEditor';
 import { BrowserResource, describeAnnotation } from './components/BrowserResource';
@@ -131,6 +134,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   );
   /** The conversation a browser annotation stages into when none is beside it. */
   const lastConversation = useRef<string | null>(null);
+  /** Live terminals the launcher offers to reopen; read when it opens. */
+  const [runningTerminals, setRunningTerminals] = useState<TerminalSession[]>([]);
   const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
   const busyRef = useRef(new Set<string>());
   const requests = useRef(new Map<string, { payload: string; requestId: string }>());
@@ -212,17 +217,29 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     [assignPane, projectId],
   );
 
-  /** The runtime owns resource identity: reopening a target reuses its record. */
+  /**
+   * The runtime owns resource identity: reopening a target reuses its record.
+   * A terminal is the exception: every Terminal choice is a new shell.
+   */
   const openKind = useCallback(
     async (kind: OpenableKind, path?: string, paneId?: string, inProject?: string) => {
       const target = inProject ?? projectId;
       if (!target) return;
       try {
-        const { resource } = await transport.request('resource.open', {
-          projectId: target,
-          kind,
-          ...(path === undefined ? {} : { path }),
-        });
+        const { resource } =
+          kind === 'terminal'
+            ? await transport.request('terminal.create', {
+                projectId: target,
+                // Start the shell at the size of the pane it will appear in.
+                ...estimateTerminalSize(
+                  document.querySelector(paneId ? `[data-pane-id="${paneId}"]` : '.workspace'),
+                ),
+              })
+            : await transport.request('resource.open', {
+                projectId: target,
+                kind,
+                ...(path === undefined ? {} : { path }),
+              });
         client.addResource(resource);
         if (paneId) assignPane(resource.id, paneId);
         else openResource(resource.id);
@@ -232,6 +249,23 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     },
     [assignPane, client, openResource, projectId, transport],
   );
+
+  const launcherOpen = launcher !== null;
+  useEffect(() => {
+    if (!launcherOpen || !projectId) return;
+    let current = true;
+    transport.request('terminal.list', { projectId }).then(
+      ({ terminals }) => {
+        if (current) setRunningTerminals(terminals.filter((item) => item.status === 'running'));
+      },
+      () => {
+        if (current) setRunningTerminals([]);
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [launcherOpen, projectId, transport]);
 
   const switchProject = useCallback(
     (id: string) => {
@@ -746,8 +780,17 @@ export function JamApp({ transport, desktop }: JamAppProps) {
           />
         );
       }
-      case 'diff':
       case 'terminal':
+        return (
+          <TerminalResource
+            {...chrome}
+            transport={transport}
+            resource={resource}
+            project={workspace.projects.find((item) => item.id === resource.projectId)}
+            mac={usesCommand}
+          />
+        );
+      case 'diff':
         return (
           <Suspense fallback={<section className="pane empty-surface">Loading demo…</section>}>
             <DemoResource kind={resource.kind} chrome={chrome} />
@@ -912,6 +955,17 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                 onProject={switchProject}
                 onAgentChat={(presentation) => newChat(presentation, launcher.paneId)}
                 onResource={(kind) => void openKind(kind, undefined, launcher.paneId)}
+                terminals={runningTerminals.map((item) => ({
+                  id: item.resourceId,
+                  label: item.title,
+                  // The last two folders are enough to tell shells apart.
+                  detail: item.cwdLabel.split(/[\\/]/).slice(-2).join('/'),
+                }))}
+                onOpenTerminal={(resourceId) =>
+                  launcher.paneId
+                    ? assignPane(resourceId, launcher.paneId)
+                    : openResource(resourceId)
+                }
                 target={launcher.paneId ? 'pane' : 'tab'}
               />
             )}
