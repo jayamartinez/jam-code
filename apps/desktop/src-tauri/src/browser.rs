@@ -93,9 +93,119 @@ pub enum BrowserEvent {
     /// One finished annotation (element or region, with its comment).
     /// Everything in it came from the page.
     Annotated {
-        annotation: serde_json::Value,
+        annotation: Annotation,
     },
     AnnotateEnded,
+}
+
+/// The largest poll result read from a page. A page that answers with more
+/// has replaced JAM's script, and its answer is dropped.
+const MAX_POLL_RESULT: usize = 256 * 1024;
+
+#[derive(Deserialize, Serialize, Clone, Copy)]
+#[serde(rename_all = "lowercase")]
+pub enum AnnotationKind {
+    Element,
+    Region,
+}
+
+#[derive(Deserialize, Serialize, Clone, Copy, Default)]
+pub struct AnnotationRect {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct ConsoleEntry {
+    level: String,
+    text: String,
+    #[serde(default)]
+    at: f64,
+}
+
+/// An annotation as the page reported it. The page can replace JAM's script,
+/// so this is parsed into a fixed shape and every field is bounded before it
+/// reaches the interface; anything that does not fit is dropped.
+#[derive(Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Annotation {
+    kind: AnnotationKind,
+    #[serde(default)]
+    comment: String,
+    #[serde(default)]
+    selector: String,
+    #[serde(default)]
+    label: String,
+    #[serde(default)]
+    text: String,
+    #[serde(default)]
+    html: String,
+    #[serde(default)]
+    rect: AnnotationRect,
+    #[serde(default)]
+    styles: std::collections::BTreeMap<String, String>,
+    url: String,
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    console: Vec<ConsoleEntry>,
+    #[serde(default)]
+    console_errors: u32,
+}
+
+fn clip(text: &mut String, max: usize) {
+    if let Some((index, _)) = text.char_indices().nth(max) {
+        text.truncate(index);
+    }
+}
+
+impl Annotation {
+    /// Bounds match what JAM's own annotate script produces.
+    fn bounded(mut self) -> Option<Self> {
+        let rect = [self.rect.x, self.rect.y, self.rect.width, self.rect.height];
+        if rect.iter().any(|v| !v.is_finite() || v.abs() > MAX_EDGE) {
+            return None;
+        }
+        clip(&mut self.comment, 2_000);
+        clip(&mut self.selector, 1_000);
+        clip(&mut self.label, 200);
+        clip(&mut self.text, 300);
+        clip(&mut self.html, 600);
+        clip(&mut self.url, MAX_URL);
+        clip(&mut self.title, 300);
+        self.styles = std::mem::take(&mut self.styles)
+            .into_iter()
+            .take(16)
+            .map(|(mut name, mut value)| {
+                clip(&mut name, 64);
+                clip(&mut value, 200);
+                (name, value)
+            })
+            .collect();
+        self.console.truncate(10);
+        for entry in &mut self.console {
+            if entry.level != "error" {
+                entry.level = "warn".into();
+            }
+            clip(&mut entry.text, 500);
+            if !entry.at.is_finite() {
+                entry.at = 0.0;
+            }
+        }
+        Some(self)
+    }
+}
+
+/// Parses one poll's annotations, keeping at most 16 that fit.
+fn annotations_from(items: &[serde_json::Value]) -> Vec<Annotation> {
+    items
+        .iter()
+        .take(16)
+        .filter_map(|item| serde_json::from_value::<Annotation>(item.clone()).ok())
+        .filter_map(Annotation::bounded)
+        .collect()
 }
 
 #[derive(Deserialize, Clone, Copy)]
@@ -568,17 +678,15 @@ fn start_annotating(app: AppHandle, id: String, view: Webview) -> Result<(), Str
                 break;
             }
             if let Ok(Ok(result)) = tokio::time::timeout(Duration::from_secs(2), receiver).await {
-                let value: serde_json::Value = serde_json::from_str(&result).unwrap_or_default();
+                let value: serde_json::Value = if result.len() <= MAX_POLL_RESULT {
+                    serde_json::from_str(&result).unwrap_or_default()
+                } else {
+                    serde_json::Value::Null
+                };
                 if let Some(items) = value.get("items").and_then(|items| items.as_array()) {
                     // Bounded: a page cannot flood the client in one poll.
-                    for annotation in items.iter().take(16) {
-                        emit(
-                            &app,
-                            &id,
-                            BrowserEvent::Annotated {
-                                annotation: annotation.clone(),
-                            },
-                        );
+                    for annotation in annotations_from(items) {
+                        emit(&app, &id, BrowserEvent::Annotated { annotation });
                     }
                 }
                 if value.get("state").and_then(|s| s.as_str()) != Some("active") {
@@ -690,6 +798,32 @@ mod tests {
         assert!(validate_id("main").is_err());
         assert!(validate_id("browser-../x").is_err());
         assert!(validate_id(&format!("browser-{}", "a".repeat(200))).is_err());
+    }
+
+    #[test]
+    fn page_annotations_are_parsed_into_a_bounded_shape() {
+        let good = serde_json::json!({
+            "kind": "element", "comment": "c".repeat(5_000), "selector": "h1", "label": "h1",
+            "text": "t", "html": "<h1>", "rect": {"x": 1, "y": 2, "width": 3, "height": 4},
+            "styles": {"color": "red"}, "url": "https://a.test/", "title": "A",
+            "console": [{"level": "log", "text": "x".repeat(900), "at": 1}], "consoleErrors": 0,
+            "index": 1
+        });
+        let parsed = annotations_from(&[
+            good.clone(),
+            // Wrong types, a missing URL, or impossible geometry drop the item.
+            serde_json::json!({ "kind": "element", "url": 42 }),
+            serde_json::json!({ "kind": "script", "url": "https://a.test/" }),
+            serde_json::json!({ "kind": "region", "url": "https://a.test/",
+                "rect": {"x": 1e300, "y": 0, "width": 1, "height": 1} }),
+        ]);
+        assert_eq!(parsed.len(), 1);
+        let annotation = &parsed[0];
+        assert_eq!(annotation.comment.chars().count(), 2_000);
+        assert_eq!(annotation.console[0].level, "warn");
+        assert_eq!(annotation.console[0].text.chars().count(), 500);
+        let many: Vec<_> = std::iter::repeat_n(good, 40).collect();
+        assert_eq!(annotations_from(&many).len(), 16);
     }
 
     #[test]

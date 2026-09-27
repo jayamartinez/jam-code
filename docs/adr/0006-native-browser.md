@@ -59,8 +59,10 @@ sends back.
   comes from host-initiated `eval_with_callback`: history availability,
   console ring, annotations. It is labelled as page data. Finished
   annotations are collected by asking the page every 200 ms, at most 16 per
-  poll. This runs only while the reader has annotate mode on, with a
-  30-minute cap. URL, title and load state
+  poll. The page can replace JAM's script, so the host parses each
+  annotation into a fixed shape with bounded fields and drops anything else
+  before it reaches the interface. This runs only while the reader has
+  annotate mode on, with a 30-minute cap. URL, title and load state
   come from native callbacks (`on_page_load`, `on_document_title_changed`,
   `on_navigation`).
 - **Runtime.** The runtime keeps owning resource identity. Every
