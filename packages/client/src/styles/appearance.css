@@ -1,0 +1,380 @@
+/*
+ * Settings → Appearance, in the Settings frames' vocabulary: raised groups of
+ * rows (label and hint left, control right), the Snapshots frame's option
+ * tiles for pictured choices, and the theme frame's miniature windows.
+ */
+.settings-card {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+}
+.settings-heading.with-actions {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+.settings-heading h3 {
+  font-size: calc(15px * var(--ui-scale));
+  line-height: calc(20px * var(--ui-scale));
+  font-weight: 600;
+  color: var(--color-text-strong);
+}
+.settings-group-label {
+  height: 26px;
+  display: flex;
+  align-items: center;
+  margin: 0 0 6px;
+  color: var(--color-text-subtle);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+.settings-footnote {
+  margin-top: 8px;
+  color: var(--color-text-subtle);
+  font-size: var(--text-xs);
+  line-height: calc(17px * var(--ui-scale));
+}
+.settings-content .button.quiet {
+  border-color: transparent;
+  color: var(--color-text-muted);
+}
+.settings-controls {
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.appearance-row .settings-controls select {
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--radius-md);
+  background: var(--color-fill);
+  color: var(--color-text-primary);
+  font-size: calc(12px * var(--ui-scale));
+}
+
+/* Theme tiles: 3 across, each a miniature JAM window in that theme's own colours. */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.theme-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0;
+  text-align: left;
+  border-radius: var(--radius-lg);
+}
+.theme-tile:hover:not(:disabled) {
+  background: none;
+}
+.theme-preview {
+  height: 108px;
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-size: cover;
+  overflow: hidden;
+}
+.theme-tile:hover .theme-preview {
+  border-color: var(--color-border-strong);
+}
+.theme-tile.selected .theme-preview {
+  border: 2px solid var(--color-accent);
+  padding: 5px;
+}
+.theme-preview i {
+  display: block;
+  height: 5px;
+  flex-shrink: 0;
+  border-radius: 2px;
+}
+.theme-preview-sidebar {
+  width: 56px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 6px;
+  border-radius: 5px;
+}
+.theme-preview-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 5px;
+  padding: 8px;
+  border-radius: 5px;
+}
+.theme-preview-composer {
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 4px;
+  border: 1px solid;
+  border-radius: 4px;
+}
+.theme-preview-composer i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.theme-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  line-height: calc(16px * var(--ui-scale));
+}
+.theme-label small {
+  color: var(--color-text-subtle);
+  font-size: var(--text-xs);
+  text-align: right;
+}
+.theme-tile.selected .theme-label > span {
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+.theme-tile.selected .theme-label small {
+  color: var(--color-accent-strong);
+}
+
+/* Accent swatches: fixed 22px slots so the row never shifts when one is chosen. */
+.accent-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.accent-swatch {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--swatch);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 18%);
+  cursor: pointer;
+}
+.accent-swatch:hover:not(:disabled) {
+  background: var(--swatch);
+}
+.accent-swatch.selected {
+  box-shadow:
+    0 0 0 2px var(--color-surface-raised),
+    0 0 0 3.5px var(--swatch);
+}
+.accent-swatch.theme-accent::after {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
+  background: var(--color-surface-raised);
+}
+.accent-swatch.custom {
+  background: conic-gradient(
+    from 180deg,
+    var(--color-ansi-red),
+    var(--color-ansi-yellow),
+    var(--color-ansi-green),
+    var(--color-ansi-cyan),
+    var(--color-ansi-blue),
+    var(--color-ansi-magenta),
+    var(--color-ansi-red)
+  );
+}
+.accent-swatch.custom.selected {
+  background: var(--swatch);
+}
+.accent-swatch.custom input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* Option tiles, from the Snapshots frame's Capture choice. */
+.option-tiles {
+  display: flex;
+  gap: 8px;
+}
+.option-tile {
+  width: 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 8px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  line-height: calc(14px * var(--ui-scale));
+}
+.option-tile.selected {
+  border-color: var(--color-accent-border);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  font-weight: 500;
+}
+.option-tile.selected:hover:not(:disabled) {
+  background: var(--color-accent-soft);
+}
+.option-picture {
+  width: 56px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-text-faint);
+  border-radius: 4px;
+  background-size: cover;
+  background-position: center;
+}
+.option-picture.empty {
+  border-style: dashed;
+  color: var(--color-text-subtle);
+}
+
+/* Sliders: a fill-strong track with the accent up to the value. */
+.appearance-slider {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.appearance-slider input[type='range'] {
+  width: 180px;
+  height: 18px;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  cursor: pointer;
+}
+.appearance-slider input[type='range']::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--color-accent) var(--fill),
+    var(--color-fill-strong) var(--fill)
+  );
+}
+.appearance-slider input[type='range']::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 50%;
+  appearance: none;
+  background: var(--color-text-strong);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 35%);
+}
+.appearance-slider input[type='range']:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.appearance-slider output {
+  min-width: 5ch;
+  color: var(--color-text-muted);
+  font-size: calc(11px * var(--ui-scale));
+  text-align: right;
+}
+
+.font-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.font-name {
+  width: 150px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-fill);
+  font-size: calc(12px * var(--ui-scale));
+}
+.font-warning {
+  color: var(--color-warning);
+  font-size: var(--text-xs);
+}
+.colour-input {
+  width: 32px;
+  height: 26px;
+  padding: 2px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-fill);
+  cursor: pointer;
+}
+.file-button {
+  position: relative;
+  cursor: pointer;
+}
+.file-button input {
+  display: none;
+}
+
+/* The type preview uses exactly the stacks the editor and terminal use. */
+.type-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 0;
+}
+.type-preview p {
+  color: var(--color-text-body);
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+}
+.type-preview pre {
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.type-preview-code {
+  background: var(--color-surface-pane);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--syntax-variable);
+  font-family: var(--editor-font-family);
+  font-size: var(--editor-font-size);
+  line-height: var(--editor-line-height);
+}
+.type-preview-terminal {
+  background: var(--color-surface-terminal);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-terminal-foreground);
+  font-family: var(--terminal-font-family);
+  font-size: var(--terminal-font-size);
+  line-height: var(--terminal-line-height);
+}
+
+.settings-nav-footer.error {
+  color: var(--color-danger);
+}
+@media (max-width: 1100px) {
+  .theme-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .appearance-slider input[type='range'] {
+    width: 130px;
+  }
+}
+.font-select select {
+  width: 188px;
+}

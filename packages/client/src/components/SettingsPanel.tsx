@@ -1,68 +1,52 @@
-import {
-  AppWindow,
-  Bell,
-  Check,
-  ChevronRight,
-  CircleHelp,
-  Code2,
-  Expand,
-  Keyboard,
-  Monitor,
-  Plug,
-  Search,
-  Settings,
-  Shield,
-  Terminal,
-  X,
-  Zap,
-} from 'lucide-react';
+import { AppWindow, Check, ChevronRight, Expand, Plug, Search, X, Zap } from 'lucide-react';
 import type { Project, ProviderDescriptor } from '@jam/protocol';
-import { useState } from 'react';
+import { Suspense, lazy, useState } from 'react';
 import type { DesktopServices } from '../desktop';
 import { ProjectBadge } from './ProjectBadge';
-import {
-  EDITOR_FONTS,
-  EDITOR_FONT_SIZES,
-  IDLE_THREAD_OPTIONS,
-  type EditorPreferences,
-} from '../state/preferences';
+import { IDLE_THREAD_OPTIONS } from '../state/preferences';
+import { useAppearance } from '../appearance/store';
 import { Brand, IconButton, TrafficLightInset, WindowControls } from './Controls';
+import { SettingsIcon, type SettingsIconName } from './settings-icons';
 
-const groups = [
+/** The Settings frames' grouping, in their order. */
+const groups: { title: string; items: [string, SettingsIconName][] }[] = [
   {
     title: 'General',
     items: [
-      ['General', Settings],
-      ['Appearance', Monitor],
+      ['General', 'general'],
+      ['Appearance', 'appearance'],
     ],
   },
   {
     title: 'Agents',
     items: [
-      ['Providers', Plug],
-      ['Agent defaults', Zap],
-      ['Permissions', Shield],
+      ['Providers', 'providers'],
+      ['Agent defaults', 'agent-defaults'],
+      ['Permissions', 'permissions'],
     ],
   },
   {
     title: 'Tools',
     items: [
-      ['Browser', AppWindow],
-      ['Terminal', Terminal],
-      ['Snapshots', Bell],
-      ['Skills', Code2],
+      ['Browser', 'browser'],
+      ['Terminal', 'terminal'],
+      ['Snapshots', 'snapshots'],
+      ['Skills', 'skills'],
     ],
   },
   {
     title: 'System',
     items: [
-      ['Keybindings', Keyboard],
-      ['Storage', Monitor],
-      ['Advanced', Code2],
-      ['About', CircleHelp],
+      ['Keybindings', 'keybindings'],
+      ['Storage', 'storage'],
+      ['Advanced', 'advanced'],
+      ['About', 'about'],
     ],
   },
-] as const;
+];
+const IMPLEMENTED = new Set(['General', 'Appearance', 'Providers']);
+/** Loaded when the page is first opened, so the workspace never downloads it. */
+const AppearanceSettings = lazy(() => import('./AppearanceSettings'));
 
 export function SettingsPanel({
   providers,
@@ -70,8 +54,6 @@ export function SettingsPanel({
   onEditProject,
   dedicated,
   desktop,
-  editor,
-  onEditor,
   idleThreadDays,
   onIdleThreadDays,
   onClose,
@@ -82,31 +64,27 @@ export function SettingsPanel({
   onEditProject(projectId: string): void;
   dedicated: boolean;
   desktop: DesktopServices;
-  editor: EditorPreferences;
-  onEditor(next: EditorPreferences): void;
   idleThreadDays: number | null;
   onIdleThreadDays(next: number | null): void;
   onClose(): void;
   onMode(): void;
 }) {
-  const [page, setPage] = useState<'Providers' | 'Appearance'>('Providers');
-  const implemented = (name: string) => name === 'Providers' || name === 'Appearance';
+  const [page, setPage] = useState('Providers');
+  const { error: appearanceError } = useAppearance();
   const navigation = (
     <nav className="settings-nav-sections" aria-label="Settings sections">
       {groups.map((group) => (
         <section key={group.title}>
           <div className="section-label">{group.title}</div>
-          {group.items.map(([name, Icon]) => (
+          {group.items.map(([name, icon]) => (
             <button
               key={name}
+              type="button"
               className={`settings-nav-item ${name === page ? 'active' : ''}`}
-              disabled={!implemented(name as string)}
-              title={implemented(name as string) ? undefined : `${name} settings are planned`}
-              onClick={() =>
-                implemented(name as string) && setPage(name as 'Providers' | 'Appearance')
-              }
+              aria-current={name === page ? 'page' : undefined}
+              onClick={() => setPage(name)}
             >
-              <Icon size={14} />
+              <SettingsIcon name={icon} />
               <span>{name}</span>
               {name === 'Providers' && (
                 <small>{providers.filter((provider) => provider.enabled).length} on</small>
@@ -117,79 +95,14 @@ export function SettingsPanel({
       ))}
     </nav>
   );
-  const appearance = (
+  const general = (
     <div className="settings-content-scroll">
       <div className="settings-content">
         <header className="settings-heading">
-          <h2>Appearance</h2>
-          <p>
-            How JAM draws. These are remembered in this browser profile and change nothing the
-            runtime stores.
-          </p>
+          <h2>General</h2>
+          <p>How threads and projects behave in the sidebar.</p>
         </header>
-        <section className="settings-card">
-          <div className="settings-row appearance-row">
-            <div>
-              <strong>Editor font</strong>
-              <p>
-                JAM bundles Geist Mono. The other families are used only if this computer already
-                has them installed, so nothing is downloaded.
-              </p>
-            </div>
-            <select
-              aria-label="Editor font family"
-              value={editor.fontFamily}
-              onChange={(event) => onEditor({ ...editor, fontFamily: event.target.value })}
-            >
-              {EDITOR_FONTS.map((font) => (
-                <option key={font.label} value={font.value}>
-                  {font.label}
-                  {font.note ? ` · ${font.note}` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="settings-row appearance-row">
-            <div>
-              <strong>Editor size</strong>
-              <p>Font size and line height for file panes.</p>
-            </div>
-            <span className="settings-controls">
-              <select
-                aria-label="Editor font size"
-                value={editor.fontSize}
-                onChange={(event) => onEditor({ ...editor, fontSize: Number(event.target.value) })}
-              >
-                {EDITOR_FONT_SIZES.map((size) => (
-                  <option key={size} value={size}>
-                    {size}px
-                  </option>
-                ))}
-              </select>
-              <select
-                aria-label="Editor line height"
-                value={editor.lineHeight}
-                onChange={(event) =>
-                  onEditor({ ...editor, lineHeight: Number(event.target.value) })
-                }
-              >
-                {[16, 18, 20, 22, 24].map((height) => (
-                  <option key={height} value={height}>
-                    {height}px line
-                  </option>
-                ))}
-              </select>
-            </span>
-          </div>
-          <div className="settings-row appearance-row">
-            <div>
-              <strong>Preview</strong>
-              <p>The same stack a file pane uses.</p>
-            </div>
-            <code className="editor-preview">const handle = attach(sessionId);</code>
-          </div>
-        </section>
-        <header className="settings-heading project-icons-heading">
+        <header className="settings-heading">
           <h3>Threads</h3>
           <p>
             A project's chats, listed under it in the sidebar as open or closed. JAM only suggests
@@ -243,10 +156,16 @@ export function SettingsPanel({
             </div>
           ))}
         </section>
-        <p className="settings-note">
-          Theme, accent and density controls are planned. Only the editor and project icons are
-          configurable here.
-        </p>
+      </div>
+    </div>
+  );
+  const planned = (
+    <div className="settings-content-scroll">
+      <div className="settings-content">
+        <header className="settings-heading">
+          <h2>{page}</h2>
+          <p>{page} settings are planned. Nothing on this page is configurable yet.</p>
+        </header>
       </div>
     </div>
   );
@@ -357,7 +276,17 @@ export function SettingsPanel({
       </div>
     </div>
   );
-  const content = page === 'Appearance' ? appearance : providersPage;
+  const content = !IMPLEMENTED.has(page) ? (
+    planned
+  ) : page === 'Appearance' ? (
+    <Suspense fallback={<div className="settings-content-scroll" />}>
+      <AppearanceSettings />
+    </Suspense>
+  ) : page === 'General' ? (
+    general
+  ) : (
+    providersPage
+  );
   if (dedicated)
     return (
       <div className={`jam-app dedicated-settings platform-${desktop.platform}`}>
@@ -379,8 +308,16 @@ export function SettingsPanel({
             </div>
           </div>
           {navigation}
-          <footer className="settings-nav-footer">
-            <Shield size={12} /> Read-only provider status
+          <footer className={`settings-nav-footer ${appearanceError ? 'error' : ''}`}>
+            {appearanceError ? (
+              <>
+                <X size={11} /> Appearance not saved
+              </>
+            ) : (
+              <>
+                <Check size={11} /> Saved automatically
+              </>
+            )}
           </footer>
         </aside>
         <main className="main-shell">

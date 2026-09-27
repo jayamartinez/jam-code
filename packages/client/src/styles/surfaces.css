@@ -28,8 +28,8 @@
 }
 .search-dialog-input > input {
   flex: 1;
-  font-size: 18px;
-  line-height: 28px;
+  font-size: calc(18px * var(--ui-scale));
+  line-height: calc(28px * var(--ui-scale));
   outline: none;
 }
 /* The field is the dialog's whole purpose and its caret already shows focus. */
@@ -45,12 +45,12 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   color: var(--color-text-muted);
   margin-left: auto;
 }
 .search-status {
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   color: var(--color-text-subtle);
   padding: 10px 18px;
 }
@@ -128,7 +128,7 @@
 .search-chat-title {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-scale));
 }
 .search-chat-meta {
   flex-shrink: 0;
@@ -155,26 +155,26 @@
 }
 .search-result strong {
   font-weight: 500;
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-scale));
 }
 .search-result p {
   color: var(--color-text-secondary);
   margin: 4px 0;
-  font-size: 12px;
-  line-height: 18px;
+  font-size: calc(12px * var(--ui-scale));
+  line-height: calc(18px * var(--ui-scale));
   max-height: 54px;
   overflow: hidden;
 }
 .search-result small {
   color: var(--color-text-subtle);
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--ui-scale));
 }
 .dialog-footer {
   display: flex;
   justify-content: space-between;
   border-top: 1px solid var(--color-border);
   padding: 10px 18px;
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--ui-scale));
   color: var(--color-text-subtle);
 }
 .dialog-footer kbd {
@@ -185,12 +185,12 @@
   padding: 20px;
 }
 .context-dialog h2 {
-  font-size: 17px;
+  font-size: calc(17px * var(--ui-scale));
   margin-bottom: 14px;
 }
 .context-dialog p {
   color: var(--color-text-muted);
-  line-height: 20px;
+  line-height: calc(20px * var(--ui-scale));
   margin: 12px 0;
 }
 .context-dialog .button {
@@ -198,12 +198,12 @@
 }
 .context-dialog code {
   color: var(--color-accent-strong);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
   overflow-wrap: anywhere;
 }
 .demo-label {
   color: var(--color-text-subtle);
-  font-size: 9px;
+  font-size: calc(9px * var(--ui-scale));
   border: 1px solid var(--color-border);
   border-radius: 4px;
   padding: 0 4px;
@@ -213,14 +213,14 @@
 .diff-demo {
   overflow: auto;
   padding: 8px 0 20px;
-  font-size: 11px;
-  line-height: 20px;
+  font-size: calc(11px * var(--ui-scale));
+  line-height: calc(20px * var(--ui-scale));
 }
 .diff-hunk {
   padding: 8px 14px;
   color: var(--color-text-subtle);
   font-family: 'Geist Mono Variable', monospace;
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--ui-scale));
 }
 .diff-line {
   display: flex;
@@ -241,7 +241,7 @@
 }
 .diff-line code {
   white-space: pre;
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--ui-scale));
 }
 .diff-line.addition {
   background: var(--color-success-soft);
@@ -257,17 +257,17 @@
   border: 1px solid var(--color-accent-border);
   border-radius: 9px;
   background: var(--color-surface-raised);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: calc(12px * var(--ui-scale));
+  line-height: calc(18px * var(--ui-scale));
 }
 .diff-note > span {
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-scale));
 }
 .diff-note p {
   margin: 5px 0 8px;
 }
 .diff-note .button {
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-scale));
   padding: 2px 7px;
 }
 .settings-nav {
@@ -287,45 +287,68 @@
 }
 .settings-nav-header > strong {
   flex: 1;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
   font-weight: 500;
 }
 .settings-nav-header .wordmark {
-  font-size: 14px;
+  font-size: calc(14px * var(--ui-scale));
 }
 .settings-nav-sections {
   padding: 0 8px;
   overflow: auto;
 }
 .settings-nav-sections section {
-  padding-bottom: 14px;
+  padding-bottom: 12px;
 }
+/*
+ * Paper's Settings rows: 30px, 8px inline padding, a 16px icon slot, a 9px
+ * gap and 13px text. The icon is muted and turns accent only on the selected
+ * row, whose text is strong and medium; nothing else changes with state.
+ */
 .settings-nav-item {
   width: 100%;
   display: flex;
-  gap: 10px;
+  gap: 9px;
   align-items: center;
-  padding: 0 10px;
+  padding: 0 8px;
   height: 30px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   color: var(--color-text-secondary);
   text-align: left;
-  font-size: 12px;
+  font-size: calc(13px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
 }
-.settings-nav-item > span {
+.settings-nav-item > span:not(.settings-icon) {
   flex: 1;
+  min-width: 0;
 }
 .settings-nav-item small {
-  color: var(--color-text-subtle);
-  font-size: 10px;
+  color: var(--color-text-faint);
+  font-family: var(--font-mono-stack);
+  font-size: calc(10.5px * var(--ui-scale));
+  line-height: calc(14px * var(--ui-scale));
+}
+.settings-nav-item .settings-icon {
+  color: var(--color-text-muted);
 }
 .settings-nav-item.active {
   color: var(--color-text-strong);
   background: var(--color-fill-strong);
   font-weight: 500;
 }
-.settings-nav-item.active svg {
+.settings-nav-item.active .settings-icon {
   color: var(--color-accent);
+}
+.settings-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.settings-icon svg {
+  display: block;
 }
 .settings-nav-footer {
   margin-top: auto;
@@ -335,7 +358,7 @@
   gap: 8px;
   align-items: center;
   padding: 0 16px;
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--ui-scale));
   color: var(--color-text-subtle);
 }
 .settings-content-scroll {
@@ -354,8 +377,8 @@
 }
 .settings-heading p {
   color: var(--color-text-muted);
-  font-size: 13px;
-  line-height: 20px;
+  font-size: calc(13px * var(--ui-scale));
+  line-height: calc(20px * var(--ui-scale));
   margin-top: 6px;
   max-width: 540px;
 }
@@ -370,12 +393,12 @@
   border-radius: 10px;
 }
 .settings-default strong {
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
   font-weight: 500;
 }
 .settings-default p {
   color: var(--color-text-subtle);
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   margin-top: 3px;
 }
 .setting-value {
@@ -385,7 +408,7 @@
   padding: 4px 9px;
   border: 1px solid var(--color-border-strong);
   border-radius: 7px;
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   color: var(--color-text-secondary);
   white-space: nowrap;
 }
@@ -412,11 +435,11 @@
   gap: 9px;
   align-items: center;
   font-weight: 600;
-  font-size: 14px;
-  line-height: 18px;
+  font-size: calc(14px * var(--ui-scale));
+  line-height: calc(18px * var(--ui-scale));
 }
 .provider-card header p {
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   color: var(--color-text-subtle);
   margin-top: 4px;
 }
@@ -435,7 +458,7 @@
   background: var(--color-accent-soft);
   padding: 1px 5px;
   border-radius: 8px;
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-scale));
   font-weight: 500;
 }
 .toggle {
@@ -477,7 +500,7 @@
   border: 0;
 }
 .provider-states strong {
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   display: flex;
   align-items: center;
   gap: 5px;
@@ -485,7 +508,7 @@
 }
 .provider-states small {
   color: var(--color-text-subtle);
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-scale));
   margin-top: 3px;
   display: block;
 }
@@ -498,26 +521,26 @@
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--color-border-subtle);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
   color: var(--color-text-secondary);
 }
 .provider-details > div:last-child {
   border: 0;
 }
 .provider-details code {
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   color: var(--color-text-muted);
 }
 .provider-note {
   padding: 12px 16px;
   color: var(--color-text-subtle);
-  font-size: 11px;
-  line-height: 18px;
+  font-size: calc(11px * var(--ui-scale));
+  line-height: calc(18px * var(--ui-scale));
 }
 .settings-note {
   color: var(--color-text-subtle);
-  font-size: 11px;
-  line-height: 18px;
+  font-size: calc(11px * var(--ui-scale));
+  line-height: calc(18px * var(--ui-scale));
 }
 .settings-pane-body {
   display: flex;
@@ -539,7 +562,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   color: var(--color-text-muted);
 }
 @media (max-width: 1100px) {

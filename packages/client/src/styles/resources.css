@@ -39,7 +39,7 @@
   gap: 9px;
   margin-bottom: 4px;
   padding: 0 10px;
-  font-size: 13.5px;
+  font-size: calc(13.5px * var(--ui-scale));
   line-height: var(--leading-ui);
   color: var(--color-text-subtle);
   border-bottom: 1px solid var(--color-border-subtle);
@@ -108,8 +108,8 @@
 }
 .launcher-note {
   padding: var(--spacing-gutter) 10px 0;
-  font-size: 11px;
-  line-height: 15px;
+  font-size: calc(11px * var(--ui-scale));
+  line-height: calc(15px * var(--ui-scale));
   color: var(--color-text-subtle);
 }
 .launcher-project {
@@ -146,7 +146,7 @@
 }
 .launcher-project-row.current small,
 .launcher-project-row small {
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   color: var(--color-text-subtle);
 }
 .launcher-project-row.nested {
@@ -159,7 +159,7 @@
   background: var(--color-surface-raised);
   border: 1px solid var(--color-border);
   font-family: 'Geist Mono Variable', monospace;
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   color: var(--color-text-subtle);
 }
 .launcher-divider {
@@ -221,8 +221,8 @@
 .file-chevron {
   width: 10px;
   flex-shrink: 0;
-  font-size: 9px;
-  line-height: 12px;
+  font-size: calc(9px * var(--ui-scale));
+  line-height: calc(12px * var(--ui-scale));
   color: var(--color-text-subtle);
 }
 .file-name {
@@ -234,11 +234,11 @@
   flex-shrink: 0;
   text-align: center;
   font-size: var(--text-label);
-  line-height: 14px;
+  line-height: calc(14px * var(--ui-scale));
 }
 .file-row-note {
   padding: 2px var(--spacing-row);
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   color: var(--color-text-subtle);
 }
 .file-row-note.error {
@@ -251,7 +251,7 @@
   align-items: center;
   gap: var(--spacing-row);
   padding: 0 14px;
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   color: var(--color-text-muted);
   border-top: 1px solid var(--color-border-subtle);
 }
@@ -267,8 +267,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
-  line-height: 16px;
+  font-size: calc(12px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
 }
 .file-path-directory {
   color: var(--color-text-subtle);
@@ -375,7 +375,7 @@ span.icon-slot {
   height: 20px;
   padding: 0 6px;
   border-radius: var(--radius-sm);
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-scale));
   letter-spacing: 0.02em;
   color: var(--color-text-subtle);
   border: 1px dashed var(--color-border-strong);
@@ -413,7 +413,7 @@ span.icon-slot {
 }
 .settings-note {
   margin-top: 16px;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
   color: var(--color-text-subtle);
 }
 
@@ -433,7 +433,7 @@ span.icon-slot {
   min-width: 160px;
 }
 .project-icon-identity p {
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   color: var(--color-text-subtle);
   margin-top: 2px;
 }
@@ -467,7 +467,7 @@ span.icon-slot {
   align-items: center;
   border-radius: var(--radius-md);
   border: 1px dashed var(--color-border-strong);
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--ui-scale));
   color: var(--color-text-secondary);
   cursor: pointer;
 }
@@ -479,7 +479,7 @@ span.icon-slot {
 }
 .settings-error {
   margin: 8px 0;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
   color: var(--color-danger);
 }
 
@@ -500,14 +500,14 @@ span.icon-slot {
 }
 .appearance-row strong {
   display: block;
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-scale));
   font-weight: 500;
   color: var(--color-text-primary);
 }
 .appearance-row p {
   margin-top: 4px;
-  font-size: 12px;
-  line-height: 18px;
+  font-size: calc(12px * var(--ui-scale));
+  line-height: calc(18px * var(--ui-scale));
   color: var(--color-text-muted);
   max-width: 62ch;
 }
@@ -575,7 +575,7 @@ span.icon-slot {
   padding: 0 10px;
   border-radius: var(--radius-sm);
   text-align: left;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--ui-scale));
   color: var(--color-text-secondary);
 }
 .context-menu button:hover,
@@ -603,11 +603,11 @@ span.icon-slot {
   flex: 1;
 }
 .project-editor-header h2 {
-  font-size: 15px;
+  font-size: calc(15px * var(--ui-scale));
   font-weight: 600;
 }
 .project-editor-header p {
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   color: var(--color-text-subtle);
 }
 .editor-field {
@@ -627,7 +627,7 @@ span.icon-slot {
   border: 1px solid var(--color-border-strong);
   background: var(--color-surface-raised);
   color: var(--color-text-primary);
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-scale));
 }
 .editor-field input:focus {
   outline: none;
@@ -635,8 +635,8 @@ span.icon-slot {
   box-shadow: 0 0 0 3px var(--color-accent-soft);
 }
 .editor-hint {
-  font-size: 11.5px;
-  line-height: 17px;
+  font-size: calc(11.5px * var(--ui-scale));
+  line-height: calc(17px * var(--ui-scale));
   color: var(--color-text-muted);
 }
 .editor-path {
@@ -645,7 +645,7 @@ span.icon-slot {
 }
 .editor-path input {
   flex: 1;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
 }
 .editor-add {
   align-self: flex-start;
@@ -661,7 +661,7 @@ span.icon-slot {
   height: 24px;
   padding: 0 12px;
   border-radius: var(--radius-sm);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
   color: var(--color-text-subtle);
 }
 .segmented button.active {
@@ -685,7 +685,7 @@ span.icon-slot {
 }
 .emoji-grid .icon-choice {
   font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
-  font-size: 18px;
+  font-size: calc(18px * var(--ui-scale));
 }
 .icon-choice:hover {
   background: var(--color-fill);
@@ -813,8 +813,8 @@ span.icon-slot {
   flex: 1;
   min-width: 0;
   font-family: var(--font-mono-stack);
-  font-size: 12px;
-  line-height: 16px;
+  font-size: calc(12px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
   color: var(--color-text-primary);
   background: none;
   border: 0;
@@ -859,7 +859,7 @@ span.icon-slot {
   border-radius: 6px;
   color: var(--color-text-muted);
   font-size: var(--text-xs);
-  line-height: 14px;
+  line-height: calc(14px * var(--ui-scale));
 }
 .browser-tool.icon {
   width: 28px;
@@ -922,7 +922,7 @@ span.icon-slot {
   text-align: center;
   color: var(--color-text-secondary);
   font-size: var(--text-md);
-  line-height: 20px;
+  line-height: calc(20px * var(--ui-scale));
 }
 .browser-placeholder p {
   margin: 0 0 6px;
@@ -933,7 +933,7 @@ span.icon-slot {
 }
 .browser-placeholder code {
   font-family: var(--font-mono-stack);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
   color: var(--color-accent-strong);
 }
 .browser-notice {
@@ -967,9 +967,9 @@ span.icon-slot {
   border: 2px solid var(--color-badge-ring);
   background: var(--color-accent);
   color: var(--color-on-accent);
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-scale));
   font-weight: 700;
-  line-height: 12px;
+  line-height: calc(12px * var(--ui-scale));
 }
 .browser-tray-text {
   flex: 1 1 0;
@@ -981,12 +981,12 @@ span.icon-slot {
 .browser-tray-text strong {
   font-weight: 400;
   font-size: var(--text-sm);
-  line-height: 16px;
+  line-height: calc(16px * var(--ui-scale));
   color: var(--color-text-primary);
 }
 .browser-tray-text span {
   font-size: var(--text-xs);
-  line-height: 14px;
+  line-height: calc(14px * var(--ui-scale));
   color: var(--color-text-subtle);
 }
 .browser-tray-text > * {
