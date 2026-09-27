@@ -1,0 +1,231 @@
+/* Settings v2 · projects pages. Builds on settings.css and the split in settings-providers.css. */
+.sv-project-row {
+  padding: 0 10px;
+  height: 52px;
+  gap: 10px;
+}
+.sv-project-row .sv-provider-name strong {
+  font-size: calc(13px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
+  font-weight: 400;
+}
+.sv-project-row.selected .sv-provider-name strong {
+  font-weight: 500;
+}
+.sv-project-row .sv-provider-name small {
+  color: var(--color-text-subtle);
+  font-size: calc(11px * var(--ui-scale));
+  line-height: calc(14px * var(--ui-scale));
+}
+.sv-project-row.add {
+  height: 36px;
+  cursor: default;
+}
+.sv-project-row.add .sv-provider-name > span {
+  color: var(--color-text-muted);
+  font-size: calc(12.5px * var(--ui-scale));
+}
+.sv-add-badge {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-subtle);
+  font-size: calc(11px * var(--ui-scale));
+}
+.sv-pin {
+  flex-shrink: 0;
+  color: var(--color-text-subtle);
+}
+.sv-split-divider {
+  height: 1px;
+  margin: 6px 10px;
+  background: var(--color-border-subtle);
+}
+.sv-project-badge-large {
+  border-radius: 8px;
+  font-size: calc(13px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
+}
+.sv-save-state {
+  color: var(--color-text-faint);
+  font-size: calc(11px * var(--ui-scale));
+}
+.sv-error {
+  margin-top: -8px;
+  color: var(--color-danger);
+  font-size: calc(11.5px * var(--ui-scale));
+}
+.sv-input {
+  width: 240px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-size: calc(12px * var(--ui-scale));
+}
+.sv-input:focus {
+  outline: none;
+  border-color: var(--color-accent-border);
+}
+.sv-input.emoji {
+  width: 52px;
+  text-align: center;
+  font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+  font-size: calc(16px * var(--ui-scale));
+}
+.sv-hint {
+  color: var(--color-text-subtle);
+  font-size: calc(11.5px * var(--ui-scale));
+}
+
+.sv-icon-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 0;
+}
+.sv-icon-editor-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.sv-icon-editor-head strong {
+  flex: 1;
+  color: var(--color-text-primary);
+  font-size: calc(13px * var(--ui-scale));
+  font-weight: 400;
+}
+.sv-icon-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sv-icon-line-label {
+  width: 44px;
+  flex-shrink: 0;
+  color: var(--color-text-subtle);
+  font-size: calc(11.5px * var(--ui-scale));
+}
+.sv-tones {
+  display: flex;
+  gap: 7px;
+}
+.icon-choice.sv-tone {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 0;
+  background: color-mix(in srgb, var(--tone) 15%, transparent);
+}
+.icon-choice.sv-tone span {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--tone);
+}
+.icon-choice.sv-tone.selected {
+  box-shadow: 0 0 0 1.5px var(--tone);
+}
+.sv-glyph-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  background: var(--color-bg-base);
+}
+.sv-glyph-grid .icon-choice {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+}
+.sv-glyph-grid.emoji .icon-choice {
+  font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+  font-size: calc(15px * var(--ui-scale));
+}
+
+.sv-folder {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.sv-folder-glyph {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+.sv-folder-input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: var(--font-mono-stack);
+  font-size: calc(11.5px * var(--ui-scale));
+}
+.sv-folder-input:focus {
+  outline: none;
+}
+.sv-folder-remove {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--color-text-subtle);
+}
+.sv-folder-remove:hover {
+  background: var(--color-fill);
+  color: var(--color-text-primary);
+}
+.sv-folder.add {
+  min-height: 40px;
+  border-bottom: 0;
+  color: var(--color-text-secondary);
+  font-size: calc(12px * var(--ui-scale));
+}
+.sv-folder.add span {
+  width: 14px;
+  text-align: center;
+  color: var(--color-text-subtle);
+}
+
+.sv-danger-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 22%, transparent);
+  border-radius: var(--radius-lg);
+  background: var(--color-danger-soft);
+}
+.sv-danger-row > div {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sv-danger-row strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-primary);
+  font-size: calc(13px * var(--ui-scale));
+  font-weight: 400;
+}
+.sv-danger-row p {
+  color: var(--color-text-subtle);
+  font-size: calc(11.5px * var(--ui-scale));
+}

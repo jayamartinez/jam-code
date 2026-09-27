@@ -1,0 +1,293 @@
+/* Settings v2 · Usage: limits, the daily area chart and the breakdown. Builds on settings.css. */
+
+/* Limits */
+.usage-limits {
+  padding-bottom: 4px;
+}
+.usage-limit-group + .usage-limit-group,
+.usage-limit-group + .usage-connect {
+  border-top: 1px solid var(--color-border-subtle);
+}
+.usage-source {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0 4px;
+  color: var(--color-text-subtle);
+  font-size: calc(11.5px * var(--ui-scale));
+  line-height: calc(14px * var(--ui-scale));
+}
+.usage-source-glyph {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.usage-limit {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-height: 60px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.usage-limit-group .usage-limit:last-child {
+  border-bottom: 0;
+}
+.usage-limit-figure {
+  width: 168px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.usage-limit-figure span {
+  color: var(--color-text-primary);
+  font-size: calc(13px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
+}
+.usage-limit-figure strong {
+  color: var(--color-text-strong);
+  font-size: calc(22px * var(--ui-scale));
+  line-height: calc(26px * var(--ui-scale));
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.usage-limit-figure strong small {
+  color: var(--color-text-subtle);
+  font-size: calc(11.5px * var(--ui-scale));
+  font-weight: 400;
+  letter-spacing: 0;
+}
+/* The empty state's label is quieter than a real figure. */
+.usage-limit-figure strong:only-child {
+  color: var(--color-text-secondary);
+  font-size: calc(13px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
+}
+.usage-limit-meter {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.usage-limit > .usage-meter {
+  flex: 1;
+}
+.usage-meter {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--color-fill);
+  overflow: hidden;
+}
+.usage-meter > div {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--color-accent);
+}
+.usage-limit-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--color-text-subtle);
+  font-size: calc(11px * var(--ui-scale));
+  line-height: calc(14px * var(--ui-scale));
+}
+.usage-connect {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+}
+.usage-connect p {
+  flex: 1;
+  color: var(--color-text-secondary);
+  font-size: calc(12.5px * var(--ui-scale));
+}
+.usage-empty {
+  padding: 16px 0;
+  color: var(--color-text-subtle);
+  font-size: calc(12px * var(--ui-scale));
+}
+
+/* Activity */
+.usage-activity {
+  padding: 18px 16px 14px;
+  gap: 16px;
+}
+.usage-activity-body {
+  display: flex;
+  gap: 28px;
+}
+.usage-total {
+  width: 212px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.usage-total > strong {
+  color: var(--color-text-strong);
+  font-size: calc(34px * var(--ui-scale));
+  line-height: calc(38px * var(--ui-scale));
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.usage-total > span {
+  color: var(--color-text-subtle);
+  font-size: calc(11.5px * var(--ui-scale));
+}
+.usage-total ul {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.usage-total li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--color-text-primary);
+  font-size: calc(12.5px * var(--ui-scale));
+}
+.usage-total li i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.usage-total li span {
+  flex: 1;
+}
+.usage-total li b {
+  font-family: var(--font-mono-stack);
+  font-size: calc(12px * var(--ui-scale));
+  font-weight: 400;
+  color: var(--color-text-subtle);
+}
+.usage-chart {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.usage-chart figcaption {
+  color: var(--color-text-secondary);
+  font-size: calc(12px * var(--ui-scale));
+  font-weight: 500;
+}
+.usage-chart-plot {
+  position: relative;
+  height: 160px;
+}
+.usage-chart-grid {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.usage-chart-grid > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 0;
+}
+.usage-chart-grid span {
+  width: 36px;
+  text-align: right;
+  color: var(--color-text-faint);
+  font-family: var(--font-mono-stack);
+  font-size: calc(10px * var(--ui-scale));
+}
+.usage-chart-grid i {
+  flex: 1;
+  height: 1px;
+  background: var(--color-border-subtle);
+}
+.usage-chart-plot svg {
+  position: absolute;
+  left: 44px;
+  top: 0;
+  width: calc(100% - 44px);
+  height: 100%;
+  overflow: visible;
+}
+.usage-chart-fill {
+  fill: currentColor;
+  fill-opacity: 0.16;
+}
+.usage-chart-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.usage-chart-empty {
+  position: absolute;
+  inset: 0 0 0 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-subtle);
+  font-size: calc(12px * var(--ui-scale));
+}
+.usage-chart-dates {
+  display: flex;
+  justify-content: space-between;
+  margin-left: 44px;
+  color: var(--color-text-faint);
+  font-family: var(--font-mono-stack);
+  font-size: calc(10px * var(--ui-scale));
+  letter-spacing: 0.03em;
+}
+.usage-totals {
+  display: flex;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+.usage-totals > div {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.usage-totals > div + div {
+  border-left: 1px solid var(--color-border-subtle);
+  padding-left: 14px;
+}
+.usage-totals dt {
+  color: var(--color-text-subtle);
+  font-size: calc(11px * var(--ui-scale));
+}
+.usage-totals dd {
+  color: var(--color-text-primary);
+  font-family: var(--font-mono-stack);
+  font-size: calc(12px * var(--ui-scale));
+}
+
+/* Breakdown */
+.usage-breakdown {
+  padding: 4px 16px;
+}
+.usage-breakdown-head {
+  display: grid;
+  grid-template-columns: 1fr 200px 64px 72px;
+  gap: 16px;
+  height: 30px;
+  align-items: center;
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-text-faint);
+  font-size: calc(11px * var(--ui-scale));
+}
+.usage-breakdown-head span:nth-child(n + 3) {
+  text-align: right;
+}
+
+@media (max-width: 900px) {
+  .usage-activity-body {
+    flex-direction: column;
+  }
+  .usage-total {
+    width: auto;
+  }
+}

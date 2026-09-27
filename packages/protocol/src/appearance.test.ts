@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import languageCases from '../fixtures/languages.json';
-import { APPEARANCE, DEFAULT_APPEARANCE, type AppearanceSettings } from './appearance';
+import {
+  APPEARANCE,
+  DEFAULT_APPEARANCE,
+  parseCustomThemeRef,
+  type AppearanceSettings,
+  type CustomTheme,
+  type CustomThemeColors,
+} from './appearance';
 import { previewLanguage } from './preview-files';
 import { BrowserPreviewTransport } from './preview';
 import { validateRequest, validateResponse } from './validation';
@@ -51,6 +58,41 @@ describe('appearance contract', () => {
     const partial: Partial<AppearanceSettings> = { ...DEFAULT_APPEARANCE };
     delete partial.theme;
     expect(() => update(partial)).toThrow();
+  });
+
+  it('accepts bounded custom themes and a custom active theme that exists', () => {
+    const colours = Object.fromEntries(
+      APPEARANCE.customThemeRoles.map((role) => [role, '#336699']),
+    ) as CustomThemeColors;
+    const harbour: CustomTheme = { id: 'harbour', name: 'Harbour', dark: colours };
+    const valid = { ...DEFAULT_APPEARANCE, customThemes: [harbour] };
+    expect(() => update(valid)).not.toThrow();
+    expect(() => update({ ...valid, theme: 'custom:harbour:dark' })).not.toThrow();
+    // A variant the theme does not have, or a theme that does not exist.
+    expect(() => update({ ...valid, theme: 'custom:harbour:light' })).toThrow();
+    expect(() => update({ ...valid, theme: 'custom:missing:dark' })).toThrow();
+    expect(() => update({ ...DEFAULT_APPEARANCE, theme: 'custom:harbour:dark' })).toThrow();
+    const bad: unknown[] = [
+      { ...harbour, id: 'Harbour!' },
+      { ...harbour, name: '' },
+      { ...harbour, name: 'a'.repeat(APPEARANCE.limits.customThemeNameUtf16 + 1) },
+      { ...harbour, name: 'line\nbreak' },
+      { id: 'harbour', name: 'Harbour' },
+      { ...harbour, dark: { ...colours, canvas: 'red' } },
+      { ...harbour, dark: { ...colours, extra: '#000000' } },
+      { ...harbour, dark: { canvas: '#000000' } },
+      { ...harbour, surprise: true },
+    ];
+    for (const theme of bad)
+      expect(() => update({ ...DEFAULT_APPEARANCE, customThemes: [theme] })).toThrow();
+    expect(() => update({ ...DEFAULT_APPEARANCE, customThemes: [harbour, harbour] })).toThrow();
+    const many = Array.from({ length: APPEARANCE.limits.customThemes + 1 }, (_, index) => ({
+      ...harbour,
+      id: `t${index}`,
+    }));
+    expect(() => update({ ...DEFAULT_APPEARANCE, customThemes: many })).toThrow();
+    expect(parseCustomThemeRef('custom:harbour:light')).toEqual({ id: 'harbour', scheme: 'light' });
+    expect(parseCustomThemeRef('nightglass')).toBeUndefined();
   });
 
   it('accepts only bounded inline JPEG, PNG or WebP wallpapers', () => {

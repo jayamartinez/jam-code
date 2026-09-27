@@ -336,14 +336,15 @@ Window buttons call injected desktop services. The shared client imports no nati
 
 ## Appearance
 
-Paper defines Nightglass, the theme frame's "Same components, remapped tokens"
-row (Nightglass, Graphite, Tide) and its per-user overrides (wallpaper,
-accent, pane opacity and blur). There is no Appearance page frame, so the page
-is built from the Settings frames' own vocabulary: raised groups of rows with
-the label and hint on the left and the control on the right, the Snapshots
-frame's option tiles for pictured choices, and the theme frame's miniature
-windows as theme tiles. Every change applies immediately and is saved by the
-runtime (ADR 0008). Density and background patterns are not implemented.
+The page follows the Paper "Settings v2 · Appearance (stage + library)",
+"Library search state" and "Theme editor (create + import)" frames. A preview
+stage at the top draws a miniature JAM window from the live tokens, with a
+Light/Dark switch (to the current family's other version) and a stepper through
+the library. Below it are Interface (accent and the three font rows),
+Background & surfaces (surface opacity and blur, and effects, behind "Adjust"
+disclosures) and the Library. Every change applies immediately and is saved by
+the runtime (ADR 0008). Density is not implemented. The frame's "Auto" scheme
+is not modelled, so only Light and Dark are shown.
 
 ### Built-in themes
 
@@ -373,11 +374,27 @@ secondary and muted text 4.5:1, subtle text 3.5:1, accent 3:1 with its
 text-safe strong variant 4.5:1, status and code 4.5:1 (comments and
 punctuation 3.5:1), and ANSI colours 3:1, each against the theme's own pane.
 
-With 31 themes the Paper tiles no longer fit, so the picker is a Dark/Light
-switch over a two-column list: each row carries an "Aa" chip drawn in the
-theme's own canvas and accent, its name and a check. "Switch to …" jumps to the
-current theme's other version. This follows the owner's reference rather than
-a Paper frame.
+### Library and your own themes
+
+The library groups families as JAM, Yours and Editor themes. Each family is a
+specimen card: one pane per variant, light first, each drawing a sidebar sliver
+and three syntax-coloured lines from that variant's own roles
+(`appearance/library.ts`), so a card shows the theme itself rather than a
+swatch. Choosing a pane applies that variant. A group collapses to one line of
+chips (a light/dark swatch and the accent). Search matches names, family names
+and "light"/"dark", lists matching variants one by one with the match
+highlighted, and takes ↑↓, ↵ and Esc.
+
+"New theme" starts from the current theme's anchors; "Import…" reads a JAM
+theme file or a VS Code colour theme (`appearance/import.ts`): workbench
+colours give surfaces, text, accent and status, `tokenColors` scopes give
+syntax, the terminal palette gives ANSI, and roles the file lacks are taken
+from Nightglass or Frost and listed as derived. The editor edits anchor colours
+per variant with a live preview (the stage window wrapped in the draft's
+tokens) and shows each text and syntax colour's contrast on the canvas.
+Colours under a floor are raised just enough whenever the theme is drawn;
+"Raise now" writes the raised values into the draft. Custom themes are drawn by
+the same builder as editor themes, so every floor above applies to them.
 
 ### Semantic tokens
 

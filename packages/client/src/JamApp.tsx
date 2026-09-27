@@ -130,9 +130,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [contextTarget, setContextTarget] = useState<string | null>(null);
   const [launcher, setLauncher] = useState<LauncherTarget>(null);
-  const [settingsStartPage, setSettingsStartPage] = useState<'Providers' | 'Snapshots'>(
-    'Providers',
-  );
+  const [settingsStartPage, setSettingsStartPage] = useState<'General' | 'Snapshots'>('General');
   const [settingsMode, setSettingsMode] = useState<'dedicated' | null>(null);
   const [newChats, setNewChats] = useState<
     Record<string, { projectId: string; presentation: Presentation }>
@@ -461,7 +459,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   );
 
   const openSettings = useCallback(() => {
-    setSettingsStartPage('Providers');
+    setSettingsStartPage('General');
     setSettingsMode('dedicated');
     setOverlay(null);
     setLauncher(null);
@@ -660,10 +658,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       transport={transport}
       providers={workspace.providers}
       projects={workspace.projects}
-      onEditProject={(id) => {
-        setSettingsMode(null);
-        setEditingProject(id);
-      }}
+      onUpdateProject={updateProject}
       dedicated={dedicated}
       desktop={desktop}
       idleThreadDays={idleThreadDays}

@@ -1,4 +1,4 @@
-import type { ThemeId } from '@jam/protocol';
+import type { ThemeId, ThemeRef } from '@jam/protocol';
 import { alpha, ensureContrast, mix } from './color';
 import type { AnsiRole, Scheme, SyntaxRole, ThemeDefinition } from './themes';
 
@@ -23,8 +23,8 @@ type Syntax = Pick<
 > &
   Partial<Record<SyntaxRole, string>>;
 
-interface Anchors {
-  id: ThemeId;
+export interface Anchors {
+  id: ThemeRef;
   name: string;
   family: string;
   scheme: Scheme;

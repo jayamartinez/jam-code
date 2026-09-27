@@ -61,7 +61,8 @@
     "backgroundVignette": 0,
     "paneBlur": 24,
     "sidebarBlur": 24,
-    "autoColors": false
+    "autoColors": false,
+    "customThemes": []
   },
   "limits": {
     "fontUtf16": 64,
@@ -84,7 +85,34 @@
     "patternStrength": [0, 100],
     "patternSize": [2, 16],
     "backgroundFade": [0, 100],
-    "backgroundVignette": [0, 100]
+    "backgroundVignette": [0, 100],
+    "customThemes": 32,
+    "customThemeNameUtf16": 48
   },
-  "patterns": ["none", "halftone", "scanlines", "grid", "grain"]
+  "patterns": ["none", "halftone", "scanlines", "grid", "grain"],
+  "customThemeRoles": [
+    "canvas",
+    "sidebar",
+    "raised",
+    "text",
+    "muted",
+    "accent",
+    "success",
+    "warning",
+    "danger",
+    "keyword",
+    "string",
+    "number",
+    "function",
+    "type",
+    "property",
+    "operator",
+    "comment",
+    "red",
+    "green",
+    "yellow",
+    "blue",
+    "magenta",
+    "cyan"
+  ]
 }

@@ -4,14 +4,17 @@ import {
   DEFAULT_APPEARANCE,
   FONT_FAMILY,
   HEX_COLOR,
+  appearanceThemeProblem,
+  customThemeProblem,
   type AppearanceSettings,
+  type CustomTheme,
 } from '@jam/protocol';
+import { themeFor } from './custom';
 import { alpha, mix } from './color';
 import type { WallpaperPalette } from './palette';
 import {
   ANSI_ROLES,
   SYNTAX_ROLES,
-  THEMES,
   accentRoles,
   legible,
   resolveAccent,
@@ -51,7 +54,20 @@ export function normalizeAppearance(value: unknown): AppearanceSettings {
   const pick = <K extends keyof AppearanceSettings>(key: K, valid: (item: unknown) => boolean) => {
     if (valid(input[key])) result[key] = input[key] as AppearanceSettings[K];
   };
-  pick('theme', (item) => APPEARANCE.themes.includes(item as never));
+  // The reader's themes first: the active theme may name one of them.
+  if (Array.isArray(input.customThemes)) {
+    const seen = new Set<string>();
+    result.customThemes = (input.customThemes as unknown[])
+      .filter((item): item is CustomTheme => {
+        if (customThemeProblem(item)) return false;
+        const { id } = item as CustomTheme;
+        if (seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      })
+      .slice(0, APPEARANCE.limits.customThemes);
+  }
+  pick('theme', (item) => !appearanceThemeProblem(item, result.customThemes));
   pick('accent', (item) => APPEARANCE.accents.includes(item as never));
   pick('background', (item) => APPEARANCE.backgrounds.includes(item as never));
   pick('backgroundPattern', (item) => APPEARANCE.patterns.includes(item as never));
@@ -125,7 +141,7 @@ function tintedTheme(theme: ThemeDefinition, palette: WallpaperPalette): ThemeDe
 }
 
 export function themeOf(appearance: AppearanceSettings): ThemeDefinition {
-  return THEMES[appearance.theme] ?? THEMES.nightglass;
+  return themeFor(appearance.theme, appearance.customThemes);
 }
 
 /**

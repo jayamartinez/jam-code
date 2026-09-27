@@ -69,8 +69,10 @@ optional note and Open/Remove/Dismiss actions. It fades after three seconds (sho
 interacting; the staged item remains. Deliberate V0 deviations: one quiet sound,
 no region/full-screen capture or shortcut recorder, no bring-to-front-on-capture
 setting. The compact inbox in Snapshot settings exposes otherwise orphaned captures.
-Settings navigation/layout/Appearance are preserved. Its eventual owner can mount
-`SnapshotSettings` with the protocol transport and injected `SnapshotHost`.
+The Settings v2 Snapshots page (`settings/pages/SnapshotsPage.tsx`) drives these
+settings through the protocol transport and the injected `SnapshotHost`; choices the
+host cannot honour yet (sound choice, other shortcuts, region/full screen,
+bring-to-front) stay visible and marked planned.
 
 ## Storage, retention and privacy
 

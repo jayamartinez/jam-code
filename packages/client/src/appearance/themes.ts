@@ -1,4 +1,4 @@
-import type { AccentId, ThemeId } from '@jam/protocol';
+import type { AccentId, ThemeId, ThemeRef } from '@jam/protocol';
 import { alpha, contrast, ensureContrast, luminance, mix } from './color';
 import { EDITOR_THEMES } from './palettes';
 
@@ -71,7 +71,7 @@ interface Text {
 }
 
 export interface ThemeDefinition {
-  id: ThemeId;
+  id: ThemeRef;
   name: string;
   /** Themes that are light and dark versions of one another share a family. */
   family: string;
