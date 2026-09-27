@@ -509,3 +509,54 @@ reads. It measures a debug build and local filesystem, not a cross-platform SLA.
 The development launcher also reports the existing Tauri Rust 2.12 / JavaScript
 2.11 version mismatch; the isolated native app nevertheless built and ran. Dependency
 alignment is outside this Git milestone.
+
+## Snapshots — macOS, 2026-09-27
+
+The Snapshot branch was based on integrated main `9cfcb7d`, in an isolated
+worktree. Native QA used a separate app identifier and app-data database, an
+ad-hoc local app bundle and its own Vite port. It did not open the Appearance
+agent's app data. This is development-build evidence, not signed-release QA. Replacing the ad-hoc
+QA binary invalidated macOS grants despite enabled toggles. Resetting only its
+Input Monitoring grant, re-adding the bundle and restarting restored the active
+listener. Screen Recording was also refreshed for the same approved QA app.
+
+Frontend format/lint/types, 99 tests across 18 files and the production frontend
+build passed. Rust format, workspace check, Clippy with warnings denied and 52
+tests passed (5 host, 12 runtime unit, 15 runtime integration, 6 Snapshot storage
+integration, 14 Terminal integration). Snapshot tests cover gesture timing,
+quiet period/cooldown/reset, enabled settings, destination/inbox, metadata and
+restart, explicit-send canonical context and retry deduplication, retention,
+traversal/symlink rejection, private permissions and crash-orphan recovery.
+JPEG-shaped bytes in storage tests are opaque fixtures, not fake capture evidence.
+
+With user-approved Input Monitoring and Screen Recording, the actual app captured
+external Terminal windows at 3358×2016, approximately 1.1 MiB including thumbnail.
+The developer reported that focus stayed in the current app and visual shutter
+feedback appeared. The real images appeared as composer context in the last
+focused mock conversation. Read-only QA database checks found no sent snapshots
+and the same 18 seeded messages after capture, destination changes and removal.
+Computer use cannot synthesize modifier-only presses on this host, so the physical
+Shift Shift trigger was developer-operated.
+
+Native UI checks verified unavailable/registered/disabled shortcut states,
+re-registration, composer removal to the inbox, changing destination, saving a
+note, and Open in chat navigating to that destination. After selecting a non-agent
+review resource, the stored last-focused conversation remained unchanged. The
+shared Paper card and Settings surface were inspected in the running app. The
+three-second toast lifetime supersedes Paper's six seconds at the developer's
+request; interaction state is scoped to each capture so it cannot pause later
+captures. Captures and local QA output are excluded from Git.
+
+The developer did not hear the initial sound. A small native playback probe
+confirmed that macOS resolved Tink and started playback at 18%; the current output
+was AirPods. JAM's volume was raised to 35% without changing system settings.
+Audibility at the final level remains a hands-on check. The native flash is 120 ms.
+Idle behavior was reviewed for event-only input handling, on-demand capture and
+one-shot retention timers; no CPU/latency benchmark or broad performance claim.
+
+Not verified: Windows (explicitly unavailable), region/full-screen capture,
+ordinary key-combination registration, protected/fullscreen/multi-display window
+edge cases, Secure Input, final sound audibility, clipboard end-to-end, signed
+release permissions, and prolonged real-keyboard accidental-trigger testing.
+Automated detector tests cover typing/repeats/holds; macOS cannot enumerate
+app-local double-Shift conflicts. Provider integration remains mock-only.

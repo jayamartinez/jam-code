@@ -8,4 +8,8 @@ export type {
   BrowserHostEvent,
   BrowserPageState,
   DesktopServices,
+  SnapshotHost,
+  SnapshotShortcutStatus,
 } from './desktop';
+
+export { SnapshotToast } from './components/SnapshotToast';

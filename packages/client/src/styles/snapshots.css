@@ -1,0 +1,340 @@
+.snapshot-toast {
+  width: 400px;
+  max-width: 100%;
+  padding: 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 14px;
+  background: var(--color-surface-overlay);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: calc(12.5px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
+}
+.snapshot-toast header,
+.snapshot-toast footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.snapshot-toast header strong {
+  font-weight: 500;
+  white-space: nowrap;
+}
+.snapshot-toast header span {
+  flex: 1;
+  color: var(--color-text-subtle);
+  font-size: calc(11.5px * var(--ui-scale));
+}
+.snapshot-toast header button {
+  padding: 0;
+  color: var(--color-text-subtle);
+}
+.snapshot-accent {
+  color: var(--color-accent);
+}
+.snapshot-thumbnail {
+  height: 150px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  background: var(--color-bg-base);
+}
+.snapshot-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.snapshot-image-placeholder {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--color-text-muted);
+}
+.snapshot-destination {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-inline: 2px;
+  color: var(--color-text-subtle);
+  font-size: calc(11.5px * var(--ui-scale));
+}
+.snapshot-destination select {
+  min-width: 0;
+  max-width: 285px;
+  height: 24px;
+  color: var(--color-text-primary);
+  background: var(--color-fill);
+  border: none;
+  border-radius: 6px;
+}
+.snapshot-note {
+  height: 32px;
+  flex-shrink: 0;
+  padding: 0 10px;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 8px;
+  background: var(--color-bg-base) !important;
+}
+.snapshot-toast footer {
+  gap: 6px;
+}
+.snapshot-toast footer .button {
+  height: 30px;
+  border-radius: 8px;
+}
+.snapshot-dismiss {
+  margin-left: auto;
+  font-size: calc(12px * var(--ui-scale));
+  color: var(--color-text-muted);
+}
+.snapshot-error {
+  color: var(--color-danger);
+  font-size: calc(12px * var(--ui-scale));
+}
+/* The shared Settings content geometry (DESIGN.md → Geometry, Paper Snapshots frame). */
+.snapshot-settings {
+  width: 100%;
+  max-width: 820px;
+  padding: 36px 40px;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.snapshot-settings > header {
+  display: flex;
+  align-items: end;
+  gap: 16px;
+}
+.snapshot-settings > header > div {
+  flex: 1;
+}
+.snapshot-settings h2 {
+  font-size: calc(20px * var(--ui-scale));
+  line-height: calc(24px * var(--ui-scale));
+  font-weight: 500;
+}
+.snapshot-settings p {
+  margin-top: 4px;
+  font-size: calc(12.5px * var(--ui-scale));
+  line-height: calc(18px * var(--ui-scale));
+  color: var(--color-text-subtle);
+}
+.snapshot-settings h3 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: calc(13px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin-bottom: 10px;
+}
+.snapshot-settings h3 small {
+  font-size: calc(11px * var(--ui-scale));
+  font-weight: 400;
+  color: var(--color-text-faint);
+}
+.snapshot-enabled {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: calc(12px * var(--ui-scale));
+  color: var(--color-text-secondary);
+}
+.snapshot-settings-card {
+  padding-inline: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface-raised);
+}
+.snapshot-setting-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-height: 54px;
+  padding-block: 10px;
+}
+.snapshot-setting-row + .snapshot-setting-row {
+  border-top: 1px solid var(--color-border-subtle);
+}
+.snapshot-setting-row > div:first-child {
+  flex: 1;
+}
+.snapshot-setting-row strong {
+  font-weight: 400;
+  font-size: calc(13px * var(--ui-scale));
+}
+.snapshot-setting-row p {
+  font-size: calc(11.5px * var(--ui-scale));
+  line-height: calc(14px * var(--ui-scale));
+  margin-top: 2px;
+}
+.snapshot-toggle {
+  width: 30px;
+  height: 18px;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--color-fill-strong);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.snapshot-toggle span {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-text-subtle);
+}
+.snapshot-toggle.on {
+  justify-content: flex-end;
+  background: var(--color-accent);
+}
+.snapshot-toggle.on span {
+  background: var(--color-text-strong);
+}
+.snapshot-keycaps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.snapshot-keycaps kbd {
+  font-size: calc(11px * var(--ui-scale));
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-strong);
+  padding: 2px 6px;
+}
+.snapshot-keycaps small {
+  font-size: calc(11px * var(--ui-scale));
+  color: var(--color-text-subtle);
+}
+.snapshot-settings .snapshot-shortcut-status {
+  font-size: calc(11.5px * var(--ui-scale));
+  margin-bottom: 10px;
+}
+.snapshot-permissions {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.snapshot-modes {
+  display: flex;
+  gap: 8px;
+}
+.snapshot-modes > span {
+  width: 108px;
+  min-height: 80px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  font-size: calc(24px * var(--ui-scale));
+  color: var(--color-text-subtle);
+}
+.snapshot-modes small {
+  font-size: calc(11.5px * var(--ui-scale));
+}
+.snapshot-modes .selected {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-text-primary);
+}
+.snapshot-actions {
+  padding: 6px;
+}
+.snapshot-actions > label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  padding: 10px;
+  border-radius: 8px;
+  color: var(--color-text-secondary);
+}
+.snapshot-actions .selected {
+  background: var(--color-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--color-accent-border);
+  color: var(--color-text-strong);
+}
+.snapshot-actions input {
+  accent-color: var(--color-accent);
+}
+.snapshot-actions small {
+  display: block;
+  font-size: calc(11.5px * var(--ui-scale));
+  color: var(--color-text-subtle);
+}
+.snapshot-actions .snapshot-setting-row {
+  padding-inline: 10px;
+}
+.snapshot-inbox {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+.snapshot-inbox > button {
+  display: flex;
+  justify-content: space-between;
+  text-align: left;
+  padding: 8px;
+  background: var(--color-fill-subtle);
+  border-radius: 6px;
+}
+.snapshot-inbox small {
+  color: var(--color-text-subtle);
+  font-size: calc(11px * var(--ui-scale));
+}
+.snapshot-preview {
+  width: min(800px, 80vw);
+  height: min(500px, 60vh);
+}
+
+.snapshot-settings p.snapshot-error {
+  color: var(--color-danger);
+}
+.snapshot-mode-icon {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 38px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 5px;
+  background: var(--color-fill);
+}
+.snapshot-mode-icon i {
+  width: 38px;
+  height: 22px;
+  border: 1px solid var(--color-accent);
+  border-radius: 3px;
+  background: var(--color-accent-border);
+}
+.snapshot-mode-icon.region i {
+  width: 30px;
+  height: 18px;
+  border: 1px dashed var(--color-text-subtle);
+  background: transparent;
+}
+
+.context-chip {
+  position: relative;
+}
+.snapshot-chip-thumbnail {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: 240px;
+  height: 150px;
+  padding: 6px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  background: var(--color-surface-overlay);
+  z-index: 10;
+  pointer-events: none;
+}

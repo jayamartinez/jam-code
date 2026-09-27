@@ -3,6 +3,7 @@
 mod bridge;
 mod browser;
 mod lifecycle;
+mod snapshots;
 
 use jam_runtime::Runtime;
 use std::sync::{Arc, atomic::AtomicBool};
@@ -29,13 +30,16 @@ fn main() {
             browser::browser_bounds,
             browser::browser_navigate,
             browser::browser_action,
-            browser::browser_close
+            browser::browser_close,
+            snapshots::snapshot_host,
+            snapshots::snapshot_toast_request
         ])
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
             let runtime = Runtime::open_demo(data_dir.join("jam-demo.sqlite"))?;
             app.manage(browser::BrowserHost::default());
+            app.manage(snapshots::SnapshotHost::default());
             app.manage(Host {
                 runtime,
                 quitting: AtomicBool::new(false),
@@ -85,6 +89,7 @@ fn main() {
             let _ = window;
             // Startup fails visibly if the reopen path cannot be created; never hide an unreachable app.
             lifecycle::install_tray(app)?;
+            snapshots::install(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| {

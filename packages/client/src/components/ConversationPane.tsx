@@ -10,11 +10,11 @@ import {
   Shield,
   Square,
   Terminal,
-  X,
 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import type {
   ContextItem,
+  JamTransport,
   Conversation,
   Message,
   MessageBlock,
@@ -26,6 +26,7 @@ import type {
 import { IconButton, Shortcut } from './Controls';
 import { PaneChrome, type PaneChromeProps } from './PaneChrome';
 import { ProviderIcon, providerName } from './icons';
+import { ContextChip } from './ContextChip';
 import { ProjectBadge } from './ProjectBadge';
 
 interface ConversationProps extends Pick<
@@ -38,6 +39,7 @@ interface ConversationProps extends Pick<
   conversation?: Conversation;
   draft: string;
   context: ContextItem[];
+  snapshotTransport?: Pick<JamTransport, 'request'>;
   busy: boolean;
   shortcut: string;
   onDraft(text: string): void;
@@ -130,6 +132,7 @@ export function Composer(
     ConversationProps,
     | 'draft'
     | 'context'
+    | 'snapshotTransport'
     | 'busy'
     | 'shortcut'
     | 'onDraft'
@@ -158,23 +161,13 @@ export function Composer(
         {!!props.context.length && (
           <div className="context-chips">
             {props.context.map((item) => (
-              <span
-                className={`context-chip ${item.kind.startsWith('browser') ? 'accent' : ''}`}
+              <ContextChip
                 key={item.id}
-              >
-                <button type="button" onClick={() => props.onPreviewContext(item)}>
-                  <File size={11} />
-                  <span className="truncate">{item.label}</span>
-                </button>
-                <button
-                  className="remove-context"
-                  type="button"
-                  aria-label={`Remove ${item.label}`}
-                  onClick={() => props.onRemoveContext(item.id)}
-                >
-                  <X size={10} />
-                </button>
-              </span>
+                item={item}
+                transport={props.snapshotTransport}
+                onPreview={props.onPreviewContext}
+                onRemove={props.onRemoveContext}
+              />
             ))}
           </div>
         )}

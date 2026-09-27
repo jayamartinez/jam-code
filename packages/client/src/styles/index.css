@@ -9,6 +9,7 @@
 @import './terminal.css';
 @import './code.css';
 @import './appearance.css';
+@import './snapshots.css';
 
 :root {
   /*

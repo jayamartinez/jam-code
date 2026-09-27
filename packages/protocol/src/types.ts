@@ -10,6 +10,7 @@ export type ResourceKind =
 import projectIconsJson from '../fixtures/project-icons.json';
 import type { TerminalAttachment, TerminalRequestMap, TerminalStreamEvent } from './terminal';
 import type { AppearanceRequestMap } from './appearance';
+import type { SnapshotRequestMap } from './snapshots';
 
 /**
  * Presets, tones and limits for project badges. Shared with the Rust runtime
@@ -237,7 +238,8 @@ export interface SearchResult {
   updatedAt: string;
 }
 
-export interface RequestMap extends TerminalRequestMap, GitRequestMap, AppearanceRequestMap {
+export interface RequestMap
+  extends TerminalRequestMap, GitRequestMap, AppearanceRequestMap, SnapshotRequestMap {
   'workspace.get': { params: Record<string, never>; result: WorkspaceSnapshot };
   'conversation.get': { params: { resourceId: string }; result: Conversation };
   'conversation.create': {

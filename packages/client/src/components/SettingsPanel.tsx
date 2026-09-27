@@ -1,5 +1,5 @@
 import { AppWindow, Check, ChevronRight, Expand, Plug, Search, X, Zap } from 'lucide-react';
-import type { Project, ProviderDescriptor } from '@jam/protocol';
+import type { JamTransport, Project, ProviderDescriptor } from '@jam/protocol';
 import { Suspense, lazy, useState } from 'react';
 import type { DesktopServices } from '../desktop';
 import { ProjectBadge } from './ProjectBadge';
@@ -44,11 +44,16 @@ const groups: { title: string; items: [string, SettingsIconName][] }[] = [
     ],
   },
 ];
-const IMPLEMENTED = new Set(['General', 'Appearance', 'Providers']);
-/** Loaded when the page is first opened, so the workspace never downloads it. */
+const IMPLEMENTED = new Set(['General', 'Appearance', 'Providers', 'Snapshots']);
+/** Loaded when the page is first opened, so the workspace never downloads them. */
 const AppearanceSettings = lazy(() => import('./AppearanceSettings'));
+const SnapshotSettings = lazy(() =>
+  import('./SnapshotSettings').then((module) => ({ default: module.SnapshotSettings })),
+);
 
 export function SettingsPanel({
+  transport,
+  initialPage = 'Providers',
   providers,
   projects,
   onEditProject,
@@ -59,6 +64,8 @@ export function SettingsPanel({
   onClose,
   onMode,
 }: {
+  transport: JamTransport;
+  initialPage?: 'Providers' | 'Snapshots';
   providers: ProviderDescriptor[];
   projects: Project[];
   onEditProject(projectId: string): void;
@@ -69,7 +76,7 @@ export function SettingsPanel({
   onClose(): void;
   onMode(): void;
 }) {
-  const [page, setPage] = useState('Providers');
+  const [page, setPage] = useState<string>(initialPage);
   const { error: appearanceError } = useAppearance();
   const navigation = (
     <nav className="settings-nav-sections" aria-label="Settings sections">
@@ -281,6 +288,10 @@ export function SettingsPanel({
   ) : page === 'Appearance' ? (
     <Suspense fallback={<div className="settings-content-scroll" />}>
       <AppearanceSettings />
+    </Suspense>
+  ) : page === 'Snapshots' ? (
+    <Suspense fallback={<div className="settings-content-scroll" />}>
+      <SnapshotSettings transport={transport} host={desktop.snapshots} />
     </Suspense>
   ) : page === 'General' ? (
     general
