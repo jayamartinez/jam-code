@@ -12,7 +12,22 @@ impl Sandbox {
         std::fs::create_dir(&p).unwrap();
         Self(p)
     }
+    /// Snapshots start off; these tests capture, so they turn it on first.
     fn open(&self) -> Arc<Runtime> {
+        let runtime = self.open_as_stored();
+        let settings = SnapshotSettings {
+            enabled: true,
+            ..Default::default()
+        };
+        req(
+            &runtime,
+            "snapshot.settings.update",
+            serde_json::to_value(&settings).unwrap(),
+        )
+        .unwrap();
+        runtime
+    }
+    fn open_as_stored(&self) -> Arc<Runtime> {
         Runtime::open_demo(self.0.join("test.sqlite")).unwrap()
     }
 }
@@ -321,7 +336,7 @@ fn pre_integration_databases_upgrade_without_losing_snapshots_or_settings() {
             serde_json::to_string(&saved).unwrap()
         ),
     );
-    let r = s.open();
+    let r = s.open_as_stored();
     assert_eq!(
         serde_json::to_value(r.snapshot_settings().unwrap()).unwrap(),
         serde_json::to_value(&saved).unwrap()
@@ -349,11 +364,60 @@ fn pre_integration_databases_upgrade_without_losing_snapshots_or_settings() {
         &s.0.join("test.sqlite"),
         include_str!("../src/migrations/003-settings.sql"),
     );
-    let r = s.open();
+    let r = s.open_as_stored();
     assert_eq!(
         serde_json::to_value(r.snapshot_settings().unwrap()).unwrap(),
         serde_json::to_value(SnapshotSettings::default()).unwrap()
     );
     assert!(req(&r, "snapshot.list", json!({})).is_ok());
     assert!(req(&r, "appearance.get", json!({})).is_ok());
+}
+
+#[test]
+fn snapshots_start_off_and_only_offered_shortcuts_are_accepted() {
+    use jam_runtime::snapshots::{KEY_COMBINATIONS, Shortcut};
+    let defaults = SnapshotSettings::default();
+    assert!(!defaults.enabled);
+    assert_eq!(defaults.shortcut, Shortcut::BothShift);
+    assert!(!defaults.shortcut.needs_input_monitoring());
+    assert!(Shortcut::DoubleShift.needs_input_monitoring());
+
+    let s = Sandbox::new();
+    let r = s.open_as_stored();
+    let stored: SnapshotSettings =
+        serde_json::from_value(req(&r, "snapshot.settings.get", json!({})).unwrap()).unwrap();
+    assert!(!stored.enabled);
+    assert!(r.store_snapshot(capture()).is_err());
+
+    for accelerator in KEY_COMBINATIONS {
+        let settings = SnapshotSettings {
+            shortcut: Shortcut::KeyCombination {
+                accelerator: accelerator.into(),
+            },
+            ..Default::default()
+        };
+        req(
+            &r,
+            "snapshot.settings.update",
+            serde_json::to_value(&settings).unwrap(),
+        )
+        .unwrap();
+    }
+    for accelerator in ["Command+Shift+3", "Command+Q", ""] {
+        let settings = SnapshotSettings {
+            shortcut: Shortcut::KeyCombination {
+                accelerator: accelerator.into(),
+            },
+            ..Default::default()
+        };
+        assert!(
+            req(
+                &r,
+                "snapshot.settings.update",
+                serde_json::to_value(&settings).unwrap()
+            )
+            .is_err(),
+            "{accelerator} must be refused"
+        );
+    }
 }

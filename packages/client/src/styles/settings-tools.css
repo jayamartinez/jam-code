@@ -487,20 +487,7 @@
   }
 }
 
-/* Snapshots: shortcut state from the desktop host, and the unassigned inbox. */
-.tools-snapshot-shortcut {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 0 0 12px;
-  border-bottom: 1px solid var(--color-border-subtle);
-}
-.tools-snapshot-shortcut > span {
-  display: inline-flex;
-  flex-shrink: 0;
-  gap: 8px;
-}
+/* Snapshots: problems from the desktop host, first-run setup and the unassigned inbox. */
 .tools-snapshot-status {
   margin: 0;
   color: var(--color-text-muted);
@@ -536,4 +523,91 @@
   flex-shrink: 0;
   color: var(--color-text-subtle);
   font-size: calc(11.5px * var(--ui-scale));
+}
+
+/* Setup: one step per permission the chosen shortcut needs. */
+.tools-snapshot-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--color-accent-border);
+  border-radius: var(--radius-pane);
+  background: var(--color-surface-raised);
+}
+.tools-snapshot-setup > header strong {
+  color: var(--color-text-strong);
+  font-size: calc(14px * var(--ui-scale));
+  line-height: calc(20px * var(--ui-scale));
+  font-weight: 500;
+}
+.tools-snapshot-setup > header p,
+.tools-snapshot-setup li p,
+.tools-snapshot-setup > footer p {
+  margin: 2px 0 0;
+  color: var(--color-text-muted);
+  font-size: calc(12px * var(--ui-scale));
+  line-height: calc(17px * var(--ui-scale));
+}
+.tools-snapshot-setup ol {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tools-snapshot-setup li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-fill-subtle);
+}
+.tools-snapshot-setup li > div {
+  flex: 1;
+  min-width: 0;
+}
+.tools-snapshot-setup li strong {
+  color: var(--color-text-primary);
+  font-size: calc(13px * var(--ui-scale));
+  line-height: calc(17px * var(--ui-scale));
+  font-weight: 500;
+}
+.tools-snapshot-step {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text-secondary);
+  font-size: calc(11.5px * var(--ui-scale));
+}
+.tools-snapshot-setup li.granted .tools-snapshot-step {
+  border-color: transparent;
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+.tools-snapshot-allowed {
+  flex-shrink: 0;
+  color: var(--color-success);
+  font-size: calc(12px * var(--ui-scale));
+}
+.tools-snapshot-actions {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+.tools-snapshot-setup > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.tools-snapshot-setup > footer p {
+  margin: 0;
 }

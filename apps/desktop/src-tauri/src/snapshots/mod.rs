@@ -18,12 +18,26 @@ use std::sync::{
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 static APP: OnceLock<AppHandle> = OnceLock::new();
+/// What the Settings page shows. `message` is empty while everything works;
+/// it explains only a problem the user can act on.
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Status {
+    /// `disabled`, `registered`, `needsPermission` or `unavailable`.
     state: String,
     message: String,
     latest_id: Option<String>,
+    screen_recording: bool,
+    input_monitoring: bool,
+    /// Only double-tap Shift listens to key events.
+    input_monitoring_required: bool,
+}
+/// The macOS privacy permissions Snapshots can need.
+#[derive(Clone, Copy)]
+#[repr(i32)]
+pub enum Permission {
+    ScreenRecording = 0,
+    InputMonitoring = 1,
 }
 pub struct SnapshotHost {
     status: Mutex<Status>,
@@ -35,9 +49,12 @@ impl Default for SnapshotHost {
     fn default() -> Self {
         Self {
             status: Mutex::new(Status {
-                state: "unavailable".into(),
-                message: "Snapshot shortcut is starting.".into(),
+                state: "disabled".into(),
+                message: String::new(),
                 latest_id: None,
+                screen_recording: false,
+                input_monitoring: false,
+                input_monitoring_required: false,
             }),
             gesture: Mutex::new(DoubleShift::default()),
             capturing: AtomicBool::new(false),
@@ -56,6 +73,12 @@ fn status(app: &AppHandle, state: &str, message: &str) {
         status.message = message.into();
     }
     changed(app);
+}
+/// Both Shift keys or a key combination: the shortcut itself is the trigger.
+extern "C" fn trigger() {
+    if let Some(app) = APP.get() {
+        capture(app);
+    }
 }
 extern "C" fn key(kind: i32, ms: u64) {
     let Some(app) = APP.get() else {
@@ -80,40 +103,117 @@ extern "C" fn key(kind: i32, ms: u64) {
         capture(app);
     }
 }
+/// Carbon key code and modifier mask for one of the offered key combinations.
+fn hotkey(accelerator: &str) -> Option<(u32, u32)> {
+    let mut modifiers = 0;
+    let mut key = None;
+    for part in accelerator.split('+') {
+        match part {
+            "Command" => modifiers |= 1 << 8,
+            "Shift" => modifiers |= 1 << 9,
+            "Option" => modifiers |= 1 << 11,
+            "Control" => modifiers |= 1 << 12,
+            // ANSI digit key codes, kVK_ANSI_0 … kVK_ANSI_9.
+            digit => {
+                key = Some(match digit {
+                    "0" => 29,
+                    "1" => 18,
+                    "2" => 19,
+                    "3" => 20,
+                    "4" => 21,
+                    "5" => 23,
+                    "6" => 22,
+                    "7" => 26,
+                    "8" => 28,
+                    "9" => 25,
+                    _ => return None,
+                })
+            }
+        }
+    }
+    Some((key?, modifiers))
+}
+/// Starts the one listener the settings ask for, and only when every
+/// permission that shortcut needs is granted.
 pub fn register(app: &AppHandle) {
     platform::stop();
     if let Ok(mut gesture) = app.state::<SnapshotHost>().gesture.lock() {
         gesture.reset();
     }
     let settings = app.state::<Host>().runtime.snapshot_settings();
-    match settings {
-        Ok(s) if !s.enabled => status(app, "disabled", "Snapshots are disabled."),
-        Ok(s) if s.shortcut != Shortcut::DoubleShift => {
-            status(app, "unavailable", "This shortcut type is not implemented.")
-        }
-        Ok(_) => match platform::start(key) {
-            0 => status(
-                app,
-                "registered",
-                "Shift Shift is active. App-local shortcuts (including JetBrains Search Everywhere) may also fire; macOS cannot enumerate those conflicts.",
+    let screen = platform::granted(Permission::ScreenRecording);
+    let input = platform::granted(Permission::InputMonitoring);
+    let input_required = settings
+        .as_ref()
+        .is_ok_and(|s| s.shortcut.needs_input_monitoring());
+    if let Ok(mut status) = app.state::<SnapshotHost>().status.lock() {
+        status.screen_recording = screen;
+        status.input_monitoring = input;
+        status.input_monitoring_required = input_required;
+    }
+    let started = |code: i32, taken: &str| match code {
+        0 => ("registered", String::new()),
+        3 => (
+            "unavailable",
+            "Snapshots are not available on this platform yet.".into(),
+        ),
+        _ => ("unavailable", taken.to_string()),
+    };
+    let (state, message) = match settings {
+        Err(_) => (
+            "unavailable",
+            "Snapshot settings could not be loaded.".to_string(),
+        ),
+        Ok(_) if !platform::SUPPORTED => (
+            "unavailable",
+            "Snapshots are not available on this platform yet.".into(),
+        ),
+        Ok(s) if !s.enabled => ("disabled", String::new()),
+        Ok(_) if !screen => (
+            "needsPermission",
+            "Snapshots need Screen Recording to capture a window.".into(),
+        ),
+        Ok(_) if input_required && !input => (
+            "needsPermission",
+            "Double-tap Shift needs Input Monitoring to hear the taps.".into(),
+        ),
+        Ok(s) => match &s.shortcut {
+            Shortcut::BothShift => started(
+                platform::start_pair(trigger),
+                "macOS could not start the Shift shortcut.",
             ),
-            1 => status(
-                app,
-                "unavailable",
-                "Allow Input Monitoring for JAM in System Settings, then click Retry shortcut.",
-            ),
-            3 => status(
-                app,
-                "unavailable",
-                "Snapshots are not implemented on this platform yet.",
-            ),
-            _ => status(
-                app,
-                "unavailable",
-                "macOS could not register the passive shortcut listener. Check Input Monitoring, then retry.",
-            ),
+            Shortcut::DoubleShift => match platform::start(key) {
+                1 => (
+                    "needsPermission",
+                    "Double-tap Shift needs Input Monitoring to hear the taps.".into(),
+                ),
+                code => started(code, "macOS could not start the Shift listener."),
+            },
+            Shortcut::KeyCombination { accelerator } => match hotkey(accelerator) {
+                Some((key_code, modifiers)) => started(
+                    platform::start_hotkey(key_code, modifiers, trigger),
+                    "Another app already uses this shortcut. Choose a different one.",
+                ),
+                None => ("unavailable", "Choose one of the offered shortcuts.".into()),
+            },
         },
-        Err(_) => status(app, "unavailable", "Snapshot settings could not be loaded."),
+    };
+    status(app, state, &message);
+}
+/// Re-checks permissions, for when JAM regains focus after System Settings.
+fn refresh(app: &AppHandle) {
+    let current = app
+        .state::<SnapshotHost>()
+        .status
+        .lock()
+        .ok()
+        .map(|s| (s.screen_recording, s.input_monitoring));
+    let now = (
+        platform::granted(Permission::ScreenRecording),
+        platform::granted(Permission::InputMonitoring),
+    );
+    if current != Some(now) {
+        register(app);
     }
 }
 pub fn install(app: &AppHandle) {
@@ -206,7 +306,17 @@ fn capture(app: &AppHandle) {
                         show_toast(&handle);
                     }
                 }
-                Err(error) => status(&handle, "unavailable", &error.message),
+                Err(error) => {
+                    // A revoked permission shows as setup again; anything else
+                    // is reported beside a shortcut that still works.
+                    register(&handle);
+                    if let Ok(mut status) = handle.state::<SnapshotHost>().status.lock()
+                        && status.state == "registered"
+                    {
+                        status.message = error.message;
+                    }
+                    changed(&handle);
+                }
             }
         });
     });
@@ -257,11 +367,21 @@ pub async fn snapshot_host(
     app.run_on_main_thread(move || {
         let result = (|| {
             match action.as_str() {
-                "status" => {}
+                "status" => refresh(&handle),
                 "retry" => register(&handle),
-                "permissions" => {
-                    platform::permissions();
+                "requestScreenRecording" => {
+                    platform::request(Permission::ScreenRecording);
                     register(&handle);
+                }
+                "requestInputMonitoring" => {
+                    platform::request(Permission::InputMonitoring);
+                    register(&handle);
+                }
+                "openScreenRecordingSettings" => {
+                    platform::open_settings(Permission::ScreenRecording)
+                }
+                "openInputMonitoringSettings" => {
+                    platform::open_settings(Permission::InputMonitoring)
                 }
                 "capture" => capture(&handle),
                 "dismiss" => {
@@ -339,5 +459,22 @@ pub fn after_request(app: &AppHandle, method: &str) {
     .contains(&method)
     {
         changed(app);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::hotkey;
+    use jam_runtime::snapshots::KEY_COMBINATIONS;
+
+    #[test]
+    fn every_offered_combination_maps_to_a_hotkey() {
+        for accelerator in KEY_COMBINATIONS {
+            assert!(hotkey(accelerator).is_some(), "{accelerator}");
+        }
+        // kVK_ANSI_2 with cmdKey | shiftKey.
+        assert_eq!(hotkey("Command+Shift+2"), Some((19, (1 << 8) | (1 << 9))));
+        assert_eq!(hotkey("Command+Shift+Q"), None);
+        assert_eq!(hotkey("Command+Shift"), None);
     }
 }

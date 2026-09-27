@@ -1,8 +1,29 @@
 import type { ContextItem } from './types';
 
+/**
+ * Key combinations Snapshots offers, mirrored by `KEY_COMBINATIONS` in the
+ * runtime. None collides with macOS's own screenshot shortcuts.
+ */
+export const SNAPSHOT_KEY_COMBINATIONS = [
+  'Command+Shift+2',
+  'Control+Shift+2',
+  'Option+Shift+2',
+] as const;
+export type SnapshotKeyCombination = (typeof SNAPSHOT_KEY_COMBINATIONS)[number];
+
+/**
+ * `bothShift` (left and right Shift together) and key combinations need no
+ * keyboard permission. `doubleShift` listens to key events, which macOS gates
+ * behind Input Monitoring.
+ */
+export type SnapshotShortcut =
+  | { kind: 'bothShift' }
+  | { kind: 'doubleShift' }
+  | { kind: 'keyCombination'; accelerator: SnapshotKeyCombination };
+
 export interface SnapshotSettings {
   enabled: boolean;
-  shortcut: { kind: 'doubleShift' } | { kind: 'keyCombination'; accelerator: string };
+  shortcut: SnapshotShortcut;
   captureMode: 'activeWindow' | 'region' | 'fullScreen';
   afterCapture: 'stage' | 'save' | 'clipboard';
   flash: boolean;

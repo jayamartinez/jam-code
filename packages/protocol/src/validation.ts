@@ -1,6 +1,7 @@
 import { JamError } from './errors';
 import { OPENABLE_KINDS, PROJECT_ICONS } from './types';
 import { TERMINAL_LIMITS } from './terminal';
+import { SNAPSHOT_KEY_COMBINATIONS } from './snapshots';
 import {
   APPEARANCE,
   APPEARANCE_RANGES,
@@ -368,8 +369,13 @@ const snapshotSettings: Check = (value) =>
   shape(value, {
     enabled: boolean,
     shortcut: (shortcut) => {
-      if (object(shortcut).kind === 'doubleShift') shape(shortcut, { kind: oneOf('doubleShift') });
-      else shape(shortcut, { kind: oneOf('keyCombination'), accelerator: text(128) });
+      const kind = object(shortcut).kind;
+      if (kind === 'bothShift' || kind === 'doubleShift') shape(shortcut, { kind: oneOf(kind) });
+      else
+        shape(shortcut, {
+          kind: oneOf('keyCombination'),
+          accelerator: oneOf(...SNAPSHOT_KEY_COMBINATIONS),
+        });
     },
     captureMode: oneOf('activeWindow', 'region', 'fullScreen'),
     afterCapture: oneOf('stage', 'save', 'clipboard'),

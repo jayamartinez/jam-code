@@ -26,7 +26,17 @@ mod mac {
         fn jam_snapshot_start(callback: extern "C" fn(i32, u64)) -> i32;
         fn jam_snapshot_stop();
         fn jam_snapshot_show_window(window: *mut std::ffi::c_void);
-        fn jam_snapshot_permissions();
+        fn jam_snapshot_pair_start(callback: extern "C" fn()) -> i32;
+        fn jam_snapshot_pair_stop();
+        fn jam_snapshot_hotkey_start(
+            key_code: u32,
+            modifiers: u32,
+            callback: extern "C" fn(),
+        ) -> i32;
+        fn jam_snapshot_hotkey_stop();
+        fn jam_snapshot_permission(which: i32) -> bool;
+        fn jam_snapshot_request_permission(which: i32);
+        fn jam_snapshot_open_permission_settings(which: i32);
         fn jam_snapshot_capture(token: u64, callback: extern "C" fn(u64, *const c_char));
         fn jam_snapshot_feedback(
             bytes: *const u8,
@@ -139,11 +149,29 @@ mod mac {
             }
         }
     }
+    /// Stops every shortcut listener; exactly one runs at a time.
     pub fn stop() {
-        unsafe { jam_snapshot_stop() }
+        unsafe {
+            jam_snapshot_stop();
+            jam_snapshot_pair_stop();
+            jam_snapshot_hotkey_stop();
+        }
     }
-    pub fn permissions() {
-        unsafe { jam_snapshot_permissions() }
+    pub fn start_pair(callback: extern "C" fn()) -> i32 {
+        unsafe { jam_snapshot_pair_start(callback) }
+    }
+    /// Carbon key code and modifier mask, from [`super::hotkey`].
+    pub fn start_hotkey(key_code: u32, modifiers: u32, callback: extern "C" fn()) -> i32 {
+        unsafe { jam_snapshot_hotkey_start(key_code, modifiers, callback) }
+    }
+    pub fn granted(permission: crate::snapshots::Permission) -> bool {
+        unsafe { jam_snapshot_permission(permission as i32) }
+    }
+    pub fn request(permission: crate::snapshots::Permission) {
+        unsafe { jam_snapshot_request_permission(permission as i32) }
+    }
+    pub fn open_settings(permission: crate::snapshots::Permission) {
+        unsafe { jam_snapshot_open_permission_settings(permission as i32) }
     }
     pub fn feedback(image: &[u8], frame: [f64; 4], flash: bool, sound: bool, clipboard: bool) {
         // SAFETY: bytes remain borrowed for the call; native copies clipboard
@@ -165,6 +193,8 @@ mod mac {
 }
 #[cfg(target_os = "macos")]
 pub use mac::*;
+/// Whether this platform has a capture backend and shortcut listeners.
+pub const SUPPORTED: bool = cfg!(target_os = "macos");
 
 #[cfg(not(target_os = "macos"))]
 mod unsupported {
@@ -192,7 +222,17 @@ mod unsupported {
         let _ = window.show();
     }
     pub fn stop() {}
-    pub fn permissions() {}
+    pub fn start_pair(_: extern "C" fn()) -> i32 {
+        3
+    }
+    pub fn start_hotkey(_: u32, _: u32, _: extern "C" fn()) -> i32 {
+        3
+    }
+    pub fn granted(_: crate::snapshots::Permission) -> bool {
+        false
+    }
+    pub fn request(_: crate::snapshots::Permission) {}
+    pub fn open_settings(_: crate::snapshots::Permission) {}
     pub fn feedback(_: &[u8], _: [f64; 4], _: bool, _: bool, _: bool) {}
 }
 #[cfg(not(target_os = "macos"))]

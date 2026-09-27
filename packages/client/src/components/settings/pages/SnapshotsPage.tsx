@@ -1,10 +1,20 @@
 import { useEffect, useState } from 'react';
-import { Play, Volume2 } from 'lucide-react';
+import { Check, Play, Volume2 } from 'lucide-react';
 import type { Resource, SnapshotSettings } from '@jam/protocol';
-import type { SnapshotShortcutStatus } from '../../../desktop';
+import type { SnapshotHostAction, SnapshotShortcutStatus } from '../../../desktop';
 import { useSnapshots } from '../../../state/snapshots';
 import { SnapshotCard } from '../../SnapshotToast';
 import { Card, Keys, PageHeader, Planned, Row, Section, Select, Toggle } from '../controls';
+import {
+  PERMISSION_COPY,
+  SETTINGS_ACTION,
+  SHORTCUT_OPTIONS,
+  missingPermissions,
+  requiredPermissions,
+  shortcutFromValue,
+  shortcutOption,
+  shortcutValue,
+} from '../snapshots-model';
 import { SNAPSHOT_SOUNDS } from '../tools-model';
 import type { SettingsPageProps } from '../types';
 
@@ -43,7 +53,17 @@ export default function SnapshotsPage({ transport, snapshots: host }: SettingsPa
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<string>();
   const [conversations, setConversations] = useState<Resource[]>([]);
+  /** The user asked to turn Snapshots on; setup stays open until it is. */
+  const [setup, setSetup] = useState(false);
   const { snapshots, refresh, error, report } = useSnapshots(transport, host);
+
+  // Coming back from System Settings: re-read the permissions once. No polling.
+  useEffect(() => {
+    if (!host) return;
+    const onFocus = () => void host.action('status').then(setStatus).catch(report);
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [host, report]);
 
   useEffect(() => {
     if (!host) return;
@@ -104,7 +124,7 @@ export default function SnapshotsPage({ transport, snapshots: host }: SettingsPa
     }
   }
 
-  async function hostAction(action: 'retry' | 'permissions') {
+  async function hostAction(action: SnapshotHostAction) {
     if (!host) return;
     try {
       setStatus(await host.action(action));
@@ -138,7 +158,26 @@ export default function SnapshotsPage({ transport, snapshots: host }: SettingsPa
       </div>
     );
 
-  const unavailable = status?.state === 'unavailable';
+  const missing = status ? missingPermissions(settings.shortcut, status) : [];
+  const ready = !!status && missing.length === 0;
+  /** On only when turned on and everything it needs is allowed. */
+  const on = settings.enabled && ready;
+  const paused = settings.enabled && !!status && !ready;
+  const showSetup = !on && (setup || paused);
+  const option = shortcutOption(settings.shortcut);
+  // Setup explains missing permissions; only other problems need words here.
+  const problem =
+    status?.state === 'unavailable' || (status?.state === 'registered' && status.message)
+      ? status.message
+      : '';
+  const turnOn = () => {
+    if (ready) void update({ enabled: true }).then(() => setSetup(false));
+    else setSetup(true);
+  };
+  const turnOff = () => {
+    setSetup(false);
+    if (settings.enabled) void update({ enabled: false });
+  };
   const inbox = snapshots.filter((item) => !item.resourceId);
   const selectedSnapshot = snapshots.find((item) => item.id === selected);
   return (
@@ -151,57 +190,110 @@ export default function SnapshotsPage({ transport, snapshots: host }: SettingsPa
             <span className="tools-inline-label">Enabled</span>
             <Toggle
               label="Snapshots enabled"
-              on={settings.enabled}
+              on={on}
               disabled={busy}
-              onChange={(enabled) => void update({ enabled })}
+              onChange={(next) => (next ? turnOn() : turnOff())}
             />
           </>
         }
       />
-      {error && (
+      {(error || problem) && (
         <p className="tools-snapshot-status error" role="alert">
-          {error}
+          {error || problem}
         </p>
+      )}
+
+      {showSetup && status && (
+        <section className="tools-snapshot-setup" aria-label="Set up Snapshots">
+          <header>
+            <strong>{paused ? 'Snapshots are paused' : 'Turn on Snapshots'}</strong>
+            <p>
+              {paused
+                ? 'macOS no longer allows something Snapshots needs. Allow it again to resume.'
+                : 'macOS asks you to allow this first. JAM captures only when you press the shortcut.'}
+            </p>
+          </header>
+          <ol>
+            {requiredPermissions(settings.shortcut).map((permission, index) => {
+              const granted = status[permission];
+              const copy = PERMISSION_COPY[permission];
+              return (
+                <li key={permission} className={granted ? 'granted' : ''}>
+                  <span className="tools-snapshot-step" aria-hidden="true">
+                    {granted ? <Check size={12} /> : index + 1}
+                  </span>
+                  <div>
+                    <strong>{copy.title}</strong>
+                    <p>{copy.why}</p>
+                  </div>
+                  {granted ? (
+                    <span className="tools-snapshot-allowed">Allowed</span>
+                  ) : (
+                    <span className="tools-snapshot-actions">
+                      <button
+                        type="button"
+                        className="sv-button quiet"
+                        onClick={() => void hostAction(SETTINGS_ACTION[permission])}
+                      >
+                        Open System Settings
+                      </button>
+                      <button
+                        type="button"
+                        className="sv-button primary"
+                        onClick={() => void hostAction(copy.request)}
+                      >
+                        Allow
+                      </button>
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+          <footer>
+            <p>
+              {ready
+                ? 'Everything Snapshots needs is allowed.'
+                : 'After you allow Screen Recording, macOS may ask you to quit and reopen JAM.'}
+            </p>
+            {!settings.enabled && (
+              <span className="tools-snapshot-actions">
+                <button type="button" className="sv-button quiet" onClick={() => setSetup(false)}>
+                  Not now
+                </button>
+                <button
+                  type="button"
+                  className="sv-button primary"
+                  disabled={!ready || busy}
+                  onClick={turnOn}
+                >
+                  Turn on Snapshots
+                </button>
+              </span>
+            )}
+          </footer>
+        </section>
       )}
 
       <Section label="Capture">
         <Card>
           <Row
             title="Shortcut"
-            sub="Works while JAM is in the background. macOS needs Input Monitoring to hear the double-tap and Screen Recording to capture."
+            sub={`${option.hint} Works while JAM is in the background, without taking focus.`}
           >
-            <Keys keys={['⇧ Shift', '⇧ Shift']} />
-            <span className="tools-inline-label">double-tap</span>
-            <button
-              type="button"
-              className="sv-button"
-              disabled
-              title="Other shortcuts are planned"
-            >
-              Change
-            </button>
+            <Keys keys={option.keys} />
+            <Select
+              label="Snapshot shortcut"
+              value={shortcutValue(settings.shortcut)}
+              options={SHORTCUT_OPTIONS.map(({ value, label }) => ({ value, label }))}
+              disabled={busy}
+              onChange={(value) => void update({ shortcut: shortcutFromValue(value) })}
+            />
           </Row>
-          <div className="tools-snapshot-shortcut">
-            <p className={`tools-snapshot-status ${unavailable ? 'error' : ''}`} role="status">
-              {status?.message}
-            </p>
-            <span>
-              <button
-                type="button"
-                className="sv-button"
-                onClick={() => void hostAction('permissions')}
-              >
-                Allow macOS permissions
-              </button>
-              <button type="button" className="sv-button" onClick={() => void hostAction('retry')}>
-                Retry shortcut
-              </button>
-            </span>
-          </div>
           <div className="sv-row tools-capture">
             <div className="sv-row-text">
               <strong>What to capture</strong>
-              <p>Two deliberate taps, without other keys or typing.</p>
+              <p>The window in front when you press the shortcut.</p>
             </div>
             <div className="tools-capture-tiles" role="radiogroup" aria-label="What to capture">
               {CAPTURE_MODES.map((mode) => (

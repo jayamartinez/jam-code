@@ -1,6 +1,7 @@
 #import <AppKit/AppKit.h>
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
 #import <ImageIO/ImageIO.h>
+#import <Carbon/Carbon.h> // RegisterEventHotKey: global hotkeys without a keyboard permission
 
 typedef void (*KeyCallback)(int, uint64_t);
 typedef void (*CaptureCallback)(uint64_t, const char *);
@@ -42,9 +43,81 @@ int jam_snapshot_start(KeyCallback callback) {
     CGEventTapEnable(tap,true);
     return 0;
 }
-void jam_snapshot_permissions(void) {
-    CGRequestListenEventAccess();
-    CGRequestScreenCaptureAccess();
+typedef void (*TriggerCallback)(void);
+
+// Both Shift keys held together. Reading the current modifier state needs no
+// keyboard permission, unlike listening to key events, so this samples it on
+// a background timer. It runs only while Snapshots is on with this shortcut.
+static dispatch_source_t pairTimer;
+static TriggerCallback pairCallback;
+static bool pairDown;
+void jam_snapshot_pair_stop(void) {
+    if (pairTimer) { dispatch_source_cancel(pairTimer); pairTimer=NULL; }
+    pairCallback=NULL;
+}
+int jam_snapshot_pair_start(TriggerCallback callback) {
+    jam_snapshot_pair_stop();
+    pairCallback=callback;
+    pairDown=true; // Keys already held when this starts do not count as a press.
+    dispatch_queue_t queue=dispatch_get_global_queue(QOS_CLASS_UTILITY,0);
+    pairTimer=dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER,0,0,queue);
+    if (!pairTimer) return 2;
+    // 50 ms catches a deliberate press; the leeway lets macOS coalesce wakeups.
+    dispatch_source_set_timer(pairTimer,dispatch_time(DISPATCH_TIME_NOW,0),50*NSEC_PER_MSEC,10*NSEC_PER_MSEC);
+    dispatch_source_set_event_handler(pairTimer,^{
+        CGEventFlags flags=CGEventSourceFlagsState(kCGEventSourceStateCombinedSessionState);
+        const CGEventFlags both=NX_DEVICELSHIFTKEYMASK|NX_DEVICERSHIFTKEYMASK;
+        bool down=(flags&both)==both &&
+            !(flags&(kCGEventFlagMaskCommand|kCGEventFlagMaskControl|kCGEventFlagMaskAlternate));
+        if (down && !pairDown) {
+            dispatch_async(dispatch_get_main_queue(),^{ if (pairCallback) pairCallback(); });
+        }
+        pairDown=down;
+    });
+    dispatch_resume(pairTimer);
+    return 0;
+}
+
+// An ordinary global hotkey. The system delivers it without any keyboard
+// permission; JAM never sees other keystrokes.
+static EventHotKeyRef hotKey;
+static EventHandlerRef hotKeyHandler;
+static TriggerCallback hotKeyCallback;
+static OSStatus onHotKey(EventHandlerCallRef next,EventRef event,void *data) {
+    (void)next; (void)event; (void)data;
+    if (hotKeyCallback) hotKeyCallback();
+    return noErr;
+}
+void jam_snapshot_hotkey_stop(void) {
+    if (hotKey) { UnregisterEventHotKey(hotKey); hotKey=NULL; }
+    if (hotKeyHandler) { RemoveEventHandler(hotKeyHandler); hotKeyHandler=NULL; }
+    hotKeyCallback=NULL;
+}
+int jam_snapshot_hotkey_start(uint32_t keyCode,uint32_t modifiers,TriggerCallback callback) {
+    jam_snapshot_hotkey_stop();
+    EventTypeSpec spec={kEventClassKeyboard,kEventHotKeyPressed};
+    OSStatus status=InstallApplicationEventHandler(&onHotKey,1,&spec,NULL,&hotKeyHandler);
+    if (status!=noErr) return (int)status;
+    EventHotKeyID identity={'jams',1};
+    status=RegisterEventHotKey(keyCode,modifiers,identity,GetApplicationEventTarget(),0,&hotKey);
+    if (status!=noErr) { jam_snapshot_hotkey_stop(); return (int)status; }
+    hotKeyCallback=callback;
+    return 0;
+}
+
+// 0 is Screen Recording, 1 is Input Monitoring.
+bool jam_snapshot_permission(int which) {
+    return which==0 ? CGPreflightScreenCaptureAccess() : CGPreflightListenEventAccess();
+}
+// Shows macOS's own prompt the first time; afterwards macOS answers without
+// asking, so the Settings page is the way to change a previous decision.
+void jam_snapshot_request_permission(int which) {
+    if (which==0) CGRequestScreenCaptureAccess(); else CGRequestListenEventAccess();
+}
+void jam_snapshot_open_permission_settings(int which) {
+    NSString *pane=which==0 ? @"Privacy_ScreenCapture" : @"Privacy_ListenEvent";
+    NSURL *url=[NSURL URLWithString:[@"x-apple.systempreferences:com.apple.preference.security?" stringByAppendingString:pane]];
+    if (url) [NSWorkspace.sharedWorkspace openURL:url];
 }
 static void reply(CaptureCallback callback,uint64_t token,NSDictionary *data) {
     NSData *json=[NSJSONSerialization dataWithJSONObject:data options:0 error:nil];

@@ -81,16 +81,31 @@ export interface BrowserHost {
   close(resourceId: string): Promise<void>;
 }
 
+/**
+ * The desktop host's view of Snapshots. `message` is empty while everything
+ * works and explains only a problem the user can act on.
+ */
 export interface SnapshotShortcutStatus {
-  state: 'registered' | 'disabled' | 'unavailable' | 'conflict';
+  state: 'registered' | 'disabled' | 'needsPermission' | 'unavailable';
   message: string;
   latestId: string | null;
+  screenRecording: boolean;
+  inputMonitoring: boolean;
+  /** Only double-tap Shift listens to key events. */
+  inputMonitoringRequired: boolean;
 }
+export type SnapshotHostAction =
+  | 'status'
+  | 'retry'
+  | 'requestScreenRecording'
+  | 'requestInputMonitoring'
+  | 'openScreenRecordingSettings'
+  | 'openInputMonitoringSettings'
+  | 'capture'
+  | 'dismiss'
+  | 'open';
 export interface SnapshotHost {
-  action(
-    action: 'status' | 'retry' | 'permissions' | 'capture' | 'dismiss' | 'open',
-    id?: string,
-  ): Promise<SnapshotShortcutStatus>;
+  action(action: SnapshotHostAction, id?: string): Promise<SnapshotShortcutStatus>;
   subscribe(listener: () => void): Promise<() => void>;
   onOpen(listener: (id: string | null) => void): Promise<() => void>;
 }

@@ -502,6 +502,19 @@ and accent on the selected row. Rows follow the frame: 30px, 8px padding, a
 9px gap, 13px text. Every page is reachable; pages that are not built yet say
 so rather than being disabled, which kept the navigation identical to Paper.
 
+## Snapshots settings
+
+The page follows the Paper "Settings v2 · Snapshots" frame with two deliberate
+changes. The shortcut is a picker, not a fixed double-tap with Change: Both
+Shift keys (the default, as in T3 Code), ⌘⇧2, ⌃⇧2, ⌥⇧2, and double-tap Shift
+labelled as needing Input Monitoring. A setup card, not yet drawn in Paper,
+appears when Snapshots is turned on without the permissions the chosen shortcut
+needs: one step per permission with why it is needed, Allow (macOS's prompt)
+and Open System Settings, and a check once allowed. Turn on Snapshots stays
+disabled until every step is allowed, and the header toggle shows the effective
+state. A healthy page carries no status text; only a problem the user can act on
+is shown, in the danger role under the header.
+
 ## Verification
 
 Compare the running shell with Paper at 1440×900 in Single and Tiles; inspect sidebar width, transcript bounds, title/pane heights, gutters, typography and focus states. Check a smaller supported window for clipping and overflow. Exercise search, filters, draft preservation, view close/reopen during streaming, stop, failure, new chat and both Settings modes. Browser screenshots verify web rendering only; native window drag/chrome, WebView behavior, persistence and platform accessibility require desktop testing.
