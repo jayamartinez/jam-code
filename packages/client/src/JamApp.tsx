@@ -39,7 +39,7 @@ import { Sidebar } from './components/Sidebar';
 import { Composer } from './components/ConversationPane';
 import { ConversationResource } from './components/ConversationResource';
 import { SearchDialog } from './components/SearchDialog';
-import { SnapshotImage } from './components/SnapshotImage';
+import { SnapshotPreview } from './components/SnapshotPreview';
 import { useSnapshots, snapshotFocus } from './state/snapshots';
 import { SettingsPanel } from './components/SettingsPanel';
 import { NewResourceLauncher } from './components/NewResourceLauncher';
@@ -1149,27 +1149,30 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             <p>Native file context is planned. Snapshots can be captured in the desktop app.</p>
           </Dialog>
         )}
-        {previewContext && (
+        {previewContext?.kind === 'snapshot' && (
+          <Dialog
+            title="Snapshot preview"
+            className="context-dialog snapshot-preview-dialog"
+            onClose={() => setPreviewContext(null)}
+          >
+            <SnapshotPreview
+              item={previewContext}
+              snapshot={snapshots.snapshots.find((item) => item.id === previewContext.assetId)}
+              transport={transport}
+              onClose={() => setPreviewContext(null)}
+            />
+          </Dialog>
+        )}
+        {previewContext && previewContext.kind !== 'snapshot' && (
           <Dialog
             title="Context preview"
             className="context-dialog"
             onClose={() => setPreviewContext(null)}
           >
             <h2>{previewContext.label}</h2>
-            {previewContext.kind === 'snapshot' && previewContext.assetId && (
-              <div className="snapshot-preview">
-                <SnapshotImage
-                  id={previewContext.assetId}
-                  transport={transport}
-                  thumbnail={false}
-                />
-              </div>
-            )}
             <code>{previewContext.source.uri ?? previewContext.source.resourceId}</code>
             <p>
-              {previewContext.kind === 'snapshot'
-                ? 'Local snapshot. Included only when you explicitly Send to the mock conversation.'
-                : 'Staged reference · demonstration only. It will be included in your next explicit Send.'}
+              Staged reference · demonstration only. It will be included in your next explicit Send.
             </p>
             <button className="button" onClick={() => setPreviewContext(null)}>
               Done
