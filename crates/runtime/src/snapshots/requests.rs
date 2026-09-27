@@ -59,7 +59,7 @@ impl Runtime {
             "snapshot.settings.update" => {
                 let settings: SnapshotSettings = parse(params)?;
                 settings.validate()?;
-                self.lock()?.store.connection.execute("INSERT INTO metadata(key,value) VALUES ('snapshot_settings',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",[serde_json::to_string(&settings)?])?;
+                self.lock()?.store.save_snapshot_settings(&settings)?;
                 Ok(serde_json::to_value(settings)?)
             }
             "snapshot.focus" => {

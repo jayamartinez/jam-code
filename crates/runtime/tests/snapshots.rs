@@ -286,3 +286,74 @@ fn crash_orphans_are_recovered_without_touching_unknown_files() {
     );
     assert!(assets.read(&keep.id, false).is_ok());
 }
+
+/// Builds a database the way a pre-integration branch left it: foundation
+/// migrations plus that branch's own schema version 3.
+fn legacy_database(path: &std::path::Path, version_three: &str) {
+    let connection = rusqlite::Connection::open(path).unwrap();
+    connection
+        .execute_batch(include_str!("../src/migrations/001-foundation.sql"))
+        .unwrap();
+    connection
+        .execute_batch(include_str!("../src/migrations/002-file-edits.sql"))
+        .unwrap();
+    connection.execute_batch(version_three).unwrap();
+    connection.pragma_update(None, "user_version", 3).unwrap();
+}
+
+#[test]
+fn pre_integration_databases_upgrade_without_losing_snapshots_or_settings() {
+    // The Snapshots branch's version 3: records plus preferences in metadata.
+    let s = Sandbox::new();
+    let path = s.0.join("test.sqlite");
+    let saved = SnapshotSettings {
+        enabled: false,
+        retention_days: 30,
+        ..Default::default()
+    };
+    legacy_database(
+        &path,
+        &format!(
+            "CREATE TABLE snapshots (id TEXT PRIMARY KEY, captured_at INTEGER NOT NULL, \
+             sent INTEGER NOT NULL DEFAULT 0, data TEXT NOT NULL);
+             CREATE INDEX snapshots_retention ON snapshots(sent, captured_at);
+             INSERT INTO metadata(key,value) VALUES ('snapshot_settings','{}');",
+            serde_json::to_string(&saved).unwrap()
+        ),
+    );
+    let r = s.open();
+    assert_eq!(
+        serde_json::to_value(r.snapshot_settings().unwrap()).unwrap(),
+        serde_json::to_value(&saved).unwrap()
+    );
+    assert!(req(&r, "appearance.get", json!({})).is_ok());
+    assert!(req(&r, "snapshot.list", json!({})).is_ok());
+    drop(r);
+    let connection = rusqlite::Connection::open(&path).unwrap();
+    let version: i64 = connection
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 4);
+    let leftover: i64 = connection
+        .query_row(
+            "SELECT count(*) FROM metadata WHERE key='snapshot_settings'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(leftover, 0);
+
+    // The Appearance branch's version 3: the settings table, kept as it was.
+    let s = Sandbox::new();
+    legacy_database(
+        &s.0.join("test.sqlite"),
+        include_str!("../src/migrations/003-settings.sql"),
+    );
+    let r = s.open();
+    assert_eq!(
+        serde_json::to_value(r.snapshot_settings().unwrap()).unwrap(),
+        serde_json::to_value(SnapshotSettings::default()).unwrap()
+    );
+    assert!(req(&r, "snapshot.list", json!({})).is_ok());
+    assert!(req(&r, "appearance.get", json!({})).is_ok());
+}

@@ -1,6 +1,13 @@
 import { JamError } from './errors';
 import { OPENABLE_KINDS, PROJECT_ICONS } from './types';
 import { TERMINAL_LIMITS } from './terminal';
+import {
+  APPEARANCE,
+  APPEARANCE_RANGES,
+  FONT_FAMILY,
+  HEX_COLOR,
+  WALLPAPER_PREFIX,
+} from './appearance';
 import type { TerminalStreamEvent } from './terminal';
 import type {
   DemoFixture,
@@ -85,9 +92,10 @@ const providerId = oneOf('mock', 'claude', 'codex');
 
 /** Project-relative only: a client may never address a location by escape. */
 const relativePath: Check = (value) => {
-  text(512)(value);
+  text(512, true)(value);
   const candidate = value as string;
   if (
+    !candidate.length ||
     candidate.startsWith('/') ||
     candidate.startsWith('\\') ||
     candidate.includes('//') ||
@@ -385,7 +393,128 @@ const snapshot: Check = (value) =>
     context,
   });
 
+const gitChange = oneOf(
+  'none',
+  'modified',
+  'added',
+  'deleted',
+  'renamed',
+  'copied',
+  'type-changed',
+  'unmerged',
+  'untracked',
+);
+const gitSide = oneOf('staged', 'unstaged');
+const gitFile: Check = (value) =>
+  shape(
+    value,
+    {
+      path: text(4096, true),
+      staged: gitChange,
+      workingTree: gitChange,
+      untracked: boolean,
+      conflict: boolean,
+      submodule: boolean,
+    },
+    { previousPath: text(4096, true), filePath: relativePath },
+  );
+const gitStatus: Check = (value) =>
+  shape(
+    value,
+    {
+      projectId: id,
+      state: oneOf('repository', 'not-repository', 'no-folder', 'unavailable'),
+      detached: boolean,
+      unborn: boolean,
+      files: array(gitFile, 2000),
+      truncated: boolean,
+    },
+    { repositoryRoot: text(16384), branch: text(4096), head: text(128) },
+  );
+const gitDiff: Check = (value) =>
+  shape(value, {
+    projectId: id,
+    path: text(4096, true),
+    side: gitSide,
+    file: gitFile,
+    binary: boolean,
+    truncated: boolean,
+    additions: integer,
+    deletions: integer,
+    metadata: array(text(524288, true), 40),
+    hunks: array(
+      (hunk) =>
+        shape(hunk, {
+          header: text(524288),
+          oldStart: integer,
+          oldLines: integer,
+          newStart: integer,
+          newLines: integer,
+          lines: array(
+            (line) =>
+              shape(
+                line,
+                {
+                  kind: oneOf('context', 'addition', 'deletion', 'notice'),
+                  text: text(524288, true),
+                },
+                { oldLine: integer, newLine: integer },
+              ),
+            5000,
+          ),
+        }),
+      5000,
+    ),
+  });
+const hexColor: Check = (value) => {
+  if (typeof value !== 'string' || !HEX_COLOR.test(value)) invalid('Expected a #rrggbb colour.');
+};
+const fontFamily: Check = (value) => {
+  text(APPEARANCE.limits.fontUtf16, true)(value);
+  if (!FONT_FAMILY.test(value as string)) invalid('A font family name has unsupported characters.');
+};
+const appearanceRanges = Object.fromEntries(
+  Object.entries(APPEARANCE_RANGES).map(([key, [min, max]]) => [key, range(min, max)]),
+) as Record<keyof typeof APPEARANCE_RANGES, Check>;
+const appearanceSettings: Check = (value) =>
+  shape(
+    value,
+    {
+      theme: oneOf(...APPEARANCE.themes),
+      accent: oneOf(...APPEARANCE.accents),
+      customAccent: hexColor,
+      uiFont: fontFamily,
+      codeFont: fontFamily,
+      terminalFont: fontFamily,
+      background: oneOf(...APPEARANCE.backgrounds),
+      backgroundPattern: oneOf(...APPEARANCE.patterns),
+      autoColors: boolean,
+      backgroundColor: hexColor,
+      gradientFrom: hexColor,
+      gradientTo: hexColor,
+      ...appearanceRanges,
+    },
+    {
+      paneOpacity: range(...APPEARANCE.limits.paneOpacity),
+      sidebarOpacity: range(...APPEARANCE.limits.sidebarOpacity),
+    },
+  );
+const wallpaper: Check = (value) => {
+  const { limits } = APPEARANCE;
+  shape(value, {
+    dataUrl: text(limits.wallpaperUtf16),
+    name: text(limits.wallpaperNameUtf16, true),
+    width: range(1, limits.wallpaperPixels),
+    height: range(1, limits.wallpaperPixels),
+  });
+  if (!WALLPAPER_PREFIX.test(object(value).dataUrl as string))
+    invalid('A wallpaper must be inline JPEG, PNG or WebP data.');
+};
+
 const params: Record<RequestMethod, Check> = {
+  'git.status': (value) => shape(value, { projectId: id }),
+  'git.diff': (value) => shape(value, { projectId: id, path: relativePath, side: gitSide }),
+  'git.setStaged': (value) => shape(value, { projectId: id, path: relativePath, staged: boolean }),
   'snapshot.list': (v) => shape(v, {}),
   'snapshot.settings.get': (v) => shape(v, {}),
   'snapshot.settings.update': snapshotSettings,
@@ -451,9 +580,15 @@ const params: Record<RequestMethod, Check> = {
   'terminal.resize': (value) => shape(value, { resourceId: id, cols: columns, rows: lines }),
   'terminal.kill': (value) => shape(value, { resourceId: id }),
   'terminal.ack': (value) => shape(value, { attachmentId: id, seq: integer }),
+  'appearance.get': (value) => shape(value, {}),
+  'appearance.update': (value) => shape(value, { appearance: appearanceSettings }),
+  'appearance.setWallpaper': (value) => shape(value, {}, { wallpaper }),
 };
 
 const responses: Record<RequestMethod, Check> = {
+  'git.status': gitStatus,
+  'git.diff': gitDiff,
+  'git.setStaged': gitStatus,
   'snapshot.list': (v) => shape(v, { snapshots: array(snapshot, 500) }),
   'snapshot.settings.get': snapshotSettings,
   'snapshot.settings.update': snapshotSettings,
@@ -490,6 +625,9 @@ const responses: Record<RequestMethod, Check> = {
   'terminal.resize': (value) => shape(value, { terminal: terminalSession }),
   'terminal.kill': (value) => shape(value, { terminal: terminalSession }),
   'terminal.ack': accepted,
+  'appearance.get': (value) => shape(value, {}, { appearance: appearanceSettings, wallpaper }),
+  'appearance.update': (value) => shape(value, { appearance: appearanceSettings }),
+  'appearance.setWallpaper': (value) => shape(value, { updatedAt: timestamp }),
 };
 
 /** Validate unknown input at a transport boundary before any mutation. */

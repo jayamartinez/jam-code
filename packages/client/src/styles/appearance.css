@@ -1,0 +1,403 @@
+/*
+ * Settings → Appearance, in the Settings frames' vocabulary: raised groups of
+ * rows (label and hint left, control right), the Snapshots frame's option
+ * tiles for pictured choices, and the theme frame's miniature windows.
+ */
+.settings-card {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+}
+.settings-heading.with-actions {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+.settings-heading h3 {
+  font-size: calc(15px * var(--ui-scale));
+  line-height: calc(20px * var(--ui-scale));
+  font-weight: 600;
+  color: var(--color-text-strong);
+}
+.settings-group-label {
+  height: 26px;
+  display: flex;
+  align-items: center;
+  margin: 0 0 6px;
+  color: var(--color-text-subtle);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+.settings-footnote {
+  margin-top: 8px;
+  color: var(--color-text-subtle);
+  font-size: var(--text-xs);
+  line-height: calc(17px * var(--ui-scale));
+}
+.settings-content .button.quiet {
+  border-color: transparent;
+  color: var(--color-text-muted);
+}
+.settings-controls {
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.appearance-row .settings-controls select {
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--radius-md);
+  background: var(--color-fill);
+  color: var(--color-text-primary);
+  font-size: calc(12px * var(--ui-scale));
+}
+
+/*
+ * Themes: a Dark/Light switch, then a two-column list of rows, each with an
+ * "Aa" chip drawn in that theme's own canvas and accent.
+ */
+.theme-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.theme-picker-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.theme-picker-bar .view-capsule button {
+  height: 26px;
+  padding: 0 14px;
+}
+.theme-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 12px;
+}
+.theme-row {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 10px 0 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  text-align: left;
+  color: var(--color-text-secondary);
+  font-size: calc(13px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
+}
+.theme-row.selected {
+  border-color: var(--color-accent-border);
+  background: var(--color-accent-soft);
+  color: var(--color-text-strong);
+  font-weight: 500;
+}
+.theme-row.selected:hover:not(:disabled) {
+  background: var(--color-accent-soft);
+}
+.theme-chip {
+  width: 36px;
+  height: 30px;
+  flex: 0 0 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid;
+  border-radius: 8px;
+  background-size: cover;
+  font-family: var(--font-mono-stack);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.theme-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.theme-row small {
+  color: var(--color-text-subtle);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  white-space: nowrap;
+}
+.theme-row-check {
+  width: 14px;
+  flex: 0 0 14px;
+  color: var(--color-accent-strong);
+  text-align: center;
+}
+.theme-group .settings-group-label {
+  margin-bottom: 2px;
+}
+
+/* Surface style pictures: a sidebar block and a pane block over a backdrop. */
+.surface-picture {
+  position: relative;
+  justify-content: flex-start;
+  gap: 3px;
+  padding: 3px;
+  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-secondary));
+  overflow: hidden;
+}
+.surface-picture i,
+.surface-picture b {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--color-surface-raised);
+}
+.surface-picture i {
+  width: 14px;
+}
+.surface-picture b {
+  flex: 1;
+}
+.surface-glass i,
+.surface-glass b {
+  opacity: 0.62;
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+.surface-clear b {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+}
+
+/* Accent swatches: fixed 22px slots so the row never shifts when one is chosen. */
+.accent-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.accent-swatch {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--swatch);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 18%);
+  cursor: pointer;
+}
+.accent-swatch:hover:not(:disabled) {
+  background: var(--swatch);
+}
+.accent-swatch.selected {
+  box-shadow:
+    0 0 0 2px var(--color-surface-raised),
+    0 0 0 3.5px var(--swatch);
+}
+.accent-swatch.theme-accent::after {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
+  background: var(--color-surface-raised);
+}
+.accent-swatch.custom {
+  background: conic-gradient(
+    from 180deg,
+    var(--color-ansi-red),
+    var(--color-ansi-yellow),
+    var(--color-ansi-green),
+    var(--color-ansi-cyan),
+    var(--color-ansi-blue),
+    var(--color-ansi-magenta),
+    var(--color-ansi-red)
+  );
+}
+.accent-swatch.custom.selected {
+  background: var(--swatch);
+}
+.accent-swatch.custom input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* Option tiles, from the Snapshots frame's Capture choice. */
+.option-tiles {
+  display: flex;
+  gap: 8px;
+}
+.option-tile {
+  width: 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 8px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  line-height: calc(14px * var(--ui-scale));
+}
+.option-tile.selected {
+  border-color: var(--color-accent-border);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  font-weight: 500;
+}
+.option-tile.selected:hover:not(:disabled) {
+  background: var(--color-accent-soft);
+}
+.option-picture {
+  width: 56px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-text-faint);
+  border-radius: 4px;
+  background-size: cover;
+  background-position: center;
+}
+.option-picture.empty {
+  border-style: dashed;
+  color: var(--color-text-subtle);
+}
+
+/* Sliders: a fill-strong track with the accent up to the value. */
+.appearance-slider {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.appearance-slider input[type='range'] {
+  width: 180px;
+  height: 18px;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  cursor: pointer;
+}
+.appearance-slider input[type='range']::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--color-accent) var(--fill),
+    var(--color-fill-strong) var(--fill)
+  );
+}
+.appearance-slider input[type='range']::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 50%;
+  appearance: none;
+  background: var(--color-text-strong);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 35%);
+}
+.appearance-slider input[type='range']:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.appearance-slider output {
+  min-width: 5ch;
+  color: var(--color-text-muted);
+  font-size: calc(11px * var(--ui-scale));
+  text-align: right;
+}
+
+.font-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.font-name {
+  width: 150px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-fill);
+  font-size: calc(12px * var(--ui-scale));
+}
+.font-warning {
+  color: var(--color-warning);
+  font-size: var(--text-xs);
+}
+.colour-input {
+  width: 32px;
+  height: 26px;
+  padding: 2px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-fill);
+  cursor: pointer;
+}
+.file-button {
+  position: relative;
+  cursor: pointer;
+}
+.file-button input {
+  display: none;
+}
+
+/* The type preview uses exactly the stacks the editor and terminal use. */
+.type-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 0;
+}
+.type-preview p {
+  color: var(--color-text-body);
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+}
+.type-preview pre {
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.type-preview-code {
+  background: var(--color-surface-pane);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--syntax-variable);
+  font-family: var(--editor-font-family);
+  font-size: var(--editor-font-size);
+  line-height: var(--editor-line-height);
+}
+.type-preview-terminal {
+  background: var(--color-surface-terminal);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-terminal-foreground);
+  font-family: var(--terminal-font-family);
+  font-size: var(--terminal-font-size);
+  line-height: var(--terminal-line-height);
+}
+
+.settings-nav-footer.error {
+  color: var(--color-danger);
+}
+@media (max-width: 1100px) {
+  .theme-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .appearance-slider input[type='range'] {
+    width: 130px;
+  }
+}
+.font-select select {
+  width: 188px;
+}

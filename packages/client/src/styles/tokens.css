@@ -48,22 +48,114 @@
   --color-provider-codex-from: #b1a7ff;
   --color-provider-codex-mid: #7a9dff;
   --color-provider-codex-to: #3941ff;
+  /* Focus and selection are the accent in every theme; named so components say what they mean. */
+  --color-focus: var(--color-accent);
+  --color-selection: var(--color-accent-soft);
+  /*
+   * Code. Every highlighter (CodeMirror, fenced code in Markdown) reads these
+   * roles; a theme sets them, the accent does not, so a Rose accent never turns
+   * keywords pink.
+   */
+  --syntax-keyword: #8fb0ff;
+  --syntax-string: #9fd1b0;
+  --syntax-number: #e8b784;
+  --syntax-function: #bccfff;
+  --syntax-type: #7cc7e8;
+  --syntax-property: #c9d0de;
+  --syntax-variable: #d2d6e0;
+  --syntax-definition: #e3e6ee;
+  --syntax-operator: #99a4c2;
+  --syntax-punctuation: #7b8194;
+  --syntax-comment: #6a7185;
+  --syntax-tag: #8fb0ff;
+  --syntax-attribute: #b8a9f5;
+  --syntax-meta: #b8a9f5;
+  --syntax-heading: #f1f3f9;
+  --syntax-link: #8fb0ff;
+  --syntax-code: #e8b784;
+  --syntax-quote: #9095a3;
+  --syntax-marker: #6f9bff;
+  /* Terminal. ANSI colours belong to the theme too, independent of the accent. */
+  --color-terminal-foreground: #9095a3;
+  --color-terminal-cursor: #b1b6c3;
+  --color-ansi-black: #444855;
+  --color-ansi-red: #e6807a;
+  --color-ansi-green: #7ec39a;
+  --color-ansi-yellow: #e6a85e;
+  --color-ansi-blue: #6f9bff;
+  --color-ansi-magenta: #a99bff;
+  --color-ansi-cyan: #5fb4ff;
+  --color-ansi-white: #b1b6c3;
+  --color-ansi-bright-black: #6d7281;
+  --color-ansi-bright-red: #e9aea9;
+  --color-ansi-bright-green: #b0d9bf;
+  --color-ansi-bright-yellow: #eac599;
+  --color-ansi-bright-blue: #a8c3ff;
+  --color-ansi-bright-magenta: #c4bcfd;
+  --color-ansi-bright-cyan: #96ccfd;
+  --color-ansi-bright-white: #f1f3f9;
+  /* The theme background drawn behind translucent panes. */
+  --background-glow:
+    radial-gradient(
+      circle farthest-corner at 50% 50% in oklab,
+      oklab(86.4% -0.004 -0.066 / 7%) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse 60% 55% at 85% 0% in oklab,
+      oklab(55.8% -0.023 -0.198 / 58%) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 55% 50% at 25% 105% in oklab,
+      oklab(44.2% -0.013 -0.179 / 50%) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 45% 45% at 100% 100% in oklab,
+      oklab(64.1% -0.068 -0.111 / 35%) 0%,
+      transparent 70%
+    );
+  /* The wallpaper layer, set from Settings → Appearance → Background. */
+  --wallpaper-color: #07080c;
+  --wallpaper-layer: var(--background-glow);
+  --wallpaper-filter: none;
+  --wallpaper-scale: 1;
+  --pane-backdrop: none;
+  --sidebar-backdrop: none;
+  --wallpaper-effects: none;
+  --wallpaper-effects-size: auto;
+  /*
+   * Typography. UI sizes are written as calc(Npx * var(--ui-scale)), so the
+   * reader's UI font size scales type without touching geometry. Code and
+   * terminal type are independent of it.
+   */
+  --ui-scale: 1;
+  --font-sans-stack: 'Geist Variable', Geist, system-ui, sans-serif;
+  --editor-font-family:
+    'Geist Mono Variable', 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --editor-font-size: 12px;
+  --editor-line-height: 20px;
+  --terminal-font-family:
+    'Geist Mono Variable', 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --terminal-font-size: 12px;
+  --terminal-line-height: 19px;
   --font-sans: Geist;
   --font-mono: Geist Mono;
-  --text-label: 10.5px;
-  --text-xs: 11.5px;
-  --text-sm: 12.5px;
-  --text-md: 13px;
-  --text-body: 14px;
-  --text-title: 17px;
-  --text-query: 18px;
+  --text-label: calc(10.5px * var(--ui-scale));
+  --text-xs: calc(11.5px * var(--ui-scale));
+  --text-sm: calc(12.5px * var(--ui-scale));
+  --text-md: calc(13px * var(--ui-scale));
+  --text-body: calc(14px * var(--ui-scale));
+  --text-title: calc(17px * var(--ui-scale));
+  --text-query: calc(18px * var(--ui-scale));
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --tracking-label: 0.08em;
   --tracking-title: -0.015em;
-  --leading-ui: 18px;
-  --leading-body: 23px;
+  --leading-ui: calc(18px * var(--ui-scale));
+  --leading-body: calc(23px * var(--ui-scale));
   --opacity-pane: 78%;
   --opacity-sidebar: 62%;
   --container-thread: 640px;

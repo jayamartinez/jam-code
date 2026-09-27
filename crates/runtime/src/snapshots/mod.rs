@@ -126,18 +126,24 @@ pub fn timestamp_ms() -> i64 {
     (time::OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000) as i64
 }
 
+/// Snapshot preferences are a product setting, stored beside Appearance.
+const SETTINGS_KEY: &str = "snapshots";
+
 impl crate::storage::Store {
     pub(crate) fn snapshot_settings(&self) -> Result<SnapshotSettings, JamError> {
-        let data: Option<String> = self
-            .connection
-            .query_row(
-                "SELECT value FROM metadata WHERE key='snapshot_settings'",
-                [],
-                |r| r.get(0),
-            )
-            .optional()?;
-        data.map(|s| serde_json::from_str(&s).map_err(Into::into))
+        self.setting(SETTINGS_KEY)?
+            .map(|s| serde_json::from_str(&s).map_err(Into::into))
             .unwrap_or_else(|| Ok(SnapshotSettings::default()))
+    }
+    pub(crate) fn save_snapshot_settings(
+        &self,
+        settings: &SnapshotSettings,
+    ) -> Result<(), JamError> {
+        self.save_setting(
+            SETTINGS_KEY,
+            &serde_json::to_string(settings)?,
+            &crate::runtime::now(),
+        )
     }
     pub(crate) fn snapshot(&self, id: &str) -> Result<Snapshot, JamError> {
         let data: Option<String> = self

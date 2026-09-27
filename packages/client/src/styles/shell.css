@@ -2,28 +2,58 @@
   height: 100dvh;
   min-width: 760px;
   display: flex;
+  /* The wallpaper below is painted inside this stacking context, under every pane. */
+  isolation: isolate;
   background-color: var(--color-bg-base);
-  background-image:
-    radial-gradient(
-      circle farthest-corner at 50% 50% in oklab,
-      oklab(86.4% -0.004 -0.066 / 7%) 0%,
-      transparent 100%
-    ),
-    radial-gradient(
-      ellipse 60% 55% at 85% 0% in oklab,
-      oklab(55.8% -0.023 -0.198 / 58%) 0%,
-      transparent 70%
-    ),
-    radial-gradient(
-      ellipse 55% 50% at 25% 105% in oklab,
-      oklab(44.2% -0.013 -0.179 / 50%) 0%,
-      transparent 70%
-    ),
-    radial-gradient(
-      ellipse 45% 45% at 100% 100% in oklab,
-      oklab(64.1% -0.068 -0.111 / 35%) 0%,
-      transparent 70%
-    );
+}
+/*
+ * The wallpaper layer: the theme's glow, a solid colour, a gradient or an
+ * image, from Settings → Appearance. Brightness, saturation and blur filter
+ * this layer only, never panes or text.
+ */
+.jam-app::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-color: var(--wallpaper-color);
+  background-image: var(--wallpaper-layer);
+  background-position: center;
+  background-size: cover;
+  filter: var(--wallpaper-filter);
+  transform: scale(var(--wallpaper-scale));
+}
+/*
+ * Effects between the wallpaper and the panes: a pattern, a fade and a
+ * vignette (Settings → Appearance → Effects). Static gradients and one small
+ * SVG tile, painted once.
+ */
+.jam-app::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--wallpaper-effects);
+  background-size: var(--wallpaper-effects-size);
+}
+/*
+ * Over a picture or a pattern, translucent surfaces blur what is behind them
+ * so text stays readable. The resolver sets each blur to 0 where there is
+ * nothing to soften or the surface is opaque (as `none`, not a zero blur,
+ * which WebKit still composites), because backdrop blur costs a
+ * compositing pass on every frame the surface repaints. The sidebar and the
+ * main panes are set independently.
+ */
+.jam-app .pane {
+  -webkit-backdrop-filter: var(--pane-backdrop);
+  backdrop-filter: var(--pane-backdrop);
+}
+.jam-app .sidebar,
+.jam-app .settings-nav {
+  -webkit-backdrop-filter: var(--sidebar-backdrop);
+  backdrop-filter: var(--sidebar-backdrop);
 }
 /* Navigation chrome: WebKit selects the word under a right-click otherwise. */
 .sidebar,
@@ -52,7 +82,7 @@
   gap: 2px;
 }
 .wordmark {
-  font-size: 17px;
+  font-size: calc(17px * var(--ui-scale));
   font-weight: 650;
   letter-spacing: -0.035em;
   color: var(--color-text-strong);
@@ -74,7 +104,7 @@
   padding: 0 10px;
   background: var(--color-fill-subtle);
   color: var(--color-text-subtle);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
 }
 .search-trigger span {
   flex: 1;
@@ -119,7 +149,7 @@
   flex: 1;
 }
 .project-row .branch {
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--ui-scale));
   color: var(--color-text-faint);
   font-weight: 400;
 }
@@ -220,7 +250,7 @@
 }
 .close-suggestion p {
   font-size: var(--text-xs);
-  line-height: 16px;
+  line-height: calc(16px * var(--ui-scale));
   color: var(--color-text-secondary);
 }
 .close-suggestion > div {
@@ -267,8 +297,8 @@
   justify-content: center;
   flex-shrink: 0;
   overflow: hidden;
-  font-size: 9.5px;
-  line-height: 12px;
+  font-size: calc(9.5px * var(--ui-scale));
+  line-height: calc(12px * var(--ui-scale));
   border-radius: var(--radius-sm);
   color: var(--color-accent-strong);
   background: var(--color-accent-soft);
@@ -354,7 +384,7 @@
   width: calc(50% - 3px);
 }
 .history-group {
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--ui-scale));
   color: var(--color-text-subtle);
   height: 24px;
   padding: 3px 8px;
@@ -394,12 +424,12 @@
 }
 .chat-row .row-title {
   display: block;
-  line-height: 18px;
+  line-height: calc(18px * var(--ui-scale));
 }
 .chat-row .row-meta {
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   color: var(--color-text-subtle);
-  line-height: 16px;
+  line-height: calc(16px * var(--ui-scale));
 }
 .row-status {
   width: 16px;
@@ -456,7 +486,7 @@
   padding: 0 8px;
   border-radius: 7px;
   color: var(--color-text-secondary);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
 }
 .sidebar-footer button span {
   flex: 1;
@@ -468,7 +498,7 @@
   gap: 6px;
 }
 .rail .wordmark {
-  font-size: 14px;
+  font-size: calc(14px * var(--ui-scale));
   margin: 2px 0 6px;
 }
 .rail .icon-button {
@@ -569,7 +599,7 @@
   transition: transform 140ms ease;
 }
 .resource-tab .project-badge {
-  font-size: 7.5px;
+  font-size: calc(7.5px * var(--ui-scale));
   border-radius: 3px;
 }
 .resource-tabs .icon-button.new-resource {
@@ -593,7 +623,7 @@
   border: 1px solid transparent;
   border-radius: 7px;
   max-width: 230px;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
   cursor: pointer;
 }
 .resource-tab.active {
@@ -620,12 +650,12 @@
   flex: 1;
 }
 .chrome-demo {
-  font-size: 9px;
+  font-size: calc(9px * var(--ui-scale));
   padding: 0 5px;
   border: 1px solid var(--color-border);
   border-radius: 4px;
   color: var(--color-text-muted);
-  line-height: 16px;
+  line-height: calc(16px * var(--ui-scale));
   white-space: nowrap;
 }
 .layout-toggle {
@@ -642,7 +672,7 @@
   height: 22px;
   padding: 0 7px;
   border-radius: 5px;
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   color: var(--color-text-subtle);
 }
 .layout-toggle button.active {
@@ -730,7 +760,7 @@
   padding: 0 10px 0 16px;
   border-bottom: 1px solid var(--color-border-subtle);
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
   /* A pane header drops detail by its own width, not the window's, so a
      narrow tile stays one 42px line instead of wrapping. */
   container: pane-header / inline-size;
@@ -773,7 +803,7 @@
   font-weight: 500;
 }
 .pane-heading .branch {
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--ui-scale));
   color: var(--color-text-subtle);
   margin-left: 4px;
 }
@@ -824,7 +854,7 @@
   padding: 0 8px;
   border-radius: var(--radius-sm);
   text-align: left;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--ui-scale));
   color: var(--color-text-secondary);
 }
 .pane-menu button:hover:not(:disabled) {
@@ -844,7 +874,7 @@
 .pane-state {
   padding: 24px 16px;
   color: var(--color-text-muted);
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--ui-scale));
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -855,7 +885,7 @@
 }
 .pane-footnote {
   padding: 6px 14px;
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   color: var(--color-text-subtle);
   border-top: 1px solid var(--color-border-subtle);
 }
@@ -863,7 +893,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--ui-scale));
   color: var(--color-text-secondary);
   background: var(--color-fill);
   border: 1px solid var(--color-border-strong);
@@ -945,11 +975,11 @@
   text-align: center;
   padding: 24px;
   color: var(--color-text-muted);
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-scale));
 }
 .empty-pane-body .subtle {
-  font-size: 11.5px;
-  line-height: 18px;
+  font-size: calc(11.5px * var(--ui-scale));
+  line-height: calc(18px * var(--ui-scale));
 }
 .focus-mode .workspace {
   padding-left: 8px;
@@ -958,10 +988,10 @@
   display: flex;
   gap: 9px;
   align-items: center;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
 }
 .focus-exit {
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   display: flex;
   gap: 6px;
   align-items: center;

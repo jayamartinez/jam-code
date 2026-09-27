@@ -7,6 +7,8 @@
 @import './surfaces.css';
 @import './resources.css';
 @import './terminal.css';
+@import './code.css';
+@import './appearance.css';
 @import './snapshots.css';
 
 :root {
@@ -15,18 +17,13 @@
    * stacks that actually resolve, so anything reading a font goes through one
    * of them rather than a bare name that may not be loaded.
    */
-  --font-sans-stack: 'Geist Variable', var(--font-sans), system-ui, sans-serif;
   --font-mono-stack:
     'Geist Mono Variable', var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
-  /* Overridden per reader by the editor appearance preferences. */
-  --editor-font-family: var(--font-mono-stack);
-  --editor-font-size: 12px;
-  --editor-line-height: 20px;
-  font-family: 'Geist Variable', var(--font-sans), sans-serif;
+  /* `--font-sans-stack` and the editor and terminal stacks follow Appearance (tokens.css). */
+  font-family: var(--font-sans-stack);
   color: var(--color-text-primary);
-  font-size: 13px;
-  line-height: 18px;
-  color-scheme: dark;
+  font-size: calc(13px * var(--ui-scale));
+  line-height: calc(18px * var(--ui-scale));
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -88,7 +85,7 @@ select {
   border: 1px solid var(--color-border);
   border-radius: 6px;
   padding: 3px 5px;
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   max-width: 100%;
 }
 svg {
@@ -102,8 +99,8 @@ kbd,
   font-family: 'Geist Mono Variable', var(--font-mono), monospace;
 }
 kbd {
-  font-size: 10px;
-  line-height: 17px;
+  font-size: calc(10px * var(--ui-scale));
+  line-height: calc(17px * var(--ui-scale));
   border-radius: 3px;
   padding: 0 4px;
   background: var(--color-fill);
@@ -122,14 +119,14 @@ p {
   margin: 0;
 }
 h1 {
-  font-size: 24px;
-  line-height: 30px;
+  font-size: calc(24px * var(--ui-scale));
+  line-height: calc(30px * var(--ui-scale));
   font-weight: 600;
   letter-spacing: -0.02em;
 }
 h2 {
-  font-size: 22px;
-  line-height: 28px;
+  font-size: calc(22px * var(--ui-scale));
+  line-height: calc(28px * var(--ui-scale));
   font-weight: 600;
   letter-spacing: -0.02em;
 }
@@ -166,7 +163,7 @@ h2 {
   border: 1px solid var(--color-border-strong);
   border-radius: 7px;
   padding: 5px 10px;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -202,7 +199,7 @@ h2 {
   padding: 8px 12px;
   color: var(--color-danger);
   background: var(--color-danger-soft);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
 }
 .error-banner span {
   flex: 1;

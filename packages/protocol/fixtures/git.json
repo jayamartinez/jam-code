@@ -1,0 +1,33 @@
+{
+  "projectId": "project-example",
+  "path": "src/example.ts",
+  "side": "unstaged",
+  "file": {
+    "path": "src/example.ts",
+    "filePath": "src/example.ts",
+    "staged": "none",
+    "workingTree": "modified",
+    "untracked": false,
+    "conflict": false,
+    "submodule": false
+  },
+  "binary": false,
+  "truncated": false,
+  "additions": 1,
+  "deletions": 1,
+  "hunks": [
+    {
+      "header": "@@ -1,2 +1,2 @@",
+      "oldStart": 1,
+      "oldLines": 2,
+      "newStart": 1,
+      "newLines": 2,
+      "lines": [
+        { "kind": "context", "text": "context", "oldLine": 1, "newLine": 1 },
+        { "kind": "deletion", "text": "before", "oldLine": 2 },
+        { "kind": "addition", "text": "after", "newLine": 2 }
+      ]
+    }
+  ],
+  "metadata": []
+}

@@ -37,6 +37,13 @@ export interface BrowserResourceProps {
   onClearAnnotations(): void;
   onStageAnnotations(): void;
   onError(error: unknown): void;
+  /**
+   * A page to open once the view is attached, for a browser opened from a
+   * link elsewhere in JAM (a Markdown preview). It goes through the same
+   * address checks as typing it, and only into a blank page.
+   */
+  initialUrl?: string;
+  onInitialUrlUsed?(): void;
 }
 
 const BLANK: BrowserPageState = {
@@ -98,6 +105,8 @@ export function BrowserResource({
   onClearAnnotations,
   onStageAnnotations,
   onError,
+  initialUrl,
+  onInitialUrlUsed,
 }: BrowserResourceProps) {
   const page = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<BrowserPageState>(BLANK);
@@ -109,8 +118,8 @@ export function BrowserResource({
   const owner = useOwnsView(resource.id);
   const last = useRef<BrowserBounds | null | undefined>(undefined);
   const frame = useRef(0);
-  const callbacks = useRef({ onAnnotated, onError });
-  callbacks.current = { onAnnotated, onError };
+  const callbacks = useRef({ onAnnotated, onError, initialUrl, onInitialUrlUsed });
+  callbacks.current = { onAnnotated, onError, initialUrl, onInitialUrlUsed };
 
   const blank = state.url === 'about:blank';
   const shown = !!host && attached && owner && !occluded && !blank;
@@ -149,6 +158,13 @@ export function BrowserResource({
         setState(initial);
         last.current = null;
         setAttached(true);
+        const { initialUrl: pending, onInitialUrlUsed: used } = callbacks.current;
+        if (pending && initial.url === 'about:blank') {
+          used?.();
+          const parsed = parseAddress(pending);
+          if ('url' in parsed)
+            void host.navigate(resource.id, parsed.url).catch(callbacks.current.onError);
+        }
       })
       .catch((error: unknown) => live && callbacks.current.onError(error));
     return () => {

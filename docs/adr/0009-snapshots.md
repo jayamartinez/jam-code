@@ -110,10 +110,14 @@ desktop service interface/bootstrap. Preserve the new standalone Snapshot surfac
 when merging the Appearance branch; no theme tokens or Appearance logic changed.
 Runtime/desktop startup and schema migration numbering also need normal merge review.
 
-Both this branch and the unmerged Settings branch allocate schema version 3. At
-integration, sequence both migrations and test upgrades from each branch’s QA
-database; do not merely keep one version-3 migration or reset existing data. This
-branch intentionally stays based on integrated main and imports no unmerged settings.
+Both this branch and the Appearance branch allocated schema version 3. At
+integration Appearance landed first, so its `003-settings.sql` keeps version 3 and
+Snapshots became `004-snapshots.sql`. Snapshot preferences moved from runtime
+`metadata` into that `settings` table under the `snapshots` key, beside
+`appearance`; the last-focused conversation remains runtime metadata. Migration
+004 is idempotent for a database created by the pre-integration Snapshots branch
+(version 3 without `settings`) and carries its preference record across, so both
+branches' QA databases upgrade without a reset; a runtime test covers each path.
 
 Actual overlapping Appearance files at final review: desktop `main.tsx`; runtime
 `lib.rs`, `runtime.rs`, `storage.rs`; client `JamApp.tsx`, `SettingsPanel.tsx`,

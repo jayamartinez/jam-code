@@ -5,13 +5,7 @@ fn main() {
             .flag("-fobjc-arc")
             .flag("-fblocks")
             .compile("jam_snapshots");
-        for framework in [
-            "AppKit",
-            "ScreenCaptureKit",
-            "ImageIO",
-            "CoreGraphics",
-            "Carbon",
-        ] {
+        for framework in ["AppKit", "ScreenCaptureKit", "ImageIO", "CoreGraphics"] {
             println!("cargo:rustc-link-lib=framework={framework}");
         }
         println!("cargo:rerun-if-changed=src/snapshots/macos.m");

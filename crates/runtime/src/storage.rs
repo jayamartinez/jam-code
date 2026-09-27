@@ -4,7 +4,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use std::{path::Path, time::Duration};
 
-pub(crate) const SCHEMA_VERSION: i64 = 3;
+pub(crate) const SCHEMA_VERSION: i64 = 4;
 
 pub(crate) struct Store {
     pub connection: Connection,
@@ -30,10 +30,11 @@ impl Store {
         }
         // Numbered, transactional, additive. A failed migration leaves the
         // previous version intact rather than resetting anything.
-        const MIGRATIONS: [&str; 3] = [
+        const MIGRATIONS: [&str; 4] = [
             include_str!("migrations/001-foundation.sql"),
             include_str!("migrations/002-file-edits.sql"),
-            include_str!("migrations/003-snapshots.sql"),
+            include_str!("migrations/003-settings.sql"),
+            include_str!("migrations/004-snapshots.sql"),
         ];
         for (index, migration) in MIGRATIONS.iter().enumerate() {
             let target = index as i64 + 1;
@@ -231,6 +232,32 @@ impl Store {
              ON CONFLICT(project_id,path) DO UPDATE SET text=excluded.text,updated_at=excluded.updated_at",
             params![project_id, path, text, updated_at],
         )?;
+        Ok(())
+    }
+
+    pub fn setting(&self, key: &str) -> Result<Option<String>, JamError> {
+        Ok(self
+            .connection
+            .query_row(
+                "SELECT value FROM settings WHERE key=?1",
+                params![key],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?)
+    }
+
+    pub fn save_setting(&self, key: &str, value: &str, updated_at: &str) -> Result<(), JamError> {
+        self.connection.execute(
+            "INSERT INTO settings(key,value,updated_at) VALUES (?1,?2,?3)
+             ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at",
+            params![key, value, updated_at],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_setting(&self, key: &str) -> Result<(), JamError> {
+        self.connection
+            .execute("DELETE FROM settings WHERE key=?1", params![key])?;
         Ok(())
     }
 

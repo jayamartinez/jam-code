@@ -1,7 +1,6 @@
 #import <AppKit/AppKit.h>
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
 #import <ImageIO/ImageIO.h>
-#import <Carbon/Carbon.h>
 
 typedef void (*KeyCallback)(int, uint64_t);
 typedef void (*CaptureCallback)(uint64_t, const char *);

@@ -8,8 +8,8 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  font-size: 12.5px;
-  line-height: 16px;
+  font-size: calc(12.5px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
 }
 .snapshot-toast header,
 .snapshot-toast footer {
@@ -24,7 +24,7 @@
 .snapshot-toast header span {
   flex: 1;
   color: var(--color-text-subtle);
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--ui-scale));
 }
 .snapshot-toast header button {
   padding: 0;
@@ -58,7 +58,7 @@
   gap: 8px;
   padding-inline: 2px;
   color: var(--color-text-subtle);
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--ui-scale));
 }
 .snapshot-destination select {
   min-width: 0;
@@ -86,12 +86,12 @@
 }
 .snapshot-dismiss {
   margin-left: auto;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
   color: var(--color-text-muted);
 }
 .snapshot-error {
   color: var(--color-danger);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
 }
 .snapshot-settings {
   width: 100%;
@@ -111,28 +111,28 @@
   flex: 1;
 }
 .snapshot-settings h2 {
-  font-size: 20px;
-  line-height: 24px;
+  font-size: calc(20px * var(--ui-scale));
+  line-height: calc(24px * var(--ui-scale));
   font-weight: 500;
 }
 .snapshot-settings p {
   margin-top: 4px;
-  font-size: 12.5px;
-  line-height: 18px;
+  font-size: calc(12.5px * var(--ui-scale));
+  line-height: calc(18px * var(--ui-scale));
   color: var(--color-text-subtle);
 }
 .snapshot-settings h3 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 13px;
-  line-height: 16px;
+  font-size: calc(13px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
   font-weight: 500;
   color: var(--color-text-secondary);
   margin-bottom: 10px;
 }
 .snapshot-settings h3 small {
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   font-weight: 400;
   color: var(--color-text-faint);
 }
@@ -140,7 +140,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
   color: var(--color-text-secondary);
 }
 .snapshot-settings-card {
@@ -164,11 +164,11 @@
 }
 .snapshot-setting-row strong {
   font-weight: 400;
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-scale));
 }
 .snapshot-setting-row p {
-  font-size: 11.5px;
-  line-height: 14px;
+  font-size: calc(11.5px * var(--ui-scale));
+  line-height: calc(14px * var(--ui-scale));
   margin-top: 2px;
 }
 .snapshot-toggle {
@@ -200,17 +200,17 @@
   gap: 6px;
 }
 .snapshot-keycaps kbd {
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   color: var(--color-text-primary);
   border: 1px solid var(--color-border-strong);
   padding: 2px 6px;
 }
 .snapshot-keycaps small {
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   color: var(--color-text-subtle);
 }
 .snapshot-settings .snapshot-shortcut-status {
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--ui-scale));
   margin-bottom: 10px;
 }
 .snapshot-permissions {
@@ -233,11 +233,11 @@
   justify-content: center;
   align-items: center;
   gap: 8px;
-  font-size: 24px;
+  font-size: calc(24px * var(--ui-scale));
   color: var(--color-text-subtle);
 }
 .snapshot-modes small {
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--ui-scale));
 }
 .snapshot-modes .selected {
   border-color: var(--color-accent);
@@ -266,7 +266,7 @@
 }
 .snapshot-actions small {
   display: block;
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--ui-scale));
   color: var(--color-text-subtle);
 }
 .snapshot-actions .snapshot-setting-row {
@@ -288,7 +288,7 @@
 }
 .snapshot-inbox small {
   color: var(--color-text-subtle);
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
 }
 .snapshot-preview {
   width: min(800px, 80vw);

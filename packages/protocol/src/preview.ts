@@ -16,6 +16,7 @@ import type {
   WorkspaceSnapshot,
 } from './types';
 import type { TerminalAttachment } from './terminal';
+import type { AppearanceSettings, Wallpaper } from './appearance';
 import { validateFixture, validateRequest, validateResponse, validateScope } from './validation';
 
 type Listener = { scope: SubscriptionScope; receive: (event: JamEvent) => void };
@@ -47,6 +48,9 @@ export class BrowserPreviewTransport implements JamTransport {
   private readonly pendingEvents: JamEvent[] = [];
   private publishing = false;
   private nextId = 0;
+  /** Volatile like the rest of the preview: a reload restores the defaults. */
+  private appearance: AppearanceSettings | undefined;
+  private wallpaper: Wallpaper | undefined;
 
   constructor() {
     const fixture = copy(validateFixture(fixtureJson));
@@ -96,6 +100,19 @@ export class BrowserPreviewTransport implements JamTransport {
         throw new JamError('unavailable', 'Snapshots require the desktop app.');
       case 'workspace.get':
         return this.workspace;
+      case 'git.status':
+        this.requireProject(request.params.projectId);
+        return {
+          projectId: request.params.projectId,
+          state: 'unavailable',
+          detached: false,
+          unborn: false,
+          files: [],
+          truncated: false,
+        };
+      case 'git.diff':
+      case 'git.setStaged':
+        throw new JamError('unavailable', 'Git runs in the jam desktop app.');
       case 'conversation.get':
         return { ...this.getConversation(request.params.resourceId), cursor: this.cursor() };
       case 'conversation.create':
@@ -191,6 +208,17 @@ export class BrowserPreviewTransport implements JamTransport {
       case 'terminal.kill':
       case 'terminal.ack':
         throw new JamError('unavailable', NO_TERMINALS);
+      case 'appearance.get':
+        return {
+          ...(this.appearance ? { appearance: this.appearance } : {}),
+          ...(this.wallpaper ? { wallpaper: this.wallpaper } : {}),
+        };
+      case 'appearance.update':
+        this.appearance = copy(request.params.appearance);
+        return { appearance: this.appearance };
+      case 'appearance.setWallpaper':
+        this.wallpaper = request.params.wallpaper && copy(request.params.wallpaper);
+        return { updatedAt: now() };
     }
   }
 

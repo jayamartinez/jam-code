@@ -373,6 +373,71 @@ page's own key logger recorded the keys typed before and after it, but not
 Escape), so Escape needs a real keyboard. Client tests cover the staged
 description text.
 
+## Appearance, editor and Markdown (2026-09-27, macOS)
+
+Automated: `pnpm check` (130 tests) and `pnpm check:rust` pass. New tests cover
+the appearance contract in TypeScript and Rust (shared fixture, strict
+validation, restart persistence, wallpaper bounds), theme resolution (the
+resolver reproduces tokens.css exactly; every theme has every role; accent
+never changes status, code or terminal colours; contrast floors per theme),
+the appearance store (immediate apply, coalesced and ordered saves, late
+runtime answers, failed saves), language detection (one fixture checked by
+both the runtime and the preview; every grammar loads and produces semantic
+classes), and Markdown security (raw HTML, event handlers, `javascript:`,
+`data:`, `file:`, `tauri:` and control-character schemes, remote images).
+
+Visual QA used an isolated build: identifier
+`dev.jamcode.desktop.appearance-qa`, its own app-data database and dev port,
+so the main build's single-instance guard and demo database were untouched
+(the new migration would otherwise make an older build refuse the shared
+database). Another agent was driving the shared screen, and computer-use
+screenshots were refused in this session, so:
+
+- **Browser preview, scripted through the DevTools protocol in headless
+  Chromium at 1440×900:** all six themes across sidebar, tabs, file browser,
+  Markdown preview and Settings; the Appearance page; interface 15px with the
+  system font, Menlo 14/22 in the editor; gradient background with 62% panes;
+  an image wallpaper chosen through the real file input (downsized to
+  2560×1600 WebP) with brightness, blur and 24px pane blur; the editor with
+  TSX, Python, JSON, `.gitignore` and `.env.example`; the demo report in
+  Preview and Source. The Settings navigation at 2× matches Paper's frame; the
+  only differences are live data ("1 on") and the unimplemented ⇧⇧ hint.
+- **Native (WKWebView) app, window capture only, no input:** a Frost + Violet
+  record written to the QA database was applied after a restart, confirming
+  runtime persistence and native theming of the workspace.
+
+Not verified by eye: the native Terminal's live re-theming and font change
+(xterm reads the same roles; covered by code, not by a screenshot), native
+Browser chrome in each theme, and Windows. Browser preview is not native
+validation.
+
+Bundle (production build): the main chunk is 412 KB (129 KB gzip), up from
+387 KB (121 KB gzip) before this pass — theme data, resolver, store and
+Settings icons. The Appearance page (5 KB gzip), Markdown preview with
+markdown-it (44 KB gzip) and each grammar are separate chunks loaded on first
+use; the largest grammar chunks (HTML, Python, YAML, SQL) are 12–33 KB gzip.
+CSS grew from 70 KB to 91 KB (16.5 KB gzip).
+
+`tauri build` refuses the repository's existing mismatch between the `tauri`
+crate (2.12) and `@tauri-apps/api` (2.11); the QA bundle was built with
+`--ignore-version-mismatches`. The mismatch predates this branch and is not
+changed here.
+
+### Follow-up: editor themes, surfaces and effects (2026-09-27)
+
+`pnpm check` (134 tests) and `pnpm check:rust` pass. Tests add: every one of
+the 31 themes against the contrast floors; independent sidebar and pane
+opacity; backdrop blur emitted as `none` for opaque surfaces, zero blur or
+nothing to soften; effect layers and their sizes; wallpaper palette
+extraction; "Match colours to image" tinting surfaces and the accent only
+while an image is shown, never text or status; and a Rust check that a record
+saved before these fields existed still reads. Browser-preview QA (DevTools
+protocol, 1440×900): the Dark/Light theme list; eight editor themes across
+sidebar, tree, tabs and the TSX editor; Clear with a halftone pattern and fade
+over an image; Solid; Glass with matched colours. Not re-verified natively in
+this pass. The main chunk is 432 KB (136 KB gzip), up 6.8 KB gzip for the
+palette data.
+
 ## Performance measurement procedure
 
 Use release builds for product claims, fixed machine/window/corpus and five cold launches plus five warm launches. Record runtime startup timestamp and frontend `jam-bootstrap` to workspace-loaded mark. Record median/p95, OS/build, corpus size and installed WebView version.
@@ -409,6 +474,41 @@ Single and Tiles were compared against the canonical Paper frames. Corrected tab
 A development-only issue appeared when Windows formatting briefly truncated files and Vite cached an empty transform. The watcher now waits for stable writes; the final source was formatted, rebuilt and reloaded successfully. Standard pnpm startup works through the documented npm-exec workaround for this machine's broken global pnpm launcher.
 
 Not run: macOS native build/interaction, a packaged or signed release, large-history performance benchmarks, assistive-technology testing, and developer manual testing. Tray Quit's UI interaction still needs a hands-on pass; graceful shutdown is covered in runtime tests. Mock-only integration is intentional: real providers, PTY/editor/browser services, snapshots and remote access are not implemented. No performance target is claimed from this small demo corpus.
+
+## Git / Review Changes milestone
+
+Automated temporary repositories cover detection/non-repositories, unborn and
+detached HEAD, clean/modified/index/untracked states, renames, deletions, Unicode,
+spaces/tabs/newlines and literal pathspec-looking names, binary content, conflicts,
+multiple hunks, missing final newlines, bounded status/patches, safe stage/unstage,
+scoped File-resource reads and symlink rejection. A shared JSON diff fixture checks
+the Rust/TypeScript wire shape. Client tests cover coalescing, stale folder responses,
+mutation refresh and selection surviving pane remounts.
+
+Native macOS computer-use QA used an isolated app identity/database/port and a
+throwaway repository. Review matched Git status and `+2 −1` for a text change;
+stage then unstage updated both the UI and Git index without changing working
+contents. A staged rename and Unicode untracked addition rendered correctly.
+Open file produced a separate, read-only File pane alongside Review and preserved
+the selection. Clean and non-Git folders displayed explicit empty states. Paper's
+Review frame was inspected and compared with the running surface. These are agent
+QA observations, not developer-reported testing. Windows remains unverified.
+
+Repeat locally: configure a project's first folder in project details, open Review,
+compare `git status --short` and `git diff`/`git diff --cached`, stage/unstage a
+throwaway file, and open it beside Review. Make an external edit then focus JAM or
+use Refresh. No automatic background watcher is claimed. Native directory browsing,
+real file writes, hunk mutations, discard/revert, commits and review annotations
+remain deferred; see ADR 0010.
+
+The ignored `observe_large_repository_costs` integration test is an explicit
+performance observation, run with `cargo test -p jam-runtime --test git
+observe_large_repository_costs -- --ignored --nocapture`. It creates 10,000 tracked
+files with 100 modifications and reports medians over five warm status/selected-diff
+reads. It measures a debug build and local filesystem, not a cross-platform SLA.
+The development launcher also reports the existing Tauri Rust 2.12 / JavaScript
+2.11 version mismatch; the isolated native app nevertheless built and ran. Dependency
+alignment is outside this Git milestone.
 
 ## Snapshots — macOS, 2026-09-27
 
