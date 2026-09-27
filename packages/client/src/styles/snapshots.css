@@ -291,9 +291,64 @@
   color: var(--color-text-subtle);
   font-size: calc(11px * var(--ui-scale));
 }
+/* Composer chip preview: the whole capture, framed like the staged-snapshot card. */
+.context-dialog.snapshot-preview-dialog {
+  width: min(760px, calc(100vw - 96px));
+  padding: 18px 20px 16px;
+}
 .snapshot-preview {
-  width: min(800px, 80vw);
-  height: min(500px, 60vh);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.snapshot-preview > header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.snapshot-preview-dialog .snapshot-preview h2 {
+  margin: 0;
+}
+.snapshot-preview-meta {
+  color: var(--color-text-subtle);
+  font-size: calc(12px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
+}
+.snapshot-preview-frame {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  max-height: 56vh;
+  aspect-ratio: 16 / 10;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-base);
+}
+.snapshot-preview-frame .snapshot-image {
+  max-height: 56vh;
+}
+.snapshot-preview-dialog .snapshot-preview-note {
+  margin: 0;
+  color: var(--color-text-body);
+}
+.snapshot-preview > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.snapshot-preview-dialog .snapshot-preview > footer p {
+  margin: 0;
+  font-size: calc(12px * var(--ui-scale));
+  line-height: calc(18px * var(--ui-scale));
+}
+.snapshot-preview-dialog .snapshot-preview > footer .button {
+  flex-shrink: 0;
+  margin-top: 0;
 }
 
 .snapshot-settings p.snapshot-error {
