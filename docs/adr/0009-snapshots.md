@@ -28,24 +28,37 @@ unsent capture. Dismiss only hides feedback. Closing a view changes none of this
 
 ## Global shortcut and permissions
 
-macOS uses a passive, listen-only `CGEventTap`, registered on the main run loop.
-It neither suppresses input nor stores typed keys. Only event category and timing
-reach the pure Rust detector. Input Monitoring is needed for this implementation;
-Screen Recording is a separate capture permission. Permissions are requested only
-by an explicit Settings action, never by a background capture.
+Snapshots start off. Turning them on shows one setup step, Screen Recording,
+and Snapshots stay off until it is allowed: the header toggle shows the
+effective state, and the desktop host refuses to start a listener without it.
+If it is revoked later, Settings shows the same step as "paused". Its state is
+re-read when JAM regains focus, not polled. Allow asks ScreenCaptureKit for
+shareable content, which registers JAM in the Screen Recording list, and opens
+that list if access is still off; it runs only from an explicit Settings action,
+never from a background capture.
 
-Two Shift presses must each last 25–220 ms, with 40–350 ms between taps. Other keys,
-mouse buttons or scrolling cancel the sequence. A 400 ms typing quiet period and
-900 ms capture cooldown reject ordinary typing, holds, repeat and bounce. Disabling,
-reconfiguring or quitting removes the listener and resets the detector. Secure
-Input can prevent delivery. These timing choices need continued real-keyboard QA.
+Screen Recording is the only permission. JAM never listens to key events, so it
+never needs Input Monitoring. An earlier build detected a double-tap of Shift
+with a listen-only event tap; that required Input Monitoring and was removed.
+Stored settings that chose it now read as both Shift keys.
 
-macOS provides no conflict registry for double-modifier gestures; the listener
-cannot claim exclusivity. Settings warns that app-local gestures can also fire
-(e.g. JetBrains Search Everywhere). JAM never steals or replaces a registration.
-The tagged shortcut contract reserves ordinary key combinations, but V0 rejects
-them as unavailable; a future native registration implementation must report
-conflicts without replacing existing bindings.
+- **Both Shift keys (default).** Left and right Shift held together, the same
+  default T3 Code uses. JAM reads the current modifier state
+  (`CGEventSourceFlagsState`), which macOS does not gate. This means sampling:
+  a 50 ms `dispatch_source` timer on a utility queue, with 10 ms leeway so
+  macOS can coalesce wakeups. It is a deliberate exception to "idle should not
+  poll" and runs only while Snapshots is on with this shortcut. Keys already
+  held when it starts do not count, and Command, Control or Option held with
+  them cancel the press.
+- **⌘⇧2, ⌃⇧2 or ⌥⇧2.** Ordinary global hotkeys through
+  `RegisterEventHotKey`, delivered by the system without seeing other keys and
+  with no timer. The list is fixed and avoids macOS's own ⌘⇧3/4/5. If another
+  app already holds the combination, Settings says so; JAM never replaces a
+  registration.
+
+Exactly one listener runs at a time. Disabling, changing the shortcut or quitting
+stops it. Modifier shortcuts have no conflict registry on macOS, so an app-local
+binding on both Shift keys could also fire.
 
 ## Capture and feedback
 

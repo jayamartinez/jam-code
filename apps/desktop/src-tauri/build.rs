@@ -22,7 +22,13 @@ fn main() {
         );
         println!("cargo:rustc-link-lib=static=clang_rt.osx");
         build.compile("jam_snapshots");
-        for framework in ["AppKit", "ScreenCaptureKit", "ImageIO", "CoreGraphics"] {
+        for framework in [
+            "AppKit",
+            "ScreenCaptureKit",
+            "ImageIO",
+            "CoreGraphics",
+            "Carbon",
+        ] {
             println!("cargo:rustc-link-lib=framework={framework}");
         }
         println!("cargo:rerun-if-changed=src/snapshots/macos.m");
