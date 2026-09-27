@@ -30,7 +30,8 @@ import {
   type SplitDirection,
 } from './state/layout';
 import { RuntimeClient } from './state/runtime-client';
-import { useEditorPreferences, useIdleThreadDays } from './state/preferences';
+import { useIdleThreadDays } from './state/preferences';
+import { AppearanceContext, AppearanceStore } from './appearance/store';
 import { Brand, Dialog, IconButton } from './components/Controls';
 import { Sidebar } from './components/Sidebar';
 import { Composer } from './components/ConversationPane';
@@ -98,6 +99,17 @@ const browserRatio = (paneId: string | undefined) => {
 
 export function JamApp({ transport, desktop }: JamAppProps) {
   const client = useMemo(() => new RuntimeClient(transport), [transport]);
+  const appearance = useMemo(() => new AppearanceStore(transport), [transport]);
+  useEffect(() => {
+    void appearance.load();
+    // A pending change is written before the window goes away.
+    const flush = () => appearance.flush();
+    window.addEventListener('pagehide', flush);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      appearance.dispose();
+    };
+  }, [appearance]);
   const { workspace, error } = useSyncExternalStore(
     client.subscribe,
     client.getSnapshot,
@@ -120,7 +132,6 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   const [iconTheme, setIconTheme] = useFileIconThemeChoice();
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [editingProject, setEditingProject] = useState<string | null>(null);
-  const [editorPreferences, setEditorPreferences] = useEditorPreferences();
   const [idleThreadDays, setIdleThreadDays] = useIdleThreadDays();
   /**
    * Projects whose threads the sidebar lists. Any number can be open at once;
@@ -134,6 +145,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   );
   /** The conversation a browser annotation stages into when none is beside it. */
   const lastConversation = useRef<string | null>(null);
+  /** Pages a Browser opened from a Markdown link should load once attached. */
+  const [browserUrls, setBrowserUrls] = useState<Record<string, string>>({});
   /** Live terminals the launcher offers to reopen; read when it opens. */
   const [runningTerminals, setRunningTerminals] = useState<TerminalSession[]>([]);
   const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
@@ -248,6 +261,29 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       }
     },
     [assignPane, client, openResource, projectId, transport],
+  );
+
+  /**
+   * A web link in a Markdown preview opens in a new Browser resource, the
+   * isolated native view, never in JAM's own window.
+   */
+  const openUrl = useCallback(
+    async (url: string, inProject?: string) => {
+      const target = inProject ?? projectId;
+      if (!target) return;
+      try {
+        const { resource } = await transport.request('resource.open', {
+          projectId: target,
+          kind: 'browser',
+        });
+        client.addResource(resource);
+        setBrowserUrls((current) => ({ ...current, [resource.id]: url }));
+        openResource(resource.id);
+      } catch (cause) {
+        client.reportError(cause);
+      }
+    },
+    [client, openResource, projectId, transport],
   );
 
   const launcherOpen = launcher !== null;
@@ -549,8 +585,6 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       }}
       dedicated={dedicated}
       desktop={desktop}
-      editor={editorPreferences}
-      onEditor={setEditorPreferences}
       idleThreadDays={idleThreadDays}
       onIdleThreadDays={setIdleThreadDays}
       onClose={() => setSettingsMode(null)}
@@ -697,6 +731,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             resource={resource}
             project={workspace.projects.find((item) => item.id === resource.projectId)}
             saveShortcut={shortcut}
+            onOpenUrl={(url) => void openUrl(url, resource.projectId)}
+            onOpenFile={(path) => void openKind('file', path, undefined, resource.projectId)}
           />
         );
       case 'file-browser':
@@ -742,6 +778,14 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             chrome={browserChrome}
             resource={resource}
             host={desktop.browser}
+            initialUrl={browserUrls[resource.id]}
+            onInitialUrlUsed={() =>
+              setBrowserUrls((current) => {
+                const rest = { ...current };
+                delete rest[resource.id];
+                return rest;
+              })
+            }
             annotations={annotations}
             destination={target?.title}
             onAnnotated={(annotation) =>
@@ -824,228 +868,230 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   };
 
   return (
-    <FileIconThemeProvider theme={iconTheme}>
-      {settingsMode ? (
-        settings(true)
-      ) : (
-        <div
-          className={`jam-app platform-${desktop.platform} ${layout.mode} ${layout.focus ? 'focus-mode' : ''}`}
-        >
-          {!layout.focus && (
-            <Sidebar
-              workspace={workspace}
-              collapsed={layout.collapsed}
-              platform={desktop.platform}
-              projectId={projectId}
-              activeResourceId={activeId}
-              projectFilter={projectFilter}
-              providerFilter={providerFilter}
-              shortcut={shortcut}
-              onProject={toggleProject}
-              expandedProjectIds={expandedProjects ?? [projectId]}
-              idleThreadDays={idleThreadDays}
-              onCloseThread={(id) => setThreadClosed(id, true)}
-              onKeepThreadOpen={keepThreadOpen}
-              onThreadMenu={(resource, event) =>
-                setContextMenu({
-                  ...menuPoint(event),
-                  items: [
-                    { label: 'Open', onSelect: () => openResource(resource.id) },
-                    resource.closedAt
-                      ? {
-                          label: 'Reopen thread',
-                          onSelect: () => setThreadClosed(resource.id, false),
-                        }
-                      : {
-                          label: 'Close thread',
-                          onSelect: () => setThreadClosed(resource.id, true),
-                        },
-                  ],
-                })
-              }
-              onProjectFilter={setProjectFilter}
-              onProviderFilter={setProviderFilter}
-              onOpen={openResource}
-              onSearch={() => setOverlay('search')}
-              onNew={() => newChat()}
-              onSettings={openSettings}
-              onCollapse={() => dispatch({ type: 'collapse' })}
-              onProjectMenu={(id, event) =>
-                setContextMenu({
-                  ...menuPoint(event),
-                  items: [
-                    { label: 'Edit project details…', onSelect: () => setEditingProject(id) },
-                    workspace.projects.find((item) => item.id === id)?.pinned
-                      ? {
-                          label: 'Unpin project',
-                          onSelect: () =>
-                            void updateProject(id, { pinned: false }).catch(client.reportError),
-                        }
-                      : {
-                          label: 'Pin project',
-                          onSelect: () =>
-                            void updateProject(id, { pinned: true }).catch(client.reportError),
-                        },
-                    { label: 'Switch to project', onSelect: () => switchProject(id) },
-                    {
-                      label: 'Open file browser',
-                      onSelect: () => void openKind('file-browser', undefined, undefined, id),
-                    },
-                  ],
-                })
-              }
-            />
-          )}
-          <main className="main-shell">
-            <WorkspaceTitlebar
-              desktop={desktop}
-              layout={layout}
-              workspace={workspace}
-              drafts={newChats}
-              project={project}
-              activeResource={activeResource}
-              shortcut={shortcut}
-              launcherOpen={!!launcher}
-              onSelectTab={(resourceId) => openResource(resourceId)}
-              onCloseTab={closeTab}
-              onMoveTab={(from, to) => dispatch({ type: 'moveTab', from, to })}
-              onNewResource={(element) =>
-                setLauncher((current) => (current ? null : { anchor: anchorOf(element) }))
-              }
-              onExitFocus={() => dispatch({ type: 'focus' })}
-              onMode={(mode) => dispatch({ type: 'mode', mode })}
-            />
-            {error && (
-              <div className="error-banner" role="alert">
-                <span>{error}</span>
-                <IconButton label="Dismiss error" onClick={client.clearError}>
-                  <X size={13} />
-                </IconButton>
-              </div>
-            )}
-            <div className="workspace">
-              {layout.mode === 'tiles' && activeTree(layout) && !layout.focus ? (
-                <TileLayout
-                  node={activeTree(layout)!}
-                  focusedPaneId={focusedPane(layout)?.id ?? null}
-                  renderPane={renderPane}
-                  onFocusPane={(paneId) => dispatch({ type: 'focusPane', paneId })}
-                  onResize={(splitId, ratio) => dispatch({ type: 'resize', splitId, ratio })}
-                />
-              ) : activeId ? (
-                surfaceFor(activeId, null)
-              ) : (
-                <section className="pane empty-surface">
-                  <h2>Your work is still here.</h2>
-                  <p>Open a conversation from history or start something new.</p>
-                  <button className="button primary" onClick={() => newChat()}>
-                    <Plus size={14} />
-                    New chat
-                  </button>
-                </section>
-              )}
-            </div>
-            {launcher && (
-              <NewResourceLauncher
-                projects={workspace.projects}
+    <AppearanceContext.Provider value={appearance}>
+      <FileIconThemeProvider theme={iconTheme}>
+        {settingsMode ? (
+          settings(true)
+        ) : (
+          <div
+            className={`jam-app platform-${desktop.platform} ${layout.mode} ${layout.focus ? 'focus-mode' : ''}`}
+          >
+            {!layout.focus && (
+              <Sidebar
+                workspace={workspace}
+                collapsed={layout.collapsed}
+                platform={desktop.platform}
                 projectId={projectId}
+                activeResourceId={activeId}
+                projectFilter={projectFilter}
+                providerFilter={providerFilter}
                 shortcut={shortcut}
-                anchor={launcher.anchor}
-                onClose={() => setLauncher(null)}
-                onProject={switchProject}
-                onAgentChat={(presentation) => newChat(presentation, launcher.paneId)}
-                onResource={(kind) => void openKind(kind, undefined, launcher.paneId)}
-                terminals={runningTerminals.map((item) => ({
-                  id: item.resourceId,
-                  label: item.title,
-                  // The last two folders are enough to tell shells apart.
-                  detail: item.cwdLabel.split(/[\\/]/).slice(-2).join('/'),
-                }))}
-                onOpenTerminal={(resourceId) =>
-                  launcher.paneId
-                    ? assignPane(resourceId, launcher.paneId)
-                    : openResource(resourceId)
+                onProject={toggleProject}
+                expandedProjectIds={expandedProjects ?? [projectId]}
+                idleThreadDays={idleThreadDays}
+                onCloseThread={(id) => setThreadClosed(id, true)}
+                onKeepThreadOpen={keepThreadOpen}
+                onThreadMenu={(resource, event) =>
+                  setContextMenu({
+                    ...menuPoint(event),
+                    items: [
+                      { label: 'Open', onSelect: () => openResource(resource.id) },
+                      resource.closedAt
+                        ? {
+                            label: 'Reopen thread',
+                            onSelect: () => setThreadClosed(resource.id, false),
+                          }
+                        : {
+                            label: 'Close thread',
+                            onSelect: () => setThreadClosed(resource.id, true),
+                          },
+                    ],
+                  })
                 }
-                target={launcher.paneId ? 'pane' : 'tab'}
+                onProjectFilter={setProjectFilter}
+                onProviderFilter={setProviderFilter}
+                onOpen={openResource}
+                onSearch={() => setOverlay('search')}
+                onNew={() => newChat()}
+                onSettings={openSettings}
+                onCollapse={() => dispatch({ type: 'collapse' })}
+                onProjectMenu={(id, event) =>
+                  setContextMenu({
+                    ...menuPoint(event),
+                    items: [
+                      { label: 'Edit project details…', onSelect: () => setEditingProject(id) },
+                      workspace.projects.find((item) => item.id === id)?.pinned
+                        ? {
+                            label: 'Unpin project',
+                            onSelect: () =>
+                              void updateProject(id, { pinned: false }).catch(client.reportError),
+                          }
+                        : {
+                            label: 'Pin project',
+                            onSelect: () =>
+                              void updateProject(id, { pinned: true }).catch(client.reportError),
+                          },
+                      { label: 'Switch to project', onSelect: () => switchProject(id) },
+                      {
+                        label: 'Open file browser',
+                        onSelect: () => void openKind('file-browser', undefined, undefined, id),
+                      },
+                    ],
+                  })
+                }
               />
             )}
-          </main>
-        </div>
-      )}
-      {overlay === 'search' && (
-        <SearchDialog
-          transport={transport}
-          projects={workspace.projects}
-          resources={workspace.resources}
-          sessions={workspace.sessions}
-          onClose={() => setOverlay(null)}
-          onOpen={openResource}
-        />
-      )}
-      {contextTarget && (
-        <Dialog
-          title="Add context"
-          className="context-dialog"
-          onClose={() => setContextTarget(null)}
-        >
-          <h2>Add demo context</h2>
-          <p>
-            Stage a demo file reference. Press Send to include it in the mock transcript. No file is
-            read.
-          </p>
-          <button
-            className="button"
-            onClick={() => {
-              const item: ContextItem = {
-                id: crypto.randomUUID(),
-                kind: 'file',
-                label: 'registry.ts · demo',
-                source: {
-                  uri: 'project://project-jam/src/session/registry.ts',
-                },
-              };
-              setContext((current) => ({
-                ...current,
-                [contextTarget]: [...(current[contextTarget] ?? emptyContext), item].slice(0, 16),
-              }));
-              setContextTarget(null);
-            }}
+            <main className="main-shell">
+              <WorkspaceTitlebar
+                desktop={desktop}
+                layout={layout}
+                workspace={workspace}
+                drafts={newChats}
+                project={project}
+                activeResource={activeResource}
+                shortcut={shortcut}
+                launcherOpen={!!launcher}
+                onSelectTab={(resourceId) => openResource(resourceId)}
+                onCloseTab={closeTab}
+                onMoveTab={(from, to) => dispatch({ type: 'moveTab', from, to })}
+                onNewResource={(element) =>
+                  setLauncher((current) => (current ? null : { anchor: anchorOf(element) }))
+                }
+                onExitFocus={() => dispatch({ type: 'focus' })}
+                onMode={(mode) => dispatch({ type: 'mode', mode })}
+              />
+              {error && (
+                <div className="error-banner" role="alert">
+                  <span>{error}</span>
+                  <IconButton label="Dismiss error" onClick={client.clearError}>
+                    <X size={13} />
+                  </IconButton>
+                </div>
+              )}
+              <div className="workspace">
+                {layout.mode === 'tiles' && activeTree(layout) && !layout.focus ? (
+                  <TileLayout
+                    node={activeTree(layout)!}
+                    focusedPaneId={focusedPane(layout)?.id ?? null}
+                    renderPane={renderPane}
+                    onFocusPane={(paneId) => dispatch({ type: 'focusPane', paneId })}
+                    onResize={(splitId, ratio) => dispatch({ type: 'resize', splitId, ratio })}
+                  />
+                ) : activeId ? (
+                  surfaceFor(activeId, null)
+                ) : (
+                  <section className="pane empty-surface">
+                    <h2>Your work is still here.</h2>
+                    <p>Open a conversation from history or start something new.</p>
+                    <button className="button primary" onClick={() => newChat()}>
+                      <Plus size={14} />
+                      New chat
+                    </button>
+                  </section>
+                )}
+              </div>
+              {launcher && (
+                <NewResourceLauncher
+                  projects={workspace.projects}
+                  projectId={projectId}
+                  shortcut={shortcut}
+                  anchor={launcher.anchor}
+                  onClose={() => setLauncher(null)}
+                  onProject={switchProject}
+                  onAgentChat={(presentation) => newChat(presentation, launcher.paneId)}
+                  onResource={(kind) => void openKind(kind, undefined, launcher.paneId)}
+                  terminals={runningTerminals.map((item) => ({
+                    id: item.resourceId,
+                    label: item.title,
+                    // The last two folders are enough to tell shells apart.
+                    detail: item.cwdLabel.split(/[\\/]/).slice(-2).join('/'),
+                  }))}
+                  onOpenTerminal={(resourceId) =>
+                    launcher.paneId
+                      ? assignPane(resourceId, launcher.paneId)
+                      : openResource(resourceId)
+                  }
+                  target={launcher.paneId ? 'pane' : 'tab'}
+                />
+              )}
+            </main>
+          </div>
+        )}
+        {overlay === 'search' && (
+          <SearchDialog
+            transport={transport}
+            projects={workspace.projects}
+            resources={workspace.resources}
+            sessions={workspace.sessions}
+            onClose={() => setOverlay(null)}
+            onOpen={openResource}
+          />
+        )}
+        {contextTarget && (
+          <Dialog
+            title="Add context"
+            className="context-dialog"
+            onClose={() => setContextTarget(null)}
           >
-            <Folder size={13} />
-            registry.ts
-          </button>
-          <p>Native files, browser selections and snapshots are planned.</p>
-        </Dialog>
-      )}
-      {previewContext && (
-        <Dialog
-          title="Context preview"
-          className="context-dialog"
-          onClose={() => setPreviewContext(null)}
-        >
-          <h2>{previewContext.label}</h2>
-          <code>{previewContext.source.uri ?? previewContext.source.resourceId}</code>
-          <p>
-            Staged reference · demonstration only. It will be included in your next explicit Send.
-          </p>
-          <button className="button" onClick={() => setPreviewContext(null)}>
-            Done
-          </button>
-        </Dialog>
-      )}
-      {contextMenu && <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} />}
-      {editingProject &&
-        (() => {
-          const target = workspace.projects.find((item) => item.id === editingProject);
-          return target ? (
-            <ProjectEditor
-              project={target}
-              platform={desktop.platform}
-              onSave={(changes) => updateProject(target.id, changes)}
-              onClose={() => setEditingProject(null)}
-            />
-          ) : null;
-        })()}
-    </FileIconThemeProvider>
+            <h2>Add demo context</h2>
+            <p>
+              Stage a demo file reference. Press Send to include it in the mock transcript. No file
+              is read.
+            </p>
+            <button
+              className="button"
+              onClick={() => {
+                const item: ContextItem = {
+                  id: crypto.randomUUID(),
+                  kind: 'file',
+                  label: 'registry.ts · demo',
+                  source: {
+                    uri: 'project://project-jam/src/session/registry.ts',
+                  },
+                };
+                setContext((current) => ({
+                  ...current,
+                  [contextTarget]: [...(current[contextTarget] ?? emptyContext), item].slice(0, 16),
+                }));
+                setContextTarget(null);
+              }}
+            >
+              <Folder size={13} />
+              registry.ts
+            </button>
+            <p>Native files, browser selections and snapshots are planned.</p>
+          </Dialog>
+        )}
+        {previewContext && (
+          <Dialog
+            title="Context preview"
+            className="context-dialog"
+            onClose={() => setPreviewContext(null)}
+          >
+            <h2>{previewContext.label}</h2>
+            <code>{previewContext.source.uri ?? previewContext.source.resourceId}</code>
+            <p>
+              Staged reference · demonstration only. It will be included in your next explicit Send.
+            </p>
+            <button className="button" onClick={() => setPreviewContext(null)}>
+              Done
+            </button>
+          </Dialog>
+        )}
+        {contextMenu && <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} />}
+        {editingProject &&
+          (() => {
+            const target = workspace.projects.find((item) => item.id === editingProject);
+            return target ? (
+              <ProjectEditor
+                project={target}
+                platform={desktop.platform}
+                onSave={(changes) => updateProject(target.id, changes)}
+                onClose={() => setEditingProject(null)}
+              />
+            ) : null;
+          })()}
+      </FileIconThemeProvider>
+    </AppearanceContext.Provider>
   );
 }

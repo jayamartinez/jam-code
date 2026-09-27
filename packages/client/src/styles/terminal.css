@@ -3,46 +3,38 @@
  *
  * The Files and Tiles frames define the surface: the terminal surface token,
  * Geist Mono at 12px on a 19px line, muted default text, 10px/14px padding.
- * The ANSI palette is derived from the semantic roles so programs' colours sit
- * inside Nightglass rather than beside it. The view reads these roles when it
- * creates a terminal; nothing below is a literal colour.
+ * The ANSI palette is a set of theme roles (`--color-ansi-*`), so programs'
+ * colours sit inside the current theme rather than beside it, and choosing an
+ * accent never recolours a program's blue. The view re-reads these roles
+ * whenever the appearance changes; nothing below is a literal colour.
  */
 .terminal-pane {
   /* Clip, not hide: a focused field inside must not scroll the pane. */
   overflow: clip;
   background: var(--color-surface-terminal);
-  --terminal-foreground: var(--color-text-muted);
-  --terminal-cursor: var(--color-text-secondary);
+  --terminal-foreground: var(--color-terminal-foreground);
+  --terminal-cursor: var(--color-terminal-cursor);
   --terminal-cursor-accent: var(--color-bg-base);
   --terminal-selection: var(--color-accent-border);
   --terminal-selection-inactive: var(--color-accent-soft);
   --terminal-scrollbar: var(--color-fill-strong);
   --terminal-scrollbar-hover: var(--color-border-strong);
-  --terminal-black: var(--color-text-ghost);
-  --terminal-red: var(--color-danger);
-  --terminal-green: var(--color-success);
-  --terminal-yellow: var(--color-warning);
-  --terminal-blue: var(--color-accent);
-  --terminal-magenta: var(--color-tone-violet);
-  --terminal-cyan: var(--color-accent-secondary);
-  --terminal-white: var(--color-text-secondary);
-  /* Dim text such as shell suggestions uses bright black, so it stays legible. */
-  --terminal-bright-black: var(--color-text-subtle);
-  --terminal-bright-red: var(--color-diff-del-text);
-  --terminal-bright-green: var(--color-diff-add-text);
-  --terminal-bright-yellow: color-mix(in srgb, var(--color-warning) 62%, var(--color-text-strong));
-  --terminal-bright-blue: var(--color-accent-strong);
-  --terminal-bright-magenta: color-mix(
-    in srgb,
-    var(--color-tone-violet) 62%,
-    var(--color-text-strong)
-  );
-  --terminal-bright-cyan: color-mix(
-    in srgb,
-    var(--color-accent-secondary) 62%,
-    var(--color-text-strong)
-  );
-  --terminal-bright-white: var(--color-text-strong);
+  --terminal-black: var(--color-ansi-black);
+  --terminal-red: var(--color-ansi-red);
+  --terminal-green: var(--color-ansi-green);
+  --terminal-yellow: var(--color-ansi-yellow);
+  --terminal-blue: var(--color-ansi-blue);
+  --terminal-magenta: var(--color-ansi-magenta);
+  --terminal-cyan: var(--color-ansi-cyan);
+  --terminal-white: var(--color-ansi-white);
+  --terminal-bright-black: var(--color-ansi-bright-black);
+  --terminal-bright-red: var(--color-ansi-bright-red);
+  --terminal-bright-green: var(--color-ansi-bright-green);
+  --terminal-bright-yellow: var(--color-ansi-bright-yellow);
+  --terminal-bright-blue: var(--color-ansi-bright-blue);
+  --terminal-bright-magenta: var(--color-ansi-bright-magenta);
+  --terminal-bright-cyan: var(--color-ansi-bright-cyan);
+  --terminal-bright-white: var(--color-ansi-bright-white);
   --terminal-match: var(--color-accent-soft);
   --terminal-match-active: var(--color-accent-glow);
 }
@@ -62,8 +54,8 @@
 }
 .terminal-shell {
   color: var(--color-text-secondary);
-  font-size: 12px;
-  line-height: 16px;
+  font-size: calc(12px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
 }
 .terminal-cwd {
   min-width: 4ch;
@@ -72,21 +64,21 @@
   flex-shrink: 1;
   color: var(--color-text-subtle);
   font-family: var(--font-mono-stack);
-  font-size: 11px;
-  line-height: 14px;
+  font-size: calc(11px * var(--ui-scale));
+  line-height: calc(14px * var(--ui-scale));
 }
 .terminal-note {
   color: var(--color-text-faint);
-  font-size: 11px;
-  line-height: 14px;
+  font-size: calc(11px * var(--ui-scale));
+  line-height: calc(14px * var(--ui-scale));
 }
 .terminal-state {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   color: var(--color-text-subtle);
-  font-size: 11px;
-  line-height: 14px;
+  font-size: calc(11px * var(--ui-scale));
+  line-height: calc(14px * var(--ui-scale));
   white-space: nowrap;
 }
 .terminal-state::before {
@@ -159,8 +151,8 @@
   padding: 6px 10px 6px 14px;
   border-top: 1px solid var(--color-border-subtle);
   color: var(--color-text-muted);
-  font-size: 12px;
-  line-height: 16px;
+  font-size: calc(12px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
 }
 .terminal-footer p {
   flex: 1;
@@ -194,7 +186,7 @@
   outline: none;
   background: transparent;
   color: var(--color-text-primary);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
 }
 .terminal-find:focus-within {
   border-color: var(--color-accent-border);
@@ -208,6 +200,6 @@
 .terminal-find output {
   min-width: 5ch;
   color: var(--color-text-subtle);
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   text-align: right;
 }

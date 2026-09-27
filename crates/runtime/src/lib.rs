@@ -1,4 +1,5 @@
 //! JAM domain runtime. This crate has no UI framework or native host dependency.
+pub mod appearance;
 mod commands;
 mod error;
 mod events;

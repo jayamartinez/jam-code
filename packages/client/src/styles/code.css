@@ -1,0 +1,373 @@
+/*
+ * Code and Markdown.
+ *
+ * `code/highlight.ts` gives every token a semantic class; these rules colour
+ * the classes from the theme's `--syntax-*` roles. The editor, fenced code in
+ * the Markdown preview and the Appearance preview all use them, so a theme is
+ * one set of values and code looks the same wherever it appears.
+ */
+.syntax-keyword {
+  color: var(--syntax-keyword);
+}
+.syntax-string {
+  color: var(--syntax-string);
+}
+.syntax-number {
+  color: var(--syntax-number);
+}
+.syntax-code {
+  color: var(--syntax-code);
+}
+.syntax-function {
+  color: var(--syntax-function);
+}
+.syntax-type {
+  color: var(--syntax-type);
+}
+.syntax-property {
+  color: var(--syntax-property);
+}
+.syntax-variable {
+  color: var(--syntax-variable);
+}
+.syntax-definition {
+  color: var(--syntax-definition);
+}
+.syntax-operator {
+  color: var(--syntax-operator);
+}
+.syntax-punctuation {
+  color: var(--syntax-punctuation);
+}
+.syntax-comment {
+  color: var(--syntax-comment);
+}
+.syntax-tag {
+  color: var(--syntax-tag);
+}
+.syntax-attribute {
+  color: var(--syntax-attribute);
+}
+.syntax-meta {
+  color: var(--syntax-meta);
+}
+.syntax-heading {
+  color: var(--syntax-heading);
+  font-weight: 600;
+}
+.syntax-link {
+  color: var(--syntax-link);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--syntax-link) 40%, transparent);
+  text-underline-offset: 2px;
+}
+/*
+ * Only upright Geist faces are bundled and the app disables font synthesis,
+ * so emphasis opts back in to a synthesized oblique; otherwise *this* would
+ * be indistinguishable from plain text.
+ */
+.syntax-emphasis,
+.markdown-body em {
+  font-style: italic;
+  font-synthesis: style;
+}
+.syntax-strong {
+  color: var(--color-text-strong);
+  font-weight: 600;
+}
+.syntax-strikethrough {
+  text-decoration: line-through;
+}
+.syntax-quote {
+  color: var(--syntax-quote);
+}
+.syntax-marker {
+  color: var(--syntax-marker);
+}
+.syntax-inserted {
+  color: var(--color-diff-add-text);
+}
+.syntax-deleted {
+  color: var(--color-diff-del-text);
+}
+.syntax-changed {
+  color: var(--color-warning);
+}
+.syntax-invalid {
+  color: var(--color-danger);
+}
+/* Terminal colour roles, for previews drawn outside xterm. */
+.ansi-green {
+  color: var(--color-ansi-green);
+}
+.ansi-bright-black {
+  color: var(--color-ansi-bright-black);
+}
+
+/* Markdown / Source switch: the Browser frame's tool capsule, at pane-header scale. */
+.view-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  margin-right: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-fill-subtle);
+}
+.view-capsule button {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  line-height: calc(14px * var(--ui-scale));
+}
+.view-capsule button:hover:not(:disabled) {
+  color: var(--color-text-primary);
+}
+.view-capsule button.active {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  font-weight: 500;
+}
+
+/*
+ * The rendered Markdown document. Long-form reading: the interface font at
+ * body size on a 700px measure (the Single conversation column), generous
+ * block rhythm, headings by weight and size rather than colour, and code in
+ * the reader's code font on the raised surface. Every colour is a role.
+ */
+.markdown-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.markdown-body {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 28px 32px 64px;
+  color: var(--color-text-body);
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  overflow-wrap: break-word;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.markdown-body > :first-child {
+  margin-top: 0;
+}
+.markdown-body :is(p, ul, ol, blockquote, .md-table, .md-code, hr, .md-frontmatter) {
+  margin: 0 0 14px;
+}
+.markdown-body :is(h1, h2, h3, h4, h5, h6) {
+  color: var(--color-text-strong);
+  font-weight: 600;
+  scroll-margin-top: 16px;
+  margin: 28px 0 10px;
+}
+.markdown-body h1 {
+  font-size: calc(26px * var(--ui-scale));
+  line-height: calc(32px * var(--ui-scale));
+  letter-spacing: -0.02em;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.markdown-body h2 {
+  font-size: calc(20px * var(--ui-scale));
+  line-height: calc(26px * var(--ui-scale));
+  letter-spacing: -0.015em;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.markdown-body h3 {
+  font-size: calc(16px * var(--ui-scale));
+  line-height: calc(22px * var(--ui-scale));
+}
+.markdown-body h4 {
+  font-size: calc(14px * var(--ui-scale));
+  line-height: calc(20px * var(--ui-scale));
+}
+.markdown-body :is(h5, h6) {
+  font-size: calc(13px * var(--ui-scale));
+  line-height: calc(18px * var(--ui-scale));
+  color: var(--color-text-secondary);
+}
+.markdown-body strong {
+  color: var(--color-text-strong);
+  font-weight: 600;
+}
+.markdown-body del {
+  color: var(--color-text-muted);
+}
+.markdown-body :is(ul, ol) {
+  padding-left: 22px;
+}
+/* Tailwind's reset removes list markers; prose needs them back. */
+.markdown-body ul {
+  list-style: disc;
+}
+.markdown-body ul ul {
+  list-style: circle;
+}
+.markdown-body ol {
+  list-style: decimal;
+}
+.markdown-body li + li {
+  margin-top: 4px;
+}
+.markdown-body li > :is(ul, ol) {
+  margin: 4px 0 0;
+}
+.markdown-body li::marker {
+  color: var(--color-text-subtle);
+}
+.markdown-body li.md-task {
+  list-style: none;
+  display: flex;
+  gap: 8px;
+  margin-left: -22px;
+}
+.md-task input {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  margin: calc(4.5px * var(--ui-scale)) 0 0;
+  accent-color: var(--color-accent);
+}
+.md-task input:disabled {
+  opacity: 1;
+}
+.markdown-body a.md-link {
+  color: var(--color-accent-strong);
+  text-decoration: underline;
+  text-decoration-color: var(--color-accent-border);
+  text-underline-offset: 3px;
+}
+.markdown-body a.md-link:hover {
+  text-decoration-color: var(--color-accent-strong);
+}
+.md-link-inert {
+  color: var(--color-text-secondary);
+  text-decoration: underline dotted var(--color-border-strong);
+  text-underline-offset: 3px;
+  cursor: help;
+}
+.markdown-body blockquote {
+  padding: 2px 0 2px 16px;
+  border-left: 3px solid var(--color-accent-border);
+  color: var(--color-text-secondary);
+}
+.markdown-body blockquote > :last-child {
+  margin-bottom: 0;
+}
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  margin: 24px 0;
+}
+.markdown-body :not(pre) > code {
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  background: var(--color-fill);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--syntax-code);
+  font-family: var(--editor-font-family);
+  font-size: 0.86em;
+}
+.md-code {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+  overflow: hidden;
+}
+.md-code-bar {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6px 0 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-text-subtle);
+  font-size: var(--text-xs);
+  line-height: calc(14px * var(--ui-scale));
+}
+.md-code-bar button {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+.md-code pre {
+  margin: 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  white-space: pre;
+  overflow-wrap: normal;
+  color: var(--syntax-variable);
+  font-family: var(--editor-font-family);
+  font-size: var(--editor-font-size);
+  line-height: var(--editor-line-height);
+}
+.md-code code {
+  font-family: inherit;
+}
+.md-frontmatter .md-code {
+  background: var(--color-fill-subtle);
+}
+.md-table {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+.md-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-md);
+  line-height: calc(19px * var(--ui-scale));
+}
+.md-table :is(th, td) {
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.md-table th {
+  color: var(--color-text-strong);
+  font-weight: 600;
+  background: var(--color-fill-subtle);
+  border-bottom-color: var(--color-border);
+}
+.md-table tr:last-child td {
+  border-bottom: 0;
+}
+.md-table :is(th, td) + :is(th, td) {
+  border-left: 1px solid var(--color-border-subtle);
+}
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+}
+.md-image-placeholder {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 6px 10px;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  line-height: calc(16px * var(--ui-scale));
+  vertical-align: middle;
+}
+.md-image-placeholder small {
+  color: var(--color-text-subtle);
+  font-size: var(--text-xs);
+}
+.md-truncated {
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}

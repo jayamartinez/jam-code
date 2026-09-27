@@ -373,6 +373,71 @@ page's own key logger recorded the keys typed before and after it, but not
 Escape), so Escape needs a real keyboard. Client tests cover the staged
 description text.
 
+## Appearance, editor and Markdown (2026-09-27, macOS)
+
+Automated: `pnpm check` (130 tests) and `pnpm check:rust` pass. New tests cover
+the appearance contract in TypeScript and Rust (shared fixture, strict
+validation, restart persistence, wallpaper bounds), theme resolution (the
+resolver reproduces tokens.css exactly; every theme has every role; accent
+never changes status, code or terminal colours; contrast floors per theme),
+the appearance store (immediate apply, coalesced and ordered saves, late
+runtime answers, failed saves), language detection (one fixture checked by
+both the runtime and the preview; every grammar loads and produces semantic
+classes), and Markdown security (raw HTML, event handlers, `javascript:`,
+`data:`, `file:`, `tauri:` and control-character schemes, remote images).
+
+Visual QA used an isolated build: identifier
+`dev.jamcode.desktop.appearance-qa`, its own app-data database and dev port,
+so the main build's single-instance guard and demo database were untouched
+(the new migration would otherwise make an older build refuse the shared
+database). Another agent was driving the shared screen, and computer-use
+screenshots were refused in this session, so:
+
+- **Browser preview, scripted through the DevTools protocol in headless
+  Chromium at 1440×900:** all six themes across sidebar, tabs, file browser,
+  Markdown preview and Settings; the Appearance page; interface 15px with the
+  system font, Menlo 14/22 in the editor; gradient background with 62% panes;
+  an image wallpaper chosen through the real file input (downsized to
+  2560×1600 WebP) with brightness, blur and 24px pane blur; the editor with
+  TSX, Python, JSON, `.gitignore` and `.env.example`; the demo report in
+  Preview and Source. The Settings navigation at 2× matches Paper's frame; the
+  only differences are live data ("1 on") and the unimplemented ⇧⇧ hint.
+- **Native (WKWebView) app, window capture only, no input:** a Frost + Violet
+  record written to the QA database was applied after a restart, confirming
+  runtime persistence and native theming of the workspace.
+
+Not verified by eye: the native Terminal's live re-theming and font change
+(xterm reads the same roles; covered by code, not by a screenshot), native
+Browser chrome in each theme, and Windows. Browser preview is not native
+validation.
+
+Bundle (production build): the main chunk is 412 KB (129 KB gzip), up from
+387 KB (121 KB gzip) before this pass — theme data, resolver, store and
+Settings icons. The Appearance page (5 KB gzip), Markdown preview with
+markdown-it (44 KB gzip) and each grammar are separate chunks loaded on first
+use; the largest grammar chunks (HTML, Python, YAML, SQL) are 12–33 KB gzip.
+CSS grew from 70 KB to 91 KB (16.5 KB gzip).
+
+`tauri build` refuses the repository's existing mismatch between the `tauri`
+crate (2.12) and `@tauri-apps/api` (2.11); the QA bundle was built with
+`--ignore-version-mismatches`. The mismatch predates this branch and is not
+changed here.
+
+### Follow-up: editor themes, surfaces and effects (2026-09-27)
+
+`pnpm check` (134 tests) and `pnpm check:rust` pass. Tests add: every one of
+the 31 themes against the contrast floors; independent sidebar and pane
+opacity; backdrop blur emitted as `none` for opaque surfaces, zero blur or
+nothing to soften; effect layers and their sizes; wallpaper palette
+extraction; "Match colours to image" tinting surfaces and the accent only
+while an image is shown, never text or status; and a Rust check that a record
+saved before these fields existed still reads. Browser-preview QA (DevTools
+protocol, 1440×900): the Dark/Light theme list; eight editor themes across
+sidebar, tree, tabs and the TSX editor; Clear with a halftone pattern and fade
+over an image; Solid; Glass with matched colours. Not re-verified natively in
+this pass. The main chunk is 432 KB (136 KB gzip), up 6.8 KB gzip for the
+palette data.
+
 ## Performance measurement procedure
 
 Use release builds for product claims, fixed machine/window/corpus and five cold launches plus five warm launches. Record runtime startup timestamp and frontend `jam-bootstrap` to workspace-loaded mark. Record median/p95, OS/build, corpus size and installed WebView version.

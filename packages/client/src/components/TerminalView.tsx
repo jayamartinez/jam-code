@@ -6,7 +6,8 @@ import { Unicode11Addon } from '@xterm/addon-unicode11';
 import '@xterm/xterm/css/xterm.css';
 import type { JamTransport, TerminalSession } from '@jam/protocol';
 import { TerminalConnection } from '../state/terminal-connection';
-import { TERMINAL_FONT_SIZE, TERMINAL_LINE_PX, terminalFont } from './terminal-metrics';
+import { terminalMetrics } from './terminal-metrics';
+import { useAppearance } from '../appearance/store';
 
 /**
  * xterm.js stays inside this module, which is loaded only when a terminal
@@ -28,6 +29,30 @@ export interface TerminalViewProps {
 }
 
 const SCROLLBACK = 5000;
+
+/**
+ * Applies the reader's terminal font, size and line to a live terminal. xterm
+ * multiplies its own measured cell height, so the line is calibrated against
+ * the rows it actually rendered to reach the requested pixel line. The screen
+ * is sized on xterm's next frame, so this measures after one.
+ */
+async function applyTypography(term: Terminal, element: HTMLElement, isDisposed: () => boolean) {
+  const metrics = terminalMetrics(element);
+  // Measuring before the face loads would size cells for a fallback.
+  await document.fonts?.load(`${metrics.fontSize}px ${metrics.fontFamily}`).catch(() => {});
+  if (isDisposed()) return;
+  term.options.fontFamily = metrics.fontFamily;
+  term.options.fontSize = metrics.fontSize;
+  for (let attempt = 0; attempt < 3 && !isDisposed(); attempt++) {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const height = element.querySelector('.xterm-screen')?.getBoundingClientRect().height;
+    if (!height || !term.rows) continue;
+    const rendered = height / term.rows;
+    term.options.lineHeight =
+      (metrics.lineHeight + 0.25) / (rendered / (term.options.lineHeight ?? 1));
+    break;
+  }
+}
 
 /** Reads a colour role from the pane and normalizes it for xterm. */
 function resolveColor(probe: HTMLElement, role: string): string | undefined {
@@ -100,20 +125,23 @@ export default function TerminalView({
   const callbacks = useRef({ onSession, onError, onSize });
   callbacks.current = { onSession, onError, onSize };
   const focusOnMount = useRef(autoFocus);
+  const { appearance } = useAppearance();
+  /** Re-fits after a typography change; set once the terminal is open. */
+  const refit = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const element = screen.current;
     const pane = host.current;
     if (!element || !pane) return;
     let disposed = false;
-    const fontFamily = terminalFont(pane);
+    const metrics = terminalMetrics(pane);
     const term = new Terminal({
       allowProposedApi: true,
       allowTransparency: true,
       cursorBlink: false,
       cursorInactiveStyle: 'outline',
-      fontFamily,
-      fontSize: TERMINAL_FONT_SIZE,
+      fontFamily: metrics.fontFamily,
+      fontSize: metrics.fontSize,
       scrollback: SCROLLBACK,
       macOptionIsMeta: false,
       rightClickSelectsWord: false,
@@ -196,34 +224,27 @@ export default function TerminalView({
     };
     const observer = new ResizeObserver(measure);
 
+    const isDisposed = () => disposed;
     void (async () => {
-      // Measuring before the bundled face loads would size cells for a fallback.
-      await document.fonts?.load(`${TERMINAL_FONT_SIZE}px "Geist Mono Variable"`).catch(() => {});
+      await document.fonts?.load(`${metrics.fontSize}px ${metrics.fontFamily}`).catch(() => {});
       if (disposed) return;
       term.open(element);
-      // xterm multiplies its own measured cell height, so calibrate against
-      // the rows it actually rendered to reach the design's 19px line. The
-      // screen is sized on xterm's first frame, not synchronously on open.
-      for (let attempt = 0; attempt < 3 && !disposed; attempt++) {
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-        const height = element.querySelector('.xterm-screen')?.getBoundingClientRect().height;
-        if (!height || !term.rows) continue;
-        const rendered = height / term.rows;
-        term.options.lineHeight =
-          (TERMINAL_LINE_PX + 0.25) / (rendered / (term.options.lineHeight ?? 1));
-        break;
-      }
+      await applyTypography(term, element, isDisposed);
       if (disposed) return;
       fit.fit();
       callbacks.current.onSize({ cols: term.cols, rows: term.rows });
       connection.resize(term.cols, term.rows);
       observer.observe(element);
+      refit.current = () => {
+        void applyTypography(term, element, isDisposed).then(measure);
+      };
       if (focusOnMount.current) term.focus();
       await connection.open();
     })();
 
     return () => {
       disposed = true;
+      refit.current = null;
       cancelAnimationFrame(frame);
       observer.disconnect();
       element.removeEventListener('keydown', keep);
@@ -236,6 +257,19 @@ export default function TerminalView({
       search.current = null;
     };
   }, [mac, resourceId, transport]);
+
+  // Appearance changes update the live terminal in place: colours are re-read
+  // from the pane's roles, and a typography change re-measures and re-fits.
+  // The terminal, its scrollback and its connection are never recreated.
+  const typography = `${appearance.terminalFont}|${appearance.codeFont}|${appearance.terminalFontSize}|${appearance.terminalLineHeight}`;
+  const colours = `${appearance.theme}|${appearance.accent}|${appearance.customAccent}`;
+  useEffect(() => {
+    const term = terminal.current;
+    if (term && host.current) term.options.theme = themeFrom(host.current);
+  }, [colours]);
+  useEffect(() => {
+    refit.current?.();
+  }, [typography]);
 
   const decorations = () => {
     const probe = host.current;

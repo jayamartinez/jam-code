@@ -1,8 +1,11 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import type { FileContents, JamTransport, Project, Resource } from '@jam/protocol';
 import { PaneChrome, type PaneChromeProps } from './PaneChrome';
+import { LANGUAGE_LABELS } from '../code/names';
+import { useMarkdownMode } from '../state/markdown-mode';
 
 const CodeMirrorEditor = lazy(() => import('./CodeMirrorEditor'));
+const MarkdownPreview = lazy(() => import('./MarkdownPreview'));
 
 /**
  * A normal file, not a diff.
@@ -28,6 +31,10 @@ export interface FileResourceProps extends Pick<
   resource: Resource;
   project?: Project;
   saveShortcut: string;
+  /** A Markdown preview link to a web page; JAM opens it in a Browser resource. */
+  onOpenUrl?(url: string): void;
+  /** A Markdown preview link to another file in the same project. */
+  onOpenFile?(path: string): void;
 }
 
 export function FileResource({
@@ -35,8 +42,11 @@ export function FileResource({
   resource,
   project,
   saveShortcut,
+  onOpenUrl,
+  onOpenFile,
   ...chrome
 }: FileResourceProps) {
+  const [markdownMode, setMarkdownMode] = useMarkdownMode(resource.id);
   const [load, setLoad] = useState<Load>({ state: 'loading' });
   const [draft, setDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -91,6 +101,8 @@ export function FileResource({
 
   const directory = path.slice(0, path.lastIndexOf('/') + 1);
   const name = path.slice(path.lastIndexOf('/') + 1);
+  const markdown = file?.language === 'markdown';
+  const preview = markdown && markdownMode === 'preview';
 
   return (
     <PaneChrome
@@ -109,6 +121,21 @@ export function FileResource({
       status={
         file ? (
           <span className="file-meta">
+            {markdown && (
+              <span className="view-capsule" role="group" aria-label="Markdown view">
+                {(['preview', 'source'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={markdownMode === mode ? 'active' : ''}
+                    aria-pressed={markdownMode === mode}
+                    onClick={() => setMarkdownMode(mode)}
+                  >
+                    {mode === 'preview' ? 'Preview' : 'Source'}
+                  </button>
+                ))}
+              </span>
+            )}
             <span>{LANGUAGE_LABELS[file.language] ?? file.language}</span>
             <span className="separator">·</span>
             {file.writable ? (
@@ -152,10 +179,20 @@ export function FileResource({
           This file is empty.
         </div>
       )}
-      {file && (file.text || draft !== null) && (
+      {file && preview && (file.text || draft !== null) && (
+        <Suspense fallback={<div className="pane-state">Rendering {name}…</div>}>
+          <MarkdownPreview
+            text={draft ?? file.text}
+            path={path}
+            {...(onOpenUrl ? { onOpenUrl } : {})}
+            {...(onOpenFile ? { onOpenFile } : {})}
+          />
+        </Suspense>
+      )}
+      {file && !preview && (file.text || draft !== null) && (
         <Suspense fallback={<div className="pane-state">Loading the editor…</div>}>
           <CodeMirrorEditor
-            text={file.text}
+            text={draft ?? file.text}
             language={file.language}
             editable={file.writable}
             onChange={setDraft}
@@ -171,20 +208,3 @@ export function FileResource({
     </PaneChrome>
   );
 }
-
-const LANGUAGE_LABELS: Record<string, string> = {
-  typescript: 'TypeScript',
-  tsx: 'TypeScript JSX',
-  javascript: 'JavaScript',
-  jsx: 'JavaScript JSX',
-  rust: 'Rust',
-  json: 'JSON',
-  css: 'CSS',
-  html: 'HTML',
-  markdown: 'Markdown',
-  toml: 'TOML',
-  sql: 'SQL',
-  yaml: 'YAML',
-  shell: 'Shell',
-  text: 'Plain text',
-};
