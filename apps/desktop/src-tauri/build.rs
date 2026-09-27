@@ -1,10 +1,27 @@
 fn main() {
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
-        cc::Build::new()
+        let mut build = cc::Build::new();
+        build
             .file("src/snapshots/macos.m")
             .flag("-fobjc-arc")
-            .flag("-fblocks")
-            .compile("jam_snapshots");
+            .flag("-fblocks");
+        // `@available` compiles to ___isPlatformVersionAtLeast when the
+        // deployment target predates the checked version (release bundles
+        // target an older macOS than the build machine). That symbol lives in
+        // clang's runtime, which Rust's -nodefaultlibs link leaves out.
+        let resources = build
+            .get_compiler()
+            .to_command()
+            .arg("--print-resource-dir")
+            .output()
+            .expect("the C compiler reports its resource directory");
+        let resources = String::from_utf8_lossy(&resources.stdout);
+        println!(
+            "cargo:rustc-link-search=native={}/lib/darwin",
+            resources.trim()
+        );
+        println!("cargo:rustc-link-lib=static=clang_rt.osx");
+        build.compile("jam_snapshots");
         for framework in ["AppKit", "ScreenCaptureKit", "ImageIO", "CoreGraphics"] {
             println!("cargo:rustc-link-lib=framework={framework}");
         }
