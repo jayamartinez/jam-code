@@ -610,9 +610,19 @@
   line-height: inherit;
   text-align: left;
 }
-.file-link-icon {
+/* The icon and the arrow share one fixed slot; hover only fades between
+   them, so a link's width never changes under the pointer. */
+.file-link-glyph {
   flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  display: inline-grid;
+  place-items: center;
   color: var(--color-accent);
+}
+.file-link-glyph > svg {
+  grid-area: 1 / 1;
+  transition: opacity 100ms ease;
 }
 .file-link-label {
   min-width: 0;
@@ -624,12 +634,7 @@
   text-underline-offset: 3px;
 }
 .file-link-arrow {
-  flex-shrink: 0;
-  width: 0;
   opacity: 0;
-  transition:
-    width 100ms ease,
-    opacity 100ms ease;
 }
 .file-link:hover:not(:disabled),
 .file-link:focus-visible {
@@ -644,8 +649,11 @@
 }
 .file-link:hover .file-link-arrow,
 .file-link:focus-visible .file-link-arrow {
-  width: 11px;
   opacity: 1;
+}
+.file-link:hover .file-link-icon,
+.file-link:focus-visible .file-link-icon {
+  opacity: 0;
 }
 .log-file .file-link,
 .approval-card-head .file-link,

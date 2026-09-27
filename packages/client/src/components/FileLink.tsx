@@ -11,8 +11,9 @@ export interface FileLinkActions {
 
 /**
  * A project file named in a chat (Paper, "11 · File links"): a file icon,
- * link colour and an underline so it reads as clickable, with an arrow on
- * hover. Click opens it beside the chat; right-click offers more.
+ * link colour and an underline so it reads as clickable; on hover the icon
+ * becomes an arrow. Hover never changes its size. Click opens it beside the
+ * chat; right-click offers more.
  */
 export function FileLink({
   file,
@@ -43,9 +44,13 @@ export function FileLink({
         actions.onFileMenu(file, event);
       }}
     >
-      <File className="file-link-icon" size={12} strokeWidth={1.8} aria-hidden="true" />
+      {/* One fixed slot: hover swaps the icon for the arrow without changing
+          the link's width, so the reply never reflows under the pointer. */}
+      <span className="file-link-glyph" aria-hidden="true">
+        <File className="file-link-icon" size={12} strokeWidth={1.8} />
+        <ArrowUpRight className="file-link-arrow" size={12} strokeWidth={1.8} />
+      </span>
       <span className="file-link-label">{children ?? file.path}</span>
-      <ArrowUpRight className="file-link-arrow" size={11} strokeWidth={1.8} aria-hidden="true" />
     </button>
   );
 }
