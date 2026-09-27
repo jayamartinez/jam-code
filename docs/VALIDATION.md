@@ -409,3 +409,38 @@ Single and Tiles were compared against the canonical Paper frames. Corrected tab
 A development-only issue appeared when Windows formatting briefly truncated files and Vite cached an empty transform. The watcher now waits for stable writes; the final source was formatted, rebuilt and reloaded successfully. Standard pnpm startup works through the documented npm-exec workaround for this machine's broken global pnpm launcher.
 
 Not run: macOS native build/interaction, a packaged or signed release, large-history performance benchmarks, assistive-technology testing, and developer manual testing. Tray Quit's UI interaction still needs a hands-on pass; graceful shutdown is covered in runtime tests. Mock-only integration is intentional: real providers, PTY/editor/browser services, snapshots and remote access are not implemented. No performance target is claimed from this small demo corpus.
+
+## Git / Review Changes milestone
+
+Automated temporary repositories cover detection/non-repositories, unborn and
+detached HEAD, clean/modified/index/untracked states, renames, deletions, Unicode,
+spaces/tabs/newlines and literal pathspec-looking names, binary content, conflicts,
+multiple hunks, missing final newlines, bounded status/patches, safe stage/unstage,
+scoped File-resource reads and symlink rejection. A shared JSON diff fixture checks
+the Rust/TypeScript wire shape. Client tests cover coalescing, stale folder responses,
+mutation refresh and selection surviving pane remounts.
+
+Native macOS computer-use QA used an isolated app identity/database/port and a
+throwaway repository. Review matched Git status and `+2 −1` for a text change;
+stage then unstage updated both the UI and Git index without changing working
+contents. A staged rename and Unicode untracked addition rendered correctly.
+Open file produced a separate, read-only File pane alongside Review and preserved
+the selection. Clean and non-Git folders displayed explicit empty states. Paper's
+Review frame was inspected and compared with the running surface. These are agent
+QA observations, not developer-reported testing. Windows remains unverified.
+
+Repeat locally: configure a project's first folder in project details, open Review,
+compare `git status --short` and `git diff`/`git diff --cached`, stage/unstage a
+throwaway file, and open it beside Review. Make an external edit then focus JAM or
+use Refresh. No automatic background watcher is claimed. Native directory browsing,
+real file writes, hunk mutations, discard/revert, commits and review annotations
+remain deferred; see ADR 0008.
+
+The ignored `observe_large_repository_costs` integration test is an explicit
+performance observation, run with `cargo test -p jam-runtime --test git
+observe_large_repository_costs -- --ignored --nocapture`. It creates 10,000 tracked
+files with 100 modifications and reports medians over five warm status/selected-diff
+reads. It measures a debug build and local filesystem, not a cross-platform SLA.
+The development launcher also reports the existing Tauri Rust 2.12 / JavaScript
+2.11 version mismatch; the isolated native app nevertheless built and ran. Dependency
+alignment is outside this Git milestone.

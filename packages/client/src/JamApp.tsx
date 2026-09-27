@@ -1,3 +1,5 @@
+import { GitClient } from './state/git-client';
+import { useGitWorkspace } from './state/use-git-workspace';
 import {
   lazy,
   Suspense,
@@ -52,7 +54,7 @@ import { ContextMenu, menuPoint, type ContextMenuState } from './components/Cont
 import { ProjectEditor } from './components/ProjectEditor';
 import { BrowserResource, describeAnnotation } from './components/BrowserResource';
 
-const DemoResource = lazy(() => import('./components/DemoResource'));
+const ReviewResource = lazy(() => import('./components/ReviewResource'));
 const emptyContext: ContextItem[] = [];
 const emptyPaths: string[] = [];
 const emptyAnnotations: BrowserAnnotation[] = [];
@@ -98,11 +100,13 @@ const browserRatio = (paneId: string | undefined) => {
 
 export function JamApp({ transport, desktop }: JamAppProps) {
   const client = useMemo(() => new RuntimeClient(transport), [transport]);
-  const { workspace, error } = useSyncExternalStore(
+  const { workspace: runtimeWorkspace, error } = useSyncExternalStore(
     client.subscribe,
     client.getSnapshot,
     client.getSnapshot,
   );
+  const git = useMemo(() => new GitClient(transport), [transport]);
+  const workspace = useGitWorkspace(runtimeWorkspace, git);
   const [layout, dispatch] = useReducer(layoutReducer, initialLayout);
   const [projectId, setProjectId] = useState('');
   const [projectFilter, setProjectFilter] = useState('');
@@ -366,7 +370,10 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         splitId: newSplitId(),
         newPaneId: newPaneId(),
         resourceId,
-        ratio: browserRatio(browserPane),
+        ratio:
+          kindOf(findLeaf(tree, browserPane ?? '')?.resourceId ?? null) === 'diff'
+            ? 0.5
+            : browserRatio(browserPane),
       });
     },
     [assignPane, client, projectId, transport],
@@ -792,8 +799,14 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         );
       case 'diff':
         return (
-          <Suspense fallback={<section className="pane empty-surface">Loading demo…</section>}>
-            <DemoResource kind={resource.kind} chrome={chrome} />
+          <Suspense fallback={<section className="pane empty-surface">Loading review…</section>}>
+            <ReviewResource
+              key={resource.id}
+              git={git}
+              resource={resource}
+              chrome={chrome}
+              onOpenFile={(path) => void openFileFrom(path, paneId, resource.projectId)}
+            />
           </Suspense>
         );
       case 'settings':

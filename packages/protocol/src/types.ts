@@ -1,3 +1,4 @@
+import type { GitRequestMap } from './git';
 /** JAM's wire version is independent of any provider's protocol version. */
 export const PROTOCOL_VERSION = 1 as const;
 
@@ -43,9 +44,8 @@ export interface Project {
   /** Absent means the project draws its initials. */
   icon?: ProjectIcon;
   /**
-   * Local folders the user associates with this project. Recorded only: JAM
-   * does not yet read from them, and a remote client must never treat them as
-   * a grant to access paths on this machine.
+   * Local folders; the first selects Git review and read-only files.
+   * A future remote host must authorize project access separately.
    */
   paths?: string[];
   /** Pinned projects sort first in the sidebar. */
@@ -236,7 +236,7 @@ export interface SearchResult {
   updatedAt: string;
 }
 
-export interface RequestMap extends TerminalRequestMap {
+export interface RequestMap extends TerminalRequestMap, GitRequestMap {
   'workspace.get': { params: Record<string, never>; result: WorkspaceSnapshot };
   'conversation.get': { params: { resourceId: string }; result: Conversation };
   'conversation.create': {

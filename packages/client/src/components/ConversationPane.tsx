@@ -350,7 +350,7 @@ function Block({ block, onOpenDemo }: { block: MessageBlock; onOpenDemo(): void 
           <span className="danger">
             −{block.files?.reduce((sum, file) => sum + file.removed, 0) ?? 0}
           </span>
-          <button onClick={onOpenDemo}>Review demo diff →</button>
+          <button onClick={onOpenDemo}>Review working tree →</button>
         </div>
         {block.files?.map((file, index) => (
           <button

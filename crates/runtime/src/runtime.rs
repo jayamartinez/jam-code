@@ -42,6 +42,7 @@ pub struct Runtime {
     pub(crate) adapter: Arc<dyn ProviderAdapter>,
     /// Terminal processes. Empty, with no PTY, until a terminal is created.
     pub(crate) terminals: TerminalManager,
+    pub(crate) git: crate::git::GitManager,
 }
 
 pub(crate) fn new_id(prefix: &str) -> String {
@@ -69,6 +70,7 @@ impl Runtime {
             shutting_down: AtomicBool::new(false),
             adapter: Arc::new(MockProvider),
             terminals: TerminalManager::default(),
+            git: crate::git::GitManager::default(),
         }))
     }
 
@@ -175,7 +177,12 @@ impl Runtime {
             "directory.list" => {
                 let input: ListDirectory = parse(request.params)?;
                 validate_id(&input.project_id)?;
-                self.require_project(&input.project_id)?;
+                if !self.project(&input.project_id)?.paths.is_empty() {
+                    return Err(JamError::new(
+                        "unavailable",
+                        "Native directory browsing is not available yet. Open changed files from Review.",
+                    ));
+                }
                 Ok(serde_json::to_value(crate::files::list(
                     &input.project_id,
                     &input.path,
@@ -184,16 +191,16 @@ impl Runtime {
             "file.read" => {
                 let input: ReadFile = parse(request.params)?;
                 validate_id(&input.project_id)?;
-                let state = self.lock()?;
-                if !state
-                    .store
-                    .workspace(self.cursor(&state))?
-                    .projects
-                    .iter()
-                    .any(|p| p.id == input.project_id)
+                if let Some(root) =
+                    crate::native_files::project_folder(&self.project(&input.project_id)?)?
                 {
-                    return Err(JamError::new("not_found", "Project not found."));
+                    return Ok(serde_json::to_value(crate::native_files::read_native(
+                        &input.project_id,
+                        &root,
+                        &input.path,
+                    )?)?);
                 }
+                let state = self.lock()?;
                 let mut contents = crate::files::read(&input.project_id, &input.path)?;
                 // A saved working copy replaces the fixture's content.
                 if let Some(text) = state.store.file_edit(&input.project_id, &input.path)? {
@@ -215,6 +222,18 @@ impl Runtime {
                     .any(|p| p.id == input.project_id)
                 {
                     return Err(JamError::new("not_found", "Project not found."));
+                }
+                if state
+                    .store
+                    .workspace(self.cursor(&state))?
+                    .projects
+                    .iter()
+                    .any(|p| p.id == input.project_id && !p.paths.is_empty())
+                {
+                    return Err(JamError::new(
+                        "unavailable",
+                        "Native files are read-only in this milestone.",
+                    ));
                 }
                 // Only a path the project actually contains can be written.
                 crate::files::read(&input.project_id, &input.path)?;
@@ -295,6 +314,7 @@ impl Runtime {
             method if method.starts_with("terminal.") => {
                 self.terminal_request(method, request.params)
             }
+            method if method.starts_with("git.") => self.git_request(method, request.params),
             "search.query" => {
                 let input: SearchQuery = parse(request.params)?;
                 Ok(json!({"results":self.lock()?.store.search(input)?}))
@@ -306,16 +326,17 @@ impl Runtime {
         }
     }
 
-    fn require_project(&self, project_id: &str) -> Result<(), JamError> {
+    pub(crate) fn project(&self, id: &str) -> Result<Project, JamError> {
+        validate_id(id)?;
         let state = self.lock()?;
-        let workspace = state.store.workspace(self.cursor(&state))?;
-        if workspace.projects.iter().any(|p| p.id == project_id) {
-            Ok(())
-        } else {
-            Err(JamError::new("not_found", "Project not found."))
-        }
+        state
+            .store
+            .workspace(self.cursor(&state))?
+            .projects
+            .into_iter()
+            .find(|p| p.id == id)
+            .ok_or_else(|| JamError::new("not_found", "Project not found."))
     }
-
     /// Resource identity is stable per target: reopening a file returns the
     /// record that already exists rather than creating a second resource.
     /// A browser is the exception: each is its own page and history, so every
@@ -328,7 +349,17 @@ impl Runtime {
         }
         if input.kind == "file" {
             // Fail before creating a record if the target cannot be read.
-            crate::files::read(&input.project_id, input.path.as_deref().unwrap_or_default())?;
+            let project = workspace
+                .projects
+                .iter()
+                .find(|p| p.id == input.project_id)
+                .expect("checked project");
+            let path = input.path.as_deref().unwrap_or_default();
+            if let Some(root) = crate::native_files::project_folder(project)? {
+                crate::native_files::read_native(&input.project_id, &root, path)?;
+            } else {
+                crate::files::read(&input.project_id, path)?;
+            }
         }
         let existing = workspace.resources.iter().find(|resource| {
             input.kind != "browser"
@@ -340,7 +371,14 @@ impl Runtime {
             return Ok(resource.clone());
         }
         let title = match (&input.kind[..], input.path.as_deref()) {
-            ("file", Some(path)) => path.rsplit('/').next().unwrap_or(path).to_string(),
+            ("file", Some(path)) => {
+                let name = path.rsplit('/').next().unwrap_or(path);
+                if name.trim().is_empty() {
+                    format!("File {name:?}")
+                } else {
+                    name.to_string()
+                }
+            }
             ("file-browser", _) => "Files".to_string(),
             ("terminal", _) => "Terminal".to_string(),
             ("browser", _) => "Browser".to_string(),

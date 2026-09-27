@@ -111,17 +111,6 @@ fn requested_cwd(path: &str) -> Result<PathBuf, JamError> {
 }
 
 impl Runtime {
-    fn project(&self, project_id: &str) -> Result<Project, JamError> {
-        let state = self.lock()?;
-        state
-            .store
-            .workspace(self.cursor(&state))?
-            .projects
-            .into_iter()
-            .find(|project| project.id == project_id)
-            .ok_or_else(|| JamError::new("not_found", "Project not found."))
-    }
-
     fn terminal_resource(&self, resource_id: &str) -> Result<Resource, JamError> {
         let resource = self.lock()?.store.resource(resource_id)?;
         if resource.kind != "terminal" {

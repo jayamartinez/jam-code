@@ -13,7 +13,7 @@ flowchart LR
   Host --> Core[Rust runtime]
   Core --> Providers[Provider adapters: mock now]
   Core --> Storage[SQLite records + FTS5]
-  Core --> Services[Future PTY / Git / browser / capture]
+  Core --> Services[Terminal / Git / files]
   Web[Future authenticated web client] -.-> UI
   Contract -.-> Remote[Future remote transport]
   Remote -.-> RemoteHost[Future authorized runtime host]
@@ -85,15 +85,11 @@ file and `file.write` saves a working copy, all addressed by project ID and a
 project-relative path that the runtime validates and resolves. A client never submits a local path. The wire
 shape is therefore already the lazily expanded tree a large repository needs.
 
-This milestone serves an isolated demo tree from
+Projects without configured folders serve an isolated demo tree from
 `packages/protocol/fixtures/files.json`, shared by the Rust runtime and the
-browser development preview so they cannot drift. No directory on the machine
-is opened, listed or read; every listing and file is flagged `demo` and every
-surface says so. Saves do not mutate that fixture: a working copy is recorded
+browser development preview so they cannot drift. Those listings and files are flagged `demo`. Configured projects open bounded, read-only native files from Review through the same File resource APIs; native directory browsing and writes remain deferred (ADR 0008). Saves do not mutate that fixture: a working copy is recorded
 in the `file_edits` table and layered over the fixture on read, so an edit
-survives restart while the shipped tree stays pristine. Replacing the demo
-table with a scoped real reader changes neither the protocol nor the client,
-but needs native folder selection and a permission model first.
+survives restart while the shipped tree stays pristine. The scoped native reader uses the same protocol and client; a future folder picker and remote host must establish their own access grants.
 
 Directory listings and expansion state are client-owned and live outside any
 mounted pane, because reshaping the layout remounts panes and a repository tree
@@ -136,13 +132,13 @@ The isolated `jam-demo.sqlite` database preserves all recorded messages. A conve
 
 Each subscription has a 256-event FIFO and one coalesced latest event. When a slow client overflows that FIFO, the latest cursor is still delivered after buffered events: skipped sequences trigger the client's authoritative reread, including when the skipped update was the end of a turn. At most 128 subscriptions can coexist. The host clears old subscriptions at page reload and window destruction. The current shared client uses a workspace subscription; resource-scoped subscriptions are available for later scaling. A gap in a resource-scoped global sequence can also reflect activity in another resource, so a conservative reread is safe rather than evidence of data loss.
 
-Request limits match the TypeScript contract in UTF-16 units: identifiers 128, prompt text 20,000, 16 context items, and search queries 256. Context-only sends are allowed, but the mock adapter never resolves assets or reads their source URIs. Staged context becomes durable only through explicit Send. The runtime performs no model calls, filesystem inspection or capture in this milestone; the only processes it starts are terminal shells a user explicitly creates.
+Request limits match the TypeScript contract in UTF-16 units: identifiers 128, prompt text 20,000, 16 context items, and search queries 256. Context-only sends are allowed, but the mock adapter never resolves assets or reads their source URIs. Staged context becomes durable only through explicit Send. The runtime performs no model calls or capture. Machine access is limited to explicit terminal shells, project-scoped Git CLI commands and bounded file reads.
 
 ## Native services and platform differences
 
 - Terminal: runtime-owned PTYs (`portable-pty`), a bounded replay buffer, resize/attach/detach and acknowledged flow control, with xterm loaded only by a mounted terminal pane. Output streams per attachment, outside workspace events. Process exit is never coupled to component unmount. See ADR 0006.
 - Editor: CodeMirror 6, loaded only by a File pane that is actually rendered, with language modes in per-language chunks. Merely opening a file resource, or leaving one open in a hidden tab, constructs no editor. Writing still needs a filesystem service and explicit save conflicts, so the File resource is read-only and says so.
-- Git: user's Git CLI, argument arrays, repository-scoped working directory, no shell-concatenated commands.
+- Git: runtime-owned `GitManager`, user's installed CLI and typed `git.status`, `git.diff`, `git.setStaged` requests. Porcelain v2 status, lazy structured patches and explicit file staging; focus/activation/manual refresh with no idle polling. See [ADR 0008](adr/0008-git-review.md) for bounds, scope and safety.
 - Browser: one native child webview per Browser resource (WKWebView / WebView2), owned by the desktop host and placed over its pane; see [ADR 0007](adr/0007-native-browser.md). Pages are unprivileged: they match no capability, have no page-to-host channel, may only load http(s), and keep cookies in a profile separate from JAM's interface. WebView2 and WKWebView differ; devtools/automation parity is not promised.
 - Terminal and Browser deliberately have different owners. A shell is a machine capability, so the runtime owns it and a client (local now, remote later) drives it through `JamTransport`. A native webview is a piece of the local window, so the desktop host owns it and the shared client reaches it only through the optional `DesktopServices.browser`; a remote client would present browsing differently. Both follow the same view rules: a pane attaches and detaches, only an explicit command ends the shell or page, and a reload of JAM's own webview detaches both without ending either.
 - Context: typed provenance/selection and opaque asset references. Capture service retains bytes, stages to a conversation and never invokes Send. Remote clients cannot submit arbitrary local paths as capability grants.
