@@ -338,6 +338,10 @@
 .tools-capture-tile:disabled {
   cursor: default;
 }
+/* The one mode JAM has is selected, not unavailable. */
+.tools-capture-tile.active:disabled {
+  opacity: 1;
+}
 .tools-destinations {
   padding-top: 8px;
 }
