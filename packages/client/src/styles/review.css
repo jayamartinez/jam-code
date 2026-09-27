@@ -44,7 +44,7 @@
 }
 .review-file small {
   color: var(--color-text-subtle);
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
 }
 .review-diff {
   flex: 1;

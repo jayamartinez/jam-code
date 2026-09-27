@@ -1,4 +1,5 @@
 use crate::{
+    appearance::{Appearance, SetWallpaper, UpdateAppearance, Wallpaper},
     commands::*,
     error::JamError,
     events::{self, EventReceiver, Subscriber},
@@ -44,6 +45,11 @@ pub struct Runtime {
     pub(crate) terminals: TerminalManager,
     pub(crate) git: crate::git::GitManager,
 }
+
+const APPEARANCE_KEY: &str = "appearance";
+/// Kept apart from the appearance record so saving a font size never rewrites
+/// a megabyte of image data.
+const WALLPAPER_KEY: &str = "appearance.wallpaper";
 
 pub(crate) fn new_id(prefix: &str) -> String {
     format!("{prefix}-{}", uuid::Uuid::new_v4())
@@ -305,6 +311,57 @@ impl Runtime {
                 resource.close_suggestion_dismissed_at = Some(now());
                 state.store.save_resource(&resource)?;
                 Ok(json!({ "resource": resource }))
+            }
+            "appearance.get" => {
+                let _: Empty = parse(request.params)?;
+                let state = self.lock()?;
+                // A record this version cannot read is treated as absent, so the
+                // client falls back to defaults instead of failing to start.
+                let read = |key: &str| -> Result<Option<Value>, JamError> {
+                    Ok(state
+                        .store
+                        .setting(key)?
+                        .and_then(|text| serde_json::from_str::<Value>(&text).ok()))
+                };
+                let mut result = serde_json::Map::new();
+                if let Some(appearance) = read(APPEARANCE_KEY)?.and_then(Appearance::from_stored) {
+                    result.insert("appearance".into(), serde_json::to_value(appearance)?);
+                }
+                if let Some(wallpaper) = read(WALLPAPER_KEY)?
+                    .and_then(|value| serde_json::from_value::<Wallpaper>(value).ok())
+                    .filter(|wallpaper| wallpaper.validate().is_ok())
+                {
+                    result.insert("wallpaper".into(), serde_json::to_value(wallpaper)?);
+                }
+                Ok(Value::Object(result))
+            }
+            "appearance.update" => {
+                let input: UpdateAppearance = parse(request.params)?;
+                input.appearance.validate()?;
+                let state = self.lock()?;
+                state.store.save_setting(
+                    APPEARANCE_KEY,
+                    &serde_json::to_string(&input.appearance)?,
+                    &now(),
+                )?;
+                Ok(json!({ "appearance": input.appearance }))
+            }
+            "appearance.setWallpaper" => {
+                let input: SetWallpaper = parse(request.params)?;
+                let updated_at = now();
+                let state = self.lock()?;
+                match input.wallpaper {
+                    Some(wallpaper) => {
+                        wallpaper.validate()?;
+                        state.store.save_setting(
+                            WALLPAPER_KEY,
+                            &serde_json::to_string(&wallpaper)?,
+                            &updated_at,
+                        )?;
+                    }
+                    None => state.store.delete_setting(WALLPAPER_KEY)?,
+                }
+                Ok(json!({ "updatedAt": updated_at }))
             }
             "resource.open" => {
                 let input: OpenResource = parse(request.params)?;

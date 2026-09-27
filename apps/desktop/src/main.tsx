@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { JamApp } from '@jam/client';
+import { JamApp, applyCachedAppearance } from '@jam/client';
 import type { DesktopServices } from '@jam/client';
 import type { JamTransport } from '@jam/protocol';
 import { isTauri } from '@tauri-apps/api/core';
@@ -8,6 +8,8 @@ import '@jam/client/styles.css';
 
 async function bootstrap() {
   performance.mark('jam-bootstrap');
+  // The last theme, before anything paints; the runtime's record follows.
+  applyCachedAppearance();
   let transport: JamTransport;
   let desktop: DesktopServices;
 

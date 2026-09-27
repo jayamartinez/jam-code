@@ -8,119 +8,71 @@ import {
   lineNumbers,
 } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
-import {
-  HighlightStyle,
-  bracketMatching,
-  syntaxHighlighting,
-  type LanguageSupport,
-} from '@codemirror/language';
-import { tags } from '@lezer/highlight';
+import { bracketMatching, syntaxHighlighting } from '@codemirror/language';
+import { jamHighlighter } from '../code/highlight';
+import { loadLanguage } from '../code/languages';
+import { useAppearance } from '../appearance/store';
+import { THEMES } from '../appearance/themes';
 
 /**
  * The CodeMirror instance.
  *
  * This module is only imported by a File pane that is actually being rendered,
  * so a hidden or merely open file never constructs an editor. Language modes
- * load on demand, one chunk per language.
+ * load on demand, one chunk per language. Colours are semantic classes from
+ * `jamHighlighter`, coloured by the theme's `--syntax-*` roles in code.css, so
+ * a theme change restyles the editor without reconfiguring it.
  */
 
-/** Nightglass syntax roles, expressed with the same semantic tokens as the UI. */
-const nightglass = HighlightStyle.define([
-  { tag: [tags.comment, tags.lineComment, tags.blockComment], color: 'var(--color-text-faint)' },
-  { tag: [tags.keyword, tags.moduleKeyword, tags.controlKeyword], color: 'var(--color-accent)' },
-  { tag: [tags.string, tags.special(tags.string)], color: 'var(--color-success)' },
-  { tag: [tags.number, tags.bool, tags.null], color: 'var(--color-warning)' },
-  { tag: [tags.function(tags.variableName), tags.labelName], color: 'var(--color-accent-strong)' },
-  { tag: [tags.typeName, tags.className, tags.namespace], color: 'var(--color-accent-secondary)' },
-  { tag: [tags.propertyName, tags.attributeName], color: 'var(--color-text-primary)' },
-  { tag: [tags.operator, tags.punctuation, tags.separator], color: 'var(--color-text-subtle)' },
-  { tag: [tags.variableName, tags.definition(tags.variableName)], color: 'var(--color-text-body)' },
-  { tag: tags.heading, color: 'var(--color-text-strong)', fontWeight: '600' },
-  { tag: tags.link, color: 'var(--color-accent)' },
-  { tag: tags.invalid, color: 'var(--color-danger)' },
-]);
-
 /** Geometry follows the Paper editor frame: 12px mono on a 20px line. */
-const theme = EditorView.theme(
-  {
-    '&': {
-      backgroundColor: 'transparent',
-      color: 'var(--color-text-body)',
-      // `--font-mono` is Paper's family *name*; the loaded face is Geist Mono
-      // Variable. Using the name alone fell back to the browser's default
-      // serif, so the editor reads the resolved stack instead.
-      fontSize: 'var(--editor-font-size, 12px)',
-      height: '100%',
-    },
-    '.cm-scroller': {
-      fontFamily: 'var(--editor-font-family)',
-      lineHeight: 'var(--editor-line-height, 20px)',
-      paddingBlock: '10px',
-      overflow: 'auto',
-    },
-    // The Files frame: a 48px gutter with numbers right-aligned 14px from a
-    // hairline, then the code 8px past it. The hairline belongs to the gutter
-    // so numbers and divider can never drift apart.
-    '.cm-content': { paddingLeft: '8px' },
-    '.cm-gutters': {
-      backgroundColor: 'transparent',
-      border: 'none',
-      borderRight: '1px solid var(--color-border-subtle)',
-      color: 'var(--color-text-ghost)',
-    },
-    '.cm-lineNumbers': { minWidth: '48px' },
-    '.cm-lineNumbers .cm-gutterElement': {
-      padding: '0 14px 0 0',
-      minWidth: '0',
-      textAlign: 'right',
-    },
-    '.cm-activeLineGutter': {
-      backgroundColor: 'transparent',
-      color: 'var(--color-text-muted)',
-    },
-    '.cm-activeLine': { backgroundColor: 'var(--color-fill-subtle)' },
-    '.cm-cursor': { borderLeftColor: 'var(--color-accent-strong)' },
-    '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection': {
-      backgroundColor: 'var(--color-accent-soft)',
-    },
-    '&.cm-focused': { outline: 'none' },
+const theme = EditorView.theme({
+  '&': {
+    backgroundColor: 'transparent',
+    color: 'var(--color-text-body)',
+    // `--font-mono` is Paper's family *name*; the loaded face is Geist Mono
+    // Variable. Using the name alone fell back to the browser's default
+    // serif, so the editor reads the resolved stack instead.
+    fontSize: 'var(--editor-font-size, 12px)',
+    height: '100%',
   },
-  { dark: true },
-);
-
-async function languageSupport(language: string): Promise<LanguageSupport | null> {
-  switch (language) {
-    case 'typescript':
-    case 'tsx':
-    case 'javascript':
-    case 'jsx': {
-      const { javascript } = await import('@codemirror/lang-javascript');
-      return javascript({
-        typescript: language === 'typescript' || language === 'tsx',
-        jsx: language === 'tsx' || language === 'jsx',
-      });
-    }
-    case 'json': {
-      const { json } = await import('@codemirror/lang-json');
-      return json();
-    }
-    case 'rust': {
-      const { rust } = await import('@codemirror/lang-rust');
-      return rust();
-    }
-    case 'css': {
-      const { css } = await import('@codemirror/lang-css');
-      return css();
-    }
-    case 'markdown': {
-      const { markdown } = await import('@codemirror/lang-markdown');
-      return markdown();
-    }
-    default:
-      // Unknown languages render as plain text rather than guessing a grammar.
-      return null;
-  }
-}
+  '.cm-scroller': {
+    fontFamily: 'var(--editor-font-family)',
+    lineHeight: 'var(--editor-line-height, 20px)',
+    paddingBlock: '10px',
+    overflow: 'auto',
+  },
+  // The Files frame: a 48px gutter with numbers right-aligned 14px from a
+  // hairline, then the code 8px past it. The hairline belongs to the gutter
+  // so numbers and divider can never drift apart.
+  '.cm-content': { paddingLeft: '8px' },
+  '.cm-gutters': {
+    backgroundColor: 'transparent',
+    border: 'none',
+    borderRight: '1px solid var(--color-border-subtle)',
+    color: 'var(--color-text-ghost)',
+  },
+  '.cm-lineNumbers': { minWidth: '48px' },
+  '.cm-lineNumbers .cm-gutterElement': {
+    padding: '0 14px 0 0',
+    minWidth: '0',
+    textAlign: 'right',
+  },
+  '.cm-activeLineGutter': {
+    backgroundColor: 'transparent',
+    color: 'var(--color-text-muted)',
+  },
+  '.cm-activeLine': { backgroundColor: 'var(--color-fill-subtle)' },
+  '.cm-cursor': { borderLeftColor: 'var(--color-accent-strong)' },
+  '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection': {
+    backgroundColor: 'var(--color-selection)',
+  },
+  '&.cm-focused .cm-matchingBracket': {
+    backgroundColor: 'var(--color-fill-strong)',
+    outline: '1px solid var(--color-border-strong)',
+  },
+  '&.cm-focused .cm-nonmatchingBracket': { color: 'var(--color-danger)' },
+  '&.cm-focused': { outline: 'none' },
+});
 
 export interface CodeMirrorEditorProps {
   text: string;
@@ -141,6 +93,11 @@ export default function CodeMirrorEditor({
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView>(null);
   const languageSlot = useRef(new Compartment());
+  const schemeSlot = useRef(new Compartment());
+  const { appearance } = useAppearance();
+  const dark = THEMES[appearance.theme].scheme === 'dark';
+  const darkRef = useRef(dark);
+  darkRef.current = dark;
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const onSaveRef = useRef(onSave);
@@ -154,7 +111,10 @@ export default function CodeMirrorEditor({
       bracketMatching(),
       highlightActiveLine(),
       highlightActiveLineGutter(),
-      syntaxHighlighting(nightglass),
+      syntaxHighlighting(jamHighlighter),
+      // Light or dark only changes CodeMirror's own defaults (e.g. the
+      // search panel); every colour JAM draws comes from the theme's roles.
+      schemeSlot.current.of(EditorView.darkTheme.of(darkRef.current)),
       keymap.of([
         {
           key: 'Mod-s',
@@ -199,7 +159,7 @@ export default function CodeMirrorEditor({
 
   useEffect(() => {
     let cancelled = false;
-    void languageSupport(language).then((support) => {
+    void loadLanguage(language).then((support) => {
       if (cancelled || !view.current) return;
       view.current.dispatch({
         effects: languageSlot.current.reconfigure(support ? [support] : []),
@@ -209,6 +169,12 @@ export default function CodeMirrorEditor({
       cancelled = true;
     };
   }, [language]);
+
+  useEffect(() => {
+    view.current?.dispatch({
+      effects: schemeSlot.current.reconfigure(EditorView.darkTheme.of(dark)),
+    });
+  }, [dark]);
 
   return <div className="code-editor" ref={host} />;
 }

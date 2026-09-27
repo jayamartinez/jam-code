@@ -18,6 +18,8 @@ Persistent records and live sessions belong to the runtime. Frontend caches are 
 
 ## Providers and security
 
+JAM's structured provider integrations and JAM Terminal are independent. Users may run `claude`, `codex`, `opencode` or any other CLI inside the Terminal; never intercept or special-case those commands because a provider adapter exists. Terminal is a terminal; provider adapters are provider adapters.
+
 Normalize events at the runtime adapter boundary. Provider-specific option schemas and capability differences are allowed; do not scatter Claude/Codex wire-protocol branches across UI. Installation, authentication, enabled/default preference and running state are independent. Unknown must remain unknown. Read `docs/PROVIDERS.md` before live integrations: Claude subscription reuse by third-party clients is unresolved and must not be represented as supported.
 
 Never read/copy provider credentials into JAM. Never log tokens or full sensitive payloads. Treat provider output, repository files, browser content and attachments as untrusted. Validate every native request. Keep native permissions scoped to trusted local UI. No remote listener in the foundation. Context is staged until explicit Send; capture must never send automatically.
@@ -26,7 +28,7 @@ Never read/copy provider credentials into JAM. Never log tokens or full sensitiv
 
 Paper's **JAM code design** document is canonical. Inspect the full relevant frame through Paper MCP before implementing or modifying a designed surface: tree, screenshot, exact JSX/computed styles, and semantic tokens. Do not silently redesign it or substitute a generic component library. Compare the running result against Paper. Document deliberate deviations. Use lowercase typographic `jam` until final branding arrives; invent no abstract logo.
 
-Use semantic roles from `packages/client/src/styles/tokens.css`; do not scatter hex colors in components. Native platform chrome stays in desktop glue. Keep user-facing copy honest about simulated/unimplemented behavior.
+Use semantic roles from `packages/client/src/styles/tokens.css`; do not hardcode component colors where a semantic token exists. Themes are data in `packages/client/src/appearance/themes.ts` resolved to those roles; add a role there (and to tokens.css, which a test keeps identical to Nightglass) rather than branching on the theme in a component. CodeMirror, Markdown code and xterm consume Appearance through the `--syntax-*`, `--editor-*`, `--terminal-*` and `--color-ansi-*` roles. Write UI font sizes and line heights as `calc(Npx * var(--ui-scale))`. Appearance is a runtime setting (ADR 0008), not browser storage. Render Markdown only through `markdown/render.tsx`; never assign repository or agent content to `innerHTML`. Native platform chrome stays in desktop glue. Keep user-facing copy honest about simulated/unimplemented behavior.
 
 ## Quality and performance
 

@@ -174,22 +174,49 @@ pub fn read(project_id: &str, path: &str) -> Result<FileContents, JamError> {
     })
 }
 
+/// A language name for syntax highlighting, from the file name alone. Mirrored
+/// by `previewLanguage` in `@jam/protocol`; `fixtures/languages.json` holds the
+/// cases both must agree on.
 pub fn language_for(path: &str) -> &'static str {
     let name = path.rsplit('/').next().unwrap_or(path);
-    match name.rsplit_once('.').map(|(_, extension)| extension) {
+    let lower = name.to_ascii_lowercase();
+    // Names that decide the language on their own, before any extension.
+    match lower.as_str() {
+        "dockerfile" | "containerfile" => return "dockerfile",
+        "cargo.lock" | "poetry.lock" => return "toml",
+        ".zshrc" | ".zprofile" | ".zshenv" | ".bashrc" | ".bash_profile" | ".profile" => {
+            return "shell";
+        }
+        ".editorconfig" | ".gitattributes" | ".gitconfig" | ".npmrc" => return "ini",
+        _ => {}
+    }
+    if lower.starts_with("dockerfile.") {
+        return "dockerfile";
+    }
+    if lower == ".env" || lower.starts_with(".env.") {
+        return "dotenv";
+    }
+    if lower.starts_with('.') && lower.ends_with("ignore") {
+        return "ignore";
+    }
+    match lower.rsplit_once('.').map(|(_, extension)| extension) {
         Some("ts" | "mts" | "cts") => "typescript",
         Some("tsx") => "tsx",
         Some("js" | "mjs" | "cjs") => "javascript",
         Some("jsx") => "jsx",
         Some("rs") => "rust",
+        Some("py" | "pyi") => "python",
         Some("json") => "json",
-        Some("css") => "css",
-        Some("html") => "html",
-        Some("md" | "mdx") => "markdown",
+        Some("css" | "scss") => "css",
+        Some("html" | "htm") => "html",
+        Some("md" | "mdx" | "markdown") => "markdown",
         Some("toml") => "toml",
         Some("sql") => "sql",
         Some("yml" | "yaml") => "yaml",
         Some("sh" | "bash" | "zsh") => "shell",
+        Some("dockerfile") => "dockerfile",
+        Some("ini" | "cfg" | "conf") => "ini",
+        Some("xml" | "svg" | "plist") => "xml",
         _ => "text",
     }
 }
@@ -206,8 +233,11 @@ mod tests {
             names,
             [
                 "docs",
+                "scripts",
                 "src",
                 "src-tauri",
+                ".env.example",
+                ".gitignore",
                 "README.md",
                 "package.json",
                 "tsconfig.json"
@@ -246,6 +276,17 @@ mod tests {
         assert!(!file.writable);
         assert!(file.demo);
         assert_eq!(language_for("src-tauri/Cargo.toml"), "toml");
+        #[derive(serde::Deserialize)]
+        struct Cases {
+            cases: Vec<(String, String)>,
+        }
+        let shared: Cases = serde_json::from_str(include_str!(
+            "../../../packages/protocol/fixtures/languages.json"
+        ))
+        .unwrap();
+        for (path, language) in shared.cases {
+            assert_eq!(language_for(&path), language, "{path}");
+        }
         assert_eq!(language_for("LICENSE"), "text");
         assert!(read("project-jam", "src/session").is_err());
         assert!(read("project-jam", "nope.ts").is_err());

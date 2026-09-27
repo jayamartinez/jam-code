@@ -1,4 +1,4 @@
-# 0008 — Runtime-owned Git review through the installed CLI
+# 0010 — Runtime-owned Git review through the installed CLI
 
 Status: accepted for the first Git milestone.
 
