@@ -704,7 +704,7 @@ hiding, restore/maximize, sidebar and split geometry, two browsers and element/r
 Review status, rename, Unicode and diff; tray Show, close to tray, single instance re-showing a hidden window. Explicit
 Quit ended every JAM descendant (MCP servers exit on stdin EOF) and left the user's own Claude and Codex processes alone.
 
-Found and fixed: a command an agent was running (`ping`) survived Quit; project roots were verbatim `\?\C:\…` paths, so
+Found and fixed: a command an agent was running (`ping`) survived Quit; project roots were verbatim `\\?\C:\…` paths, so
 provider activity showed absolute paths, changed-file links failed with "Unsupported repository-relative path" and Review
 displayed the prefix; Show in Explorer opened Documents; Terminate shell read "Shell exited with code 1". Retested
 natively on the branch: relative activity paths, changed-file link opening beside the chat. The Explorer argument was
