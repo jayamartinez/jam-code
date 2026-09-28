@@ -19,10 +19,13 @@ pub(crate) fn reveal(root: &Path, path: &str) -> Result<(), JamError> {
     };
     #[cfg(windows)]
     let command = {
+        use std::os::windows::process::CommandExt;
+        // Explorer parses its own command line: it wants `/select,"path"`
+        // with backslashes, not the whole argument quoted as Rust would.
+        // Windows file names cannot contain `"`, so the quoting is exact.
+        let target: std::path::PathBuf = target.components().collect();
         let mut command = Command::new("explorer.exe");
-        let mut argument = std::ffi::OsString::from("/select,");
-        argument.push(&target);
-        command.arg(argument);
+        command.raw_arg(format!("/select,\"{}\"", target.display()));
         command
     };
     #[cfg(not(any(target_os = "macos", windows)))]

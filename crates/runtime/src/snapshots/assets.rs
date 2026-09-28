@@ -26,6 +26,7 @@ impl SnapshotAssets {
                 "Snapshot storage must be a JAM-owned directory, not a link.",
             )),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                #[cfg_attr(not(unix), allow(unused_mut))]
                 let mut builder = fs::DirBuilder::new();
                 #[cfg(unix)]
                 {

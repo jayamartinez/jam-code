@@ -49,8 +49,7 @@ impl GitManager {
         let root = std::str::from_utf8(&detected.bytes)
             .map_err(|_| JamError::new("unavailable", "Repository root is not UTF-8."))?;
         let root = root.strip_suffix('\n').unwrap_or(root);
-        let root = PathBuf::from(root)
-            .canonicalize()
+        let root = crate::native_files::canonical(&PathBuf::from(root))
             .map_err(|_| JamError::new("not_found", "Repository root is unavailable."))?;
         let mut status = GitStatus::empty(&project.id, "repository");
         status.repository_root = Some(root.to_string_lossy().into_owned());

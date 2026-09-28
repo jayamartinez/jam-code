@@ -464,10 +464,15 @@ async fn real_providers_bind_native_ids_and_resume_with_them() {
     assert_eq!(seen.len(), 2);
     assert_eq!(seen[0].0, None, "a new session has no provider ID yet");
     assert_eq!(seen[1].0.as_deref(), Some("native-thread-1"));
-    assert_eq!(
-        seen[1].2.clone(),
-        Some(std::fs::canonicalize(temp.folder()).unwrap())
-    );
+    // Providers get the ordinary absolute path, never Windows' verbatim
+    // `\\?\` form, so the paths they report can be made project-relative.
+    let folder = std::fs::canonicalize(temp.folder()).unwrap();
+    let folder = folder
+        .to_str()
+        .and_then(|path| path.strip_prefix(r"\\?\"))
+        .map(std::path::PathBuf::from)
+        .unwrap_or(folder);
+    assert_eq!(seen[1].2.clone(), Some(folder));
     assert_eq!(seen[1].3, vec![("effort".to_string(), "low".to_string())]);
     let workspace = call(&runtime, "workspace.get", json!({})).await.unwrap();
     let session = workspace["sessions"]

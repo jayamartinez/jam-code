@@ -244,9 +244,15 @@ fn change_counts(change: &Value) -> (u32, u32) {
     }
 }
 
+/// A project-relative, `/`-separated path when `path` is inside `cwd`, the
+/// form file links and the runtime's path checks use on every platform.
 fn display_path(path: &str, cwd: Option<&Path>) -> String {
     cwd.and_then(|cwd| Path::new(path).strip_prefix(cwd).ok())
-        .map(|relative| relative.to_string_lossy().into_owned())
+        .map(|relative| {
+            relative
+                .to_string_lossy()
+                .replace(std::path::MAIN_SEPARATOR, "/")
+        })
         .unwrap_or_else(|| path.to_string())
 }
 

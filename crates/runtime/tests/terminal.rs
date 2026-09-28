@@ -2,10 +2,12 @@
 //!
 //! Tests start `/bin/sh` (or `cmd.exe`) rather than the user's shell so they
 //! never depend on a personal shell configuration.
+#[cfg(unix)]
+use jam_runtime::terminal::HIGH_WATER;
 use jam_runtime::{
     JamError, Runtime,
     protocol::Request,
-    terminal::{HIGH_WATER, ShellSpec, TerminalEvent, TerminalSession, TerminalStatus},
+    terminal::{ShellSpec, TerminalEvent, TerminalSession, TerminalStatus},
 };
 use serde_json::{Value, json};
 use std::{
@@ -375,6 +377,24 @@ fn explicit_termination_ends_the_shell_and_its_foreground_job() {
     assert!(!view.output.contains("slept"));
     let error = call(&runtime, "terminal.kill", json!({ "resourceId": terminal })).unwrap_err();
     assert_eq!(error.code, "conflict");
+}
+
+#[cfg(windows)]
+#[test]
+fn explicit_termination_is_reported_as_terminated_on_windows() {
+    let database = TestDatabase::new();
+    let runtime = database.open();
+    let (terminal, _) = create(&runtime);
+    let mut view = View::attach(&runtime, &terminal);
+    // ConPTY asks for the cursor position before the shell's first output;
+    // answer as xterm does in the app.
+    view.contains("\u{1b}[6n");
+    input(&runtime, &terminal, "\u{1b}[1;1R");
+    input(&runtime, &terminal, "echo ready\r\n");
+    view.contains("ready");
+    request(&runtime, "terminal.kill", json!({ "resourceId": terminal }));
+    let ended = view.exit();
+    assert!(ended.terminated, "an explicit kill is not a plain exit");
 }
 
 #[cfg(unix)]

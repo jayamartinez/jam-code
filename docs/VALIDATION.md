@@ -677,3 +677,36 @@ unsupported), and long-running sessions past the 15-minute idle stop.
 Conversations with real providers are stored in the same local database the
 foundation seeded with demo history (`jam-demo.sqlite`); separating demo and
 user history is a follow-up.
+
+## Windows hardening (2026-09-28, Windows 11 25H2)
+
+Baseline `a4fb77f` on Windows 11 Pro 25H2 (build 26200, x64, Ryzen 7 7800X3D), 1920×1080 at 100%, WebView2 153.0.4234.48,
+Node 22.19, pnpm 12.6 (through `npm exec`), Rust 1.97.1/MSVC, Git 2.46, Claude Code 2.1.284 and codex-cli 0.158.0, both
+native `.exe` files on PATH.
+
+Automated on main: `pnpm check` passed (226 tests). `pnpm check:rust` failed on Windows only: an unused `mut` and a dead
+test-only method under clippy, Windows-only unused test helpers, a Git test writing names NTFS cannot store, and terminal
+tests failing because portable-pty 0.9 reports a successful `TerminateProcess` as an error. All pass on
+`fix/windows-hardening`, with new Windows tests for provider process-tree termination, verbatim path simplification,
+project-relative provider paths and terminal termination.
+
+Native, computer use, debug build. JAM was also launched through WMI so it ran outside the agent's job object and MSIX
+container; launching from an agent's shell virtualized `%APPDATA%`, hid orphans behind a kill-on-close job and made
+terminal Ctrl+C ignored by inheritance. Those were environment artifacts, not product bugs.
+
+Worked on main: launch, custom titlebar, minimize/maximize/restore, double-click maximize, Snap Layouts flyout, drag,
+every edge and corner resize at 100%, sidebar, tabs, Single/Tiles, split right/down, nested splits and divider drag;
+PowerShell 7 over ConPTY with Unicode, ANSI and true colour, 3000 lines, copy, paste, find, resize, restart and Ctrl+C;
+`claude`/`codex` typed in Terminal stay ordinary commands; Settings → Providers detection, sign-in and models; Claude
+and Codex chats with streaming, approvals, Markdown, file links, Stop, follow-up after Stop, tab close without stopping
+work and resume after Quit and relaunch; WebView2 Browser with HTTPS and localhost, back/forward/reload, focus, overlay
+hiding, restore/maximize, sidebar and split geometry, two browsers and element/region annotation staging without Send;
+Review status, rename, Unicode and diff; tray Show, close to tray, single instance re-showing a hidden window. Explicit
+Quit ended every JAM descendant (MCP servers exit on stdin EOF) and left the user's own Claude and Codex processes alone.
+
+Found and fixed: a command an agent was running (`ping`) survived Quit; project roots were verbatim `\?\C:\…` paths, so
+provider activity showed absolute paths, changed-file links failed with "Unsupported repository-relative path" and Review
+displayed the prefix; Show in Explorer opened Documents; Terminate shell read "Shell exited with code 1". Retested
+natively on the branch: relative activity paths, changed-file link opening beside the chat. The Explorer argument was
+verified directly; the in-app Show in Explorer click, tray Quit with a running agent command, `.cmd` shims, other
+display scales, Appearance themes, Snapshots and smart-quote input were not re-run in this pass.

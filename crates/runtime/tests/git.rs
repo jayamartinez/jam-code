@@ -186,7 +186,13 @@ fn rename_deletion_binary_and_literal_hostile_paths() {
             .deletions,
         1
     );
-    for path in ["--help", ":(glob)*", "tab\tline\nfile", "$(touch nope).txt"] {
+    // NTFS cannot store `:`, `*`, tabs or newlines in a file name.
+    let hostile: &[&str] = if cfg!(windows) {
+        &["--help", "$(touch nope).txt"]
+    } else {
+        &["--help", ":(glob)*", "tab\tline\nfile", "$(touch nope).txt"]
+    };
+    for &path in hostile {
         repo.write(path, "safe\n");
         repo.git.set_staged(&repo.project, path, true).unwrap();
         assert_eq!(

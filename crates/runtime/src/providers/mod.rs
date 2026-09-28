@@ -97,7 +97,8 @@ pub trait ProviderAdapter: Send + Sync {
     fn run_turn(&self, turn: ProviderTurn, io: TurnIo) -> ProviderFuture;
     /// Stops any process kept for this session. Explicit lifecycle only.
     fn release(&self, _session_id: &str) {}
-    /// Terminates every process this adapter owns.
+    /// Terminates every process this adapter owns, with everything they
+    /// started. May block briefly; the manager calls it off the async threads.
     fn shutdown(&self) {}
 }
 

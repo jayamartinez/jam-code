@@ -242,7 +242,7 @@ impl ProviderAdapter for ClaudeAdapter {
     fn shutdown(&self) {
         if let Ok(mut processes) = self.inner.processes.lock() {
             for (_, process) in processes.drain() {
-                process.child.kill();
+                process.child.kill_now();
             }
         }
     }

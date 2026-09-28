@@ -175,10 +175,16 @@ impl ProviderManager {
         descriptors
     }
 
-    pub fn shutdown(&self) {
-        for adapter in &self.adapters {
-            adapter.shutdown();
-        }
+    /// Ends every provider process and what it started, waiting (bounded)
+    /// so the processes are gone before JAM exits.
+    pub async fn shutdown(&self) {
+        let adapters = self.adapters.clone();
+        let ending = tokio::task::spawn_blocking(move || {
+            for adapter in &adapters {
+                adapter.shutdown();
+            }
+        });
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(3), ending).await;
     }
 }
 

@@ -99,6 +99,10 @@ pub fn run(root: &Path, args: &[&str], limit: usize) -> Result<Output, JamError>
             if let Some(pid) = rustix::process::Pid::from_raw(child.id() as i32) {
                 let _ = rustix::process::kill_process_group(pid, rustix::process::Signal::KILL);
             }
+            #[cfg(windows)]
+            if exited.is_none() {
+                crate::process_tree::terminate(child.id());
+            }
             let _ = child.kill();
             let status = match exited {
                 Some(status) => status,
@@ -107,7 +111,7 @@ pub fn run(root: &Path, args: &[&str], limit: usize) -> Result<Output, JamError>
                     .map_err(|_| JamError::new("git_failed", "Could not stop Git."))?,
             };
             // A filter descendant must not hold this request forever. Unix
-            // group termination closes its pipe; Windows still needs Job Objects.
+            // group termination closes its pipe; Windows ends the live tree.
             let drain_deadline = Instant::now() + Duration::from_millis(200);
             while !reader.is_finished() && Instant::now() < drain_deadline {
                 thread::sleep(Duration::from_millis(5));

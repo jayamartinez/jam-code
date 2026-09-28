@@ -14,9 +14,11 @@ fn text<'a>(value: &'a Value, key: &str) -> Option<&'a str> {
     value.get(key).and_then(Value::as_str)
 }
 
+/// A project-relative, `/`-separated path when `path` is inside `cwd`, the
+/// form file links and the runtime's path checks use on every platform.
 fn relative(path: &str, cwd: Option<&Path>) -> String {
     cwd.and_then(|cwd| Path::new(path).strip_prefix(cwd).ok())
-        .map(|p| p.to_string_lossy().into_owned())
+        .map(|p| p.to_string_lossy().replace(std::path::MAIN_SEPARATOR, "/"))
         .unwrap_or_else(|| path.to_string())
 }
 
@@ -573,5 +575,24 @@ mod tests {
             "a\n[image]"
         );
         assert_eq!(result_text(Some(&json!("plain"))), "plain");
+    }
+}
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use super::relative;
+    use std::path::Path;
+
+    #[test]
+    fn windows_paths_become_project_relative_links() {
+        let cwd = Path::new(r"C:\work\café repo");
+        assert_eq!(
+            relative(r"C:\work\café repo\src\nested dir\a.ts", Some(cwd)),
+            "src/nested dir/a.ts"
+        );
+        assert_eq!(
+            relative(r"D:\elsewhere\a.ts", Some(cwd)),
+            r"D:\elsewhere\a.ts"
+        );
     }
 }
