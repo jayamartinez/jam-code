@@ -137,6 +137,7 @@ Answers are validated against the offered choices and questions and delivered ex
 
 - Steering, queued messages and forking are supported by both providers but not offered by JAM yet, and are reported as unsupported.
 - Codex questions need its experimental API and are unsupported.
+- Claude Code streams no command output while a command runs (only `task_started` and `task_notification`), and replaces an interrupted command's result with a rejection message, so its partial output never reaches JAM. Codex streams command output as it runs.
 - Claude subagent text is not shown (only the sub-agent's tool card), and Codex sub-agent items show as sub-agent cards without their inner activity.
 - A project needs a folder before an agent chat can start; agents run in that folder with the provider's own sandbox and permission rules.
 - Account-level usage and rate limits (Settings → Usage) are not collected.

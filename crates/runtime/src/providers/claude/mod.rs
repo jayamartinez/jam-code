@@ -802,7 +802,7 @@ async fn run(adapter: &ClaudeAdapter, turn: ProviderTurn, io: TurnIo) -> Result<
                     }
                     "assistant" if !subagent => {
                         let id = message.pointer("/message/id").and_then(Value::as_str).unwrap_or_default().to_string();
-                        if let Some(model) = message.pointer("/message/model").and_then(Value::as_str)
+                        if let Some(model) = message.pointer("/message/model").and_then(Value::as_str).filter(|m| is_model_id(m))
                             && model_name.as_deref() != Some(model)
                         {
                             model_name = Some(model.to_string());
@@ -849,7 +849,7 @@ async fn run(adapter: &ClaudeAdapter, turn: ProviderTurn, io: TurnIo) -> Result<
                     }
                     "system" => match message.get("subtype").and_then(Value::as_str).unwrap_or_default() {
                         "init" => {
-                            if let Some(model) = message.get("model").and_then(Value::as_str) {
+                            if let Some(model) = message.get("model").and_then(Value::as_str).filter(|m| is_model_id(m)) {
                                 model_name = Some(model.to_string());
                                 transcript.send(ProviderUpdate::Model(model.to_string())).await;
                             }
@@ -1004,6 +1004,13 @@ async fn run(adapter: &ClaudeAdapter, turn: ProviderTurn, io: TurnIo) -> Result<
     Ok(())
 }
 
+/// Claude Code labels messages it makes up locally (an API or sign-in error)
+/// with a placeholder such as `<synthetic>`; only a real model ID names the
+/// session's model.
+fn is_model_id(model: &str) -> bool {
+    !model.is_empty() && !model.starts_with('<')
+}
+
 fn control_success(request_id: &str, response: Value) -> Value {
     json!({"type": "control_response", "response": {
         "subtype": "success", "request_id": request_id, "response": response
@@ -1046,5 +1053,17 @@ fn update_tool_input(
         }
         (None, fresh) => transcript.upsert(id, fresh),
         _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_model_id;
+
+    #[test]
+    fn a_placeholder_model_never_names_the_session() {
+        assert!(is_model_id("claude-opus-5-5"));
+        assert!(!is_model_id("<synthetic>"));
+        assert!(!is_model_id(""));
     }
 }
