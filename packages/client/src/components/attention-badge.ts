@@ -6,9 +6,9 @@ import type { BadgeTone } from '../state/chat-activity';
  * outside any theme, and has to read at 16 points.
  */
 const TONES: Record<BadgeTone, { fill: string; text: string }> = {
-  input: { fill: '#F0B232', text: '#1B1300' },
-  error: { fill: '#F23F43', text: '#FFFFFF' },
-  finished: { fill: '#23A55A', text: '#FFFFFF' },
+  input: { fill: '#FFD27A', text: '#2A1C00' },
+  error: { fill: '#FF9B94', text: '#2B0906' },
+  finished: { fill: '#8EE6AE', text: '#062512' },
 };
 
 /** The icon's size in device pixels: a 16-point taskbar or tray icon at this display's scale. */
@@ -42,10 +42,10 @@ export function drawBadge(count: number, tone: BadgeTone, size: number): number[
     context.fill();
     const label = count > 9 ? '9+' : String(count);
     context.fillStyle = colours.text;
-    context.font = `700 ${Math.round(size * (label.length > 1 ? 0.5 : 0.66))}px "Segoe UI", system-ui, sans-serif`;
+    context.font = `700 ${Math.round(size * (label.length > 1 ? 0.4 : 0.5))}px "Segoe UI", system-ui, sans-serif`;
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    context.fillText(label, half, half + size * 0.04);
+    context.fillText(label, half, half + size * 0.03);
     return Array.from(context.getImageData(0, 0, size, size).data);
   } catch {
     return null;
