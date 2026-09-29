@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod app_webview;
 mod bridge;
 mod browser;
 mod folders;
@@ -98,8 +99,7 @@ fn main() {
             // resizability attaches it. Not yet verified on Windows.
             #[cfg(windows)]
             window.set_resizable(true)?;
-            #[cfg(not(windows))]
-            let _ = window;
+            app_webview::make_app_like(&window)?;
             // Startup fails visibly if the reopen path cannot be created; never hide an unreachable app.
             lifecycle::install_tray(app)?;
             snapshots::install(app.handle());

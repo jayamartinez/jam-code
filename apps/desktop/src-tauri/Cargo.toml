@@ -26,6 +26,11 @@ tauri-plugin-single-instance = "2.4.5"
 # The native folder picker (Windows IFileOpenDialog, macOS NSOpenPanel).
 rfd = { version = "0.16", default-features = false }
 
+# The app window's WebView2 settings (Tauri's own webview crates, same versions).
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.39.1"
+windows-core = "0.62"
+
 [lints.rust]
 unsafe_code = "deny"
 
