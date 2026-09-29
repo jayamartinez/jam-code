@@ -17,7 +17,7 @@ Checked against the CLIs installed on the development machine and current public
 
 `codex app-server` speaks JSON-RPC 2.0 over stdio lines **without** the `"jsonrpc"` field. JAM sends `initialize` (client `jam`, `experimentalApi: false`, and it opts out of `remoteControl/status/changed`, which carries host and installation identifiers), then `initialized`. The whole surface JAM needs is stable:
 
-- Account: `account/read {refreshToken:false}` → signed in or out, sign-in kind and a provider-reported plan. Email and account identifiers are dropped at the adapter. `getAuthStatus` is never called with `includeToken`.
+- Account: `account/read {refreshToken:false}` → `{account, requiresOpenaiAuth, workspaceRouting}`. `account` is `{type:"chatgpt", email, planType}`, `{type:"apiKey"}` or `{type:"amazonBedrock", …}` (verified against codex-cli 0.159 on 2026-09-29). JAM keeps the sign-in kind, the plan and the email (see [Signed-in account](#signed-in-account)); `workspaceRouting` and its account IDs are dropped at the adapter. `getAuthStatus` is never called with `includeToken`.
 - Models: `model/list` (paginated) → id, display name, default, `supportedReasoningEfforts`, `defaultReasoningEffort`, `serviceTiers` (faster speeds, such as Fast = `priority`), `upgrade` (a newer model supersedes it: shown under Legacy) and `inputModalities` (image support).
 - Speed: `turn/start` sends `serviceTier` when the chosen speed differs from the loaded thread's. The override lasts for later turns, so returning to Standard sends `default`; with no speed chosen JAM sends nothing and Codex's own configuration decides.
 - Threads: `thread/start` and `thread/resume` (falling back to a new thread, with a visible notice, when Codex no longer has it). `thread/fork`, `thread/read` and `thread/list` exist and are the seam for provider history (not used yet).
@@ -47,7 +47,8 @@ claude --output-format stream-json --verbose --input-format stream-json
 - `AskUserQuestion` arrives as `can_use_tool`; JAM answers `allow` with `updatedInput: {questions, answers}` keyed by question text. `ExitPlanMode` becomes a plan approval.
 - Streaming: `stream_event` deltas (text, thinking, tool input JSON) are primary; complete `assistant` messages only fill a message whose deltas never arrived, so text is not duplicated even though several complete blocks share one message ID. Tool calls are keyed by `tool_use.id` and completed by `tool_result`. Messages with `parent_tool_use_id` (subagents) are not merged into the parent transcript; the spawning `Agent`/`Task` tool shows as a sub-agent card.
 - Each turn ends with one `result`. `is_error` (not only the subtype) marks failure; a logged-out turn reports `Not logged in`, which JAM turns into a sign-in instruction. `terminal_reason` `aborted_*` marks an interruption.
-- Sign-in state comes from `claude auth status` (JSON; exit 0 signed in, 1 signed out). JAM reads only `loggedIn`, `authMethod`, `apiProvider` and `subscriptionType`, and drops email and organization fields.
+- Sign-in state comes from `claude auth status` (JSON; exit 0 signed in, 1 signed out). JAM reads only `loggedIn`, `authMethod`, `apiProvider` and `subscriptionType`, and drops its email and organization fields.
+- The probe's `initialize` answer also carries `account: {email, organization, subscriptionType, apiProvider}` (verified against 2.1.284 on 2026-09-29; `subscriptionType` is already a full name such as "Claude Max"). JAM reads `email` and `subscriptionType` from it (see [Signed-in account](#signed-in-account)); `organization`, which can itself contain an email, is dropped.
 - Images are base64 content blocks placed before the text block (a message is a slash command only when its last block is text).
 
 JAM never passes `--bare` (which ignores the user's login), never sets an authentication variable, and never uses the SDK's `claude_authenticate`/OAuth control requests. If `ANTHROPIC_API_KEY` is present in JAM's own environment, Settings warns that Claude Code may bill that key instead of the user's sign-in.
@@ -78,7 +79,7 @@ What this means for JAM:
 
 Version 1 of `@jam/protocol`, extended additively:
 
-- `ProviderDescriptor`: installation, authentication, enabled, default and running (with `runningCount`) stay independent. Optional fields appear only when known: version, executable and how it was found, a provider-reported `account {method, plan}`, discovered `models` (with effort levels and default, faster `speeds`, `legacy` and image support), provider-specific `options` (both: `access`; Claude also `autoCompact`), saved `defaults`, starred `favoriteModels` and `hiddenModels` (the model picker's order and filter; kept even when a provider stops listing a model), a status note and `checkedAt`.
+- `ProviderDescriptor`: installation, authentication, enabled, default and running (with `runningCount`) stay independent. Optional fields appear only when known: version, executable and how it was found, a provider-reported `account {method, plan, identity}`, discovered `models` (with effort levels and default, faster `speeds`, `legacy` and image support), provider-specific `options` (both: `access`; Claude also `autoCompact`), saved `defaults`, starred `favoriteModels` and `hiddenModels` (the model picker's order and filter; kept even when a provider stops listing a model), a status note and `checkedAt`.
 - Capabilities: `create, resume, fork, interrupt, streaming, toolApproval, userInput, images, steering, queue, modelSelection, effort, permissionModes, usage, compact`, each `supported | unsupported | conditional | unknown` with a reason.
 - `Session`: `providerId` is the adapter actually running it; `options`, `needsInput` and provider-reported `usage` are optional. A real session presents as its own provider; only the demo provider may present as another.
 - Blocks: `text` (Markdown, rendered through `markdown/render.tsx`), `reasoning`, `tool` (`read | search | edit | command | tool | web | agent`), `context`, `notice` and `interaction`. An edit's `files` carry line counts and a bounded `diff` preview (120 lines, 12 KB; `+`/`-`/` ` lines and `@` for a gap): Claude's from the tool input's old and new text, Codex's from its unified diff or an added file's content. An assistant `Message` records `completedAt` when its turn ends.
@@ -121,6 +122,15 @@ localhost, 127.0.0.1, [::1] or 0.0.0.0 in the default browser: the local
 servers a command reported. Every other link stays in JAM's browser.
 
 Answers are validated against the offered choices and questions and delivered exactly once; a second answer, an answer after the provider withdrew its request, or an answer after a restart is `stale`.
+
+### Signed-in account
+
+Settings → Providers shows who each agent is signed in as and its plan, only as the CLI reports them through the interfaces above. JAM never reads a credential file or token to find them.
+
+- `plan` is the full name: Claude Code's own ("Claude Max"; `auth status` codes such as `max` become "Claude Max"), and Codex's `planType` mapped to ChatGPT's names (`plus` → "ChatGPT Plus", `prolite` → "ChatGPT Pro 5x", the business and enterprise variants → "ChatGPT Business"/"ChatGPT Enterprise"). A code JAM has no name for is shown as sent, such as "ChatGPT (promax)", rather than guessed; `unknown` is unknown.
+- `identity` is the reported email. It is personal data: it lives only in the runtime's live descriptor (never in SQLite, settings or logs), `ProviderAccount`'s `Debug` output hides it, and it never appears in an error, URL or status note. Until the reader clicks it, the client renders random characters of the same length, blurred, instead of the identity (a blur alone can be reversed); a click unscrambles it, a second click scrambles it again, and it is never remembered as revealed.
+- Every field is untrusted provider output: a trimmed single line (plan 128, identity 256 characters) or unknown. A value that is too long or holds control characters is dropped, not cut, and the protocol rejects anything else.
+- A provider that reports nothing shows "Not reported" and "Plan not reported". API-key and Bedrock sign-ins report no email.
 
 ## Lifecycle and processes
 

@@ -65,15 +65,19 @@ describe('provider status', () => {
     expect(providerSummary(claude)).toBe('Signed out');
   });
 
-  it('shows a plan only when the provider reported one', () => {
-    expect(authenticationCell(provider({ authentication: 'authenticated' })).detail).toBe(
-      'by its own CLI',
-    );
-    expect(
-      authenticationCell(
-        provider({ authentication: 'authenticated', account: { method: 'ChatGPT', plan: 'pro' } }),
-      ).detail,
-    ).toBe('ChatGPT · pro');
+  it('shows a plan only when the provider reported one, and never the identity', () => {
+    const signedIn = provider({
+      installation: 'installed',
+      enabled: true,
+      authentication: 'authenticated',
+    });
+    expect(authenticationCell(signedIn).detail).toBe('by its own CLI');
+    expect(providerSummary(signedIn)).toBe('Signed in');
+    const account = { method: 'ChatGPT', plan: 'ChatGPT Pro 5x', identity: 'reader@example.com' };
+    const withPlan = { ...signedIn, account, isDefault: true };
+    expect(authenticationCell(withPlan).detail).toBe('ChatGPT');
+    expect(providerSummary(withPlan)).toBe('ChatGPT Pro 5x · Default');
+    expect(JSON.stringify(statusCells(withPlan))).not.toContain('reader@');
   });
 
   it('never calls a disabled provider connected', () => {

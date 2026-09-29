@@ -414,12 +414,28 @@ pub struct ProviderStatus {
     pub message: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+/// The signed-in account as the provider's CLI reports it; absent fields are
+/// unknown. `identity` (usually an email) is personal data: it lives only in
+/// the live descriptor and is never persisted, logged or put in an error.
+#[derive(Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ProviderAccount {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub method: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub plan: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identity: Option<String>,
+}
+
+/// Debug output leaves the identity out, so a stray `{:?}` cannot log it.
+impl std::fmt::Debug for ProviderAccount {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProviderAccount")
+            .field("method", &self.method)
+            .field("plan", &self.plan)
+            .field("identity", &self.identity.as_ref().map(|_| "<hidden>"))
+            .finish()
+    }
 }
 
 /// Installation, authentication, enablement, default and running are

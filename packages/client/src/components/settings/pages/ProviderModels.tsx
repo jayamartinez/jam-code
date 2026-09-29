@@ -6,7 +6,7 @@ import { toggledFavorite } from '../../composer-model';
 
 /**
  * Which of a provider's models the composer's picker offers, and which are
- * starred to the top (Paper, "Settings v2 · Providers · Models"). Legacy
+ * starred to the top (Paper, "Settings v2 · Providers"). Legacy
  * models, the provider's older versions, are listed after the current ones.
  */
 export function ProviderModels({

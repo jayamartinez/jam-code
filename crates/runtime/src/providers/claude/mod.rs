@@ -10,8 +10,9 @@
 mod tools;
 
 use super::{
-    Answer, ProbeFuture, ProviderAdapter, ProviderConfig, ProviderFuture, ProviderTurn,
-    ProviderUpdate, SPEED, Transcript, TurnIo, access, descriptor, discovery,
+    ACCOUNT_IDENTITY_LIMIT, ACCOUNT_LABEL_LIMIT, Answer, ProbeFuture, ProviderAdapter,
+    ProviderConfig, ProviderFuture, ProviderTurn, ProviderUpdate, SPEED, Transcript, TurnIo,
+    access, account_label, account_text, descriptor, discovery,
     process::{LaunchSpec, Output, StdioChild},
     set_capability,
     transcript::until,
@@ -280,6 +281,43 @@ async fn auth_status(executable: &Path) -> Option<(bool, Value)> {
     Some((logged_in && output.status.success(), kept))
 }
 
+/// Adds what the control protocol's `initialize` answer reports about the
+/// signed-in account: the email as the display identity and the plan's full
+/// name. Its `organization` (which can itself be an email) and every other
+/// field are dropped here.
+fn apply_initialize_account(account: &mut ProviderAccount, response: &Value) {
+    let Some(reported) = response.get("account") else {
+        return;
+    };
+    account.identity = account_text(reported.get("email"), ACCOUNT_IDENTITY_LIMIT);
+    if let Some(plan) = reported
+        .get("subscriptionType")
+        .and_then(Value::as_str)
+        .and_then(claude_plan)
+    {
+        account.plan = Some(plan);
+    }
+}
+
+/// The full Claude plan name. `initialize` already reports one ("Claude Max");
+/// `auth status` reports a code ("max"). A code JAM does not know is shown as
+/// Claude Code sent it, never guessed.
+fn claude_plan(reported: &str) -> Option<String> {
+    let reported = account_label(reported, ACCOUNT_LABEL_LIMIT)?;
+    if reported.starts_with("Claude ") {
+        return Some(reported);
+    }
+    let name = match reported.as_str() {
+        "free" => "Free",
+        "pro" => "Pro",
+        "max" => "Max",
+        "team" => "Team",
+        "enterprise" => "Enterprise",
+        _ => return Some(format!("Claude ({reported})")),
+    };
+    Some(format!("Claude {name}"))
+}
+
 /// Records the effort Claude Code applies by default on each model that
 /// offers it. Claude Code reports one applied effort, not one per model.
 fn apply_default_effort(models: &mut [ProviderModel], effort: Option<&str>) {
@@ -457,13 +495,13 @@ async fn probe(mut d: ProviderDescriptor, config: ProviderConfig) -> ProviderDes
                     method: match status.get("authMethod").and_then(Value::as_str) {
                         Some("claude.ai") => Some("Claude account".into()),
                         Some("none") | None => None,
-                        Some(other) => Some(other.to_string()),
+                        Some(other) => account_label(other, ACCOUNT_LABEL_LIMIT),
                     },
                     plan: status
                         .get("subscriptionType")
                         .and_then(Value::as_str)
-                        .filter(|plan| !plan.is_empty())
-                        .map(str::to_owned),
+                        .and_then(claude_plan),
+                    identity: None,
                 });
             }
         }
@@ -538,6 +576,9 @@ async fn probe(mut d: ProviderDescriptor, config: ProviderConfig) -> ProviderDes
             if let Ok(Some((response, effort))) = tokio::time::timeout(START_DEADLINE, wait).await {
                 models = models_from(&response);
                 apply_default_effort(&mut models, effort.as_deref());
+                if let Some(account) = d.account.as_mut() {
+                    apply_initialize_account(account, &response);
+                }
             }
         }
         child.kill();
@@ -1176,8 +1217,55 @@ fn update_tool_input(
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_default_effort, is_model_id, models_from};
+    use super::{
+        apply_default_effort, apply_initialize_account, claude_plan, is_model_id, models_from,
+    };
+    use crate::protocol::ProviderAccount;
     use serde_json::json;
+
+    #[test]
+    fn initialize_reports_the_identity_and_full_plan_and_drops_the_rest() {
+        let mut account = ProviderAccount {
+            method: Some("Claude account".into()),
+            plan: Some("Claude Max".into()),
+            identity: None,
+        };
+        apply_initialize_account(
+            &mut account,
+            &json!({"account": {
+                "email": " reader@example.com ",
+                "organization": "reader@example.com's Organization",
+                "subscriptionType": "Claude Max",
+                "apiProvider": "firstParty"
+            }}),
+        );
+        assert_eq!(account.identity.as_deref(), Some("reader@example.com"));
+        assert_eq!(account.plan.as_deref(), Some("Claude Max"));
+        assert!(!format!("{account:?}").contains("reader@"));
+
+        // Nothing reported: the plan from `auth status` stays, identity unknown.
+        let mut quiet = ProviderAccount {
+            plan: Some("Claude Pro".into()),
+            ..ProviderAccount::default()
+        };
+        apply_initialize_account(&mut quiet, &json!({"models": []}));
+        assert_eq!(quiet.plan.as_deref(), Some("Claude Pro"));
+        assert_eq!(quiet.identity, None);
+
+        // A malformed email is unknown, not shown.
+        apply_initialize_account(&mut quiet, &json!({"account": {"email": "x\u{7}@y.z"}}));
+        assert_eq!(quiet.identity, None);
+    }
+
+    #[test]
+    fn claude_plans_have_full_names() {
+        assert_eq!(claude_plan("Claude Max").as_deref(), Some("Claude Max"));
+        assert_eq!(claude_plan("max").as_deref(), Some("Claude Max"));
+        assert_eq!(claude_plan("pro").as_deref(), Some("Claude Pro"));
+        assert_eq!(claude_plan("mystery").as_deref(), Some("Claude (mystery)"));
+        assert_eq!(claude_plan(""), None);
+        assert_eq!(claude_plan(&"x".repeat(200)), None);
+    }
 
     #[test]
     fn a_placeholder_model_never_names_the_session() {
