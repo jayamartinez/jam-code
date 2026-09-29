@@ -171,3 +171,18 @@ void jam_snapshot_show_window(void *pointer) {
     NSWindow *window=(__bridge NSWindow *)pointer;
     [window orderFrontRegardless];
 }
+
+// Not Snapshots: typed text for the whole app (see src/text_input.rs). Only
+// JAM Code's own defaults domain changes; the system setting stays as it is.
+void jam_disable_text_substitution(void) {
+    NSUserDefaults *defaults=[NSUserDefaults standardUserDefaults];
+    for (NSString *key in @[@"WebAutomaticQuoteSubstitutionEnabled",
+                            @"WebAutomaticDashSubstitutionEnabled",
+                            @"WebAutomaticTextReplacementEnabled",
+                            @"WebAutomaticSpellingCorrectionEnabled",
+                            @"NSAutomaticQuoteSubstitutionEnabled",
+                            @"NSAutomaticDashSubstitutionEnabled",
+                            @"NSAutomaticTextReplacementEnabled"]) {
+        [defaults setBool:NO forKey:key];
+    }
+}

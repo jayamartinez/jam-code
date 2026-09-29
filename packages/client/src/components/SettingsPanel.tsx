@@ -8,6 +8,7 @@ import { Brand, IconButton, TrafficLightInset, WindowControls } from './Controls
 import { SettingsIcon, type SettingsIconName } from './settings-icons';
 import type {
   ProjectChanges,
+  ProjectControl,
   ProviderControl,
   SettingsPageId,
   SettingsPageProps,
@@ -74,6 +75,7 @@ export function SettingsPanel({
   providerControl,
   projects,
   onUpdateProject,
+  projectControl,
   dedicated,
   desktop,
   idleThreadDays,
@@ -93,6 +95,7 @@ export function SettingsPanel({
   providerControl: ProviderControl;
   projects: Project[];
   onUpdateProject(projectId: string, changes: ProjectChanges): Promise<void>;
+  projectControl: ProjectControl;
   dedicated: boolean;
   desktop: DesktopServices;
   idleThreadDays: number | null;
@@ -150,6 +153,7 @@ export function SettingsPanel({
           newThreadWorkspace={newThreadWorkspace}
           onNewThreadWorkspace={onNewThreadWorkspace}
           onUpdateProject={onUpdateProject}
+          projectControl={projectControl}
           onNavigate={setPage}
           transport={transport}
           snapshots={desktop.snapshots}

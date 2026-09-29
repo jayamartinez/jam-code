@@ -164,6 +164,22 @@
   color: var(--color-text-faint);
   font-weight: 400;
 }
+.project-row .branch.missing {
+  color: var(--color-warning);
+}
+.project-row.add-project {
+  color: var(--color-text-muted);
+}
+.project-add-badge {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  border: 1px dashed var(--color-border-strong);
+}
 /* An expanded project hands the highlight to its threads and keeps its weight. */
 .project-row.selected.expanded {
   background: transparent;

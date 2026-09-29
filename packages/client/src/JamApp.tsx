@@ -16,6 +16,7 @@ import type {
   ContextItem,
   JamTransport,
   OpenableKind,
+  Project,
   ProjectIcon,
   ProviderId,
   RequestMap,
@@ -76,6 +77,8 @@ import { ContextMenu, menuPoint, type ContextMenuState } from './components/Cont
 import type { FileReference } from './markdown/file-refs';
 import { parseAddress } from './state/browser-address';
 import { ProjectEditor } from './components/ProjectEditor';
+import { FirstRun } from './components/FirstRun';
+import { withSharedDefault } from './components/settings/general-model';
 import { BrowserResource, describeAnnotation } from './components/BrowserResource';
 
 const ReviewResource = lazy(() => import('./components/ReviewResource'));
@@ -156,7 +159,9 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [contextTarget, setContextTarget] = useState<string | null>(null);
   const [launcher, setLauncher] = useState<LauncherTarget>(null);
-  const [settingsStartPage, setSettingsStartPage] = useState<'General' | 'Snapshots'>('General');
+  const [settingsStartPage, setSettingsStartPage] = useState<'General' | 'Snapshots' | 'Providers'>(
+    'General',
+  );
   const [settingsMode, setSettingsMode] = useState<'dedicated' | null>(null);
   const [newChats, setNewChats] = useState<Record<string, ChatDraft>>({});
   /** Model, effort or provider options chosen since a session's last Send. */
@@ -476,6 +481,75 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   );
 
   /**
+   * Add project: the operating system's folder chooser, then the runtime
+   * checks the folder and records it. A folder JAM already knows returns its
+   * project, restored with its history if it had been removed.
+   */
+  /** Settles the open New project dialog's caller: the project, or null. */
+  const newProjectDone = useRef<((project: Project | null) => void) | null>(null);
+  const [creatingProject, setCreatingProject] = useState(false);
+  const addProject = useCallback((): Promise<Project | null> => {
+    if (!desktop.pickDirectory) return Promise.resolve(null);
+    newProjectDone.current?.(null);
+    setCreatingProject(true);
+    return new Promise((resolve) => {
+      newProjectDone.current = resolve;
+    });
+  }, [desktop]);
+  const closeNewProject = useCallback((project: Project | null) => {
+    setCreatingProject(false);
+    newProjectDone.current?.(project);
+    newProjectDone.current = null;
+  }, []);
+  /** Errors stay in the dialog, beside the button that asked. */
+  const createProject = useCallback(
+    async (changes: { name: string; paths: string[]; icon: ProjectIcon }) => {
+      const { project } = await transport.request('project.create', changes);
+      await client.reload();
+      setProjectId(project.id);
+      setExpandedProjects((current) =>
+        current && !current.includes(project.id) ? [...current, project.id] : current,
+      );
+      closeNewProject(project);
+    },
+    [client, closeNewProject, transport],
+  );
+
+  /** Forgets a project; its folder and history stay where they are. */
+  const removeProject = useCallback(
+    async (id: string) => {
+      // Errors surface in Settings, beside the button that asked.
+      await transport.request('project.remove', { projectId: id });
+      const current = client.getSnapshot().workspace;
+      const gone = new Set(
+        current?.resources.filter((item) => item.projectId === id).map((item) => item.id),
+      );
+      for (const tab of layoutRef.current.tabs) {
+        if (gone.has(tab.resourceId) || newChats[tab.resourceId]?.projectId === id)
+          dispatch({ type: 'closeTab', tabId: tab.id });
+      }
+      setNewChats((drafts) =>
+        Object.fromEntries(Object.entries(drafts).filter(([, draft]) => draft.projectId !== id)),
+      );
+      await client.reload();
+      const remaining = client.getSnapshot().workspace?.projects ?? [];
+      setProjectId((selected) =>
+        selected === id || !remaining.some((item) => item.id === selected)
+          ? (remaining[0]?.id ?? '')
+          : selected,
+      );
+    },
+    [client, newChats, transport],
+  );
+
+  const projectControl = {
+    ...(desktop.pickDirectory
+      ? { add: addProject, pickFolder: () => desktop.pickDirectory!() }
+      : {}),
+    remove: removeProject,
+  };
+
+  /**
    * Choosing a file keeps the browser on screen. The file goes to a pane that
    * already holds one, then to an empty pane, and otherwise to a new pane
    * split beside the browser at the Files frame's proportion.
@@ -622,6 +696,9 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     },
     [client, desktop.platform, openFileFrom, openKind, projectId, transport],
   );
+
+  /** Provider detection, for the first-run screen that shows it. */
+  const checkProviders = useCallback(() => void client.ensureProviders(), [client]);
 
   const openSettings = useCallback(() => {
     setSettingsStartPage('General');
@@ -840,23 +917,20 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         });
     },
     onOptions: (options: Record<string, string>) => {
-      // The access level a person picks becomes their agent's default for new chats.
+      // The access level a person picks becomes the default for every agent's
+      // new chats, the same setting as General → Default permissions.
       const providerId =
         newChats[resourceId]?.providerId ??
         workspace?.sessions.find((item) => item.id === sessionId)?.providerId;
-      const provider = workspace?.providers.find((item) => item.id === providerId);
       const access = options.access;
       if (
-        provider &&
-        provider.id !== 'mock' &&
+        providerId !== 'mock' &&
         access &&
         access !== optionsFor(resourceId, sessionId).access &&
-        access !== provider.defaults?.access
+        workspace
       )
-        void providerControl.configure({
-          providerId: provider.id,
-          defaults: { ...provider.defaults, access },
-        });
+        for (const change of withSharedDefault(workspace.providers, 'access', access))
+          void providerControl.configure(change);
       if (newChats[resourceId])
         setNewChats((current) => {
           const draft = current[resourceId];
@@ -937,6 +1011,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       providerControl={providerControl}
       projects={workspace.projects}
       onUpdateProject={updateProject}
+      projectControl={projectControl}
       dedicated={dedicated}
       desktop={desktop}
       idleThreadDays={idleThreadDays}
@@ -1054,6 +1129,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                   : current;
               })
             }
+            {...(desktop.pickDirectory ? { onAddProject: addProject } : {})}
             resources={workspace.resources.filter(
               (item) => item.projectId === draft.projectId && item.kind === 'conversation',
             )}
@@ -1166,6 +1242,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             {...chrome}
             transport={transport}
             project={workspace.projects.find((item) => item.id === resource.projectId)}
+            {...(resource.worktreeId ? { worktreeId: resource.worktreeId } : {})}
             selectedPath={openFilePath}
             expanded={treeExpansion[resource.id] ?? emptyPaths}
             iconTheme={iconTheme}
@@ -1350,6 +1427,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                 onNew={() => newChat()}
                 onSettings={openSettings}
                 onCollapse={() => dispatch({ type: 'collapse' })}
+                {...(desktop.pickDirectory ? { onAddProject: () => void addProject() } : {})}
                 onProjectMenu={(id, event) =>
                   setContextMenu({
                     ...menuPoint(event),
@@ -1414,10 +1492,30 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                   />
                 ) : activeId ? (
                   surfaceFor(activeId, null)
+                ) : !workspace.projects.length ? (
+                  <FirstRun
+                    providers={workspace.providers}
+                    canAddProject={!!desktop.pickDirectory}
+                    onAddProject={addProject}
+                    onCheckProviders={checkProviders}
+                    onProviderSettings={() => {
+                      setSettingsStartPage('Providers');
+                      setSettingsMode('dedicated');
+                    }}
+                  />
                 ) : (
                   <section className="pane empty-surface">
-                    <h2>Your work is still here.</h2>
-                    <p>Open a conversation from history or start something new.</p>
+                    {workspace.resources.some((item) => item.kind === 'conversation') ? (
+                      <>
+                        <h2>Your work is still here.</h2>
+                        <p>Open a conversation from history or start something new.</p>
+                      </>
+                    ) : (
+                      <>
+                        <h2>Start your first chat</h2>
+                        <p>Ask an agent to work in {project?.name ?? 'your project'}.</p>
+                      </>
+                    )}
                     <button className="button primary" onClick={() => newChat()}>
                       <Plus size={14} />
                       New chat
@@ -1434,6 +1532,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                   onClose={() => setLauncher(null)}
                   onProject={switchProject}
                   onAgentChat={(presentation) => newChat(presentation, launcher.paneId)}
+                  {...(desktop.pickDirectory ? { onAddProject: () => void addProject() } : {})}
                   onResource={(kind) =>
                     void openKind(
                       kind,
@@ -1536,6 +1635,14 @@ export function JamApp({ transport, desktop }: JamAppProps) {
           </Dialog>
         )}
         {contextMenu && <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} />}
+        {creatingProject && (
+          <ProjectEditor
+            platform={desktop.platform}
+            {...(desktop.pickDirectory ? { onPickFolder: desktop.pickDirectory } : {})}
+            onSave={createProject}
+            onClose={() => closeNewProject(null)}
+          />
+        )}
         {editingProject &&
           (() => {
             const target = workspace.projects.find((item) => item.id === editingProject);
@@ -1543,6 +1650,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
               <ProjectEditor
                 project={target}
                 platform={desktop.platform}
+                {...(desktop.pickDirectory ? { onPickFolder: desktop.pickDirectory } : {})}
                 onSave={(changes) => updateProject(target.id, changes)}
                 onClose={() => setEditingProject(null)}
               />

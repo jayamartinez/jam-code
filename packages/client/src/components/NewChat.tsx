@@ -7,6 +7,7 @@ interface NewChatProps {
   project?: Project;
   projects: readonly Project[];
   onProject(projectId: string): void;
+  onAddProject?(): Promise<Project | null>;
   resources: Resource[];
   composer: ReactNode;
   providerId: ProviderId;
@@ -31,6 +32,7 @@ export function NewChat({
   project,
   projects,
   onProject,
+  onAddProject,
   resources,
   composer,
   providerId,
@@ -48,7 +50,13 @@ export function NewChat({
           <div className="new-chat-heading">
             <h1>
               What should we work on in{' '}
-              <ProjectSwitcher projects={projects} project={project} onChange={onProject} />?
+              <ProjectSwitcher
+                projects={projects}
+                project={project}
+                onChange={onProject}
+                onAddProject={onAddProject}
+              />
+              ?
             </h1>
           </div>
           {composer}

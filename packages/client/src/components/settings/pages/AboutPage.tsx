@@ -5,8 +5,6 @@ import { Card, Chip, Planned, Row, Section } from '../controls';
 import { buildFacts, webViewName } from '../system-info';
 import type { SettingsPageProps } from '../types';
 
-const LINKS = ['Documentation', 'Changelog', 'Third-party notices', 'Report an issue'];
-
 /** Only facts a real source reports; a build that does not embed its version omits it. */
 export default function AboutPage({ platform }: SettingsPageProps) {
   const facts = buildFacts();
@@ -30,10 +28,11 @@ export default function AboutPage({ platform }: SettingsPageProps) {
         <div className="sv-about-title">
           <h2>jam</h2>
           {facts.version && <span className="sv-mono">{facts.version}</span>}
+          {facts.version?.includes('-') && <Chip>{prerelease(facts.version)}</Chip>}
           {facts.development && <Chip>Development build</Chip>}
           {platform === 'web' && <Chip>Browser preview</Chip>}
         </div>
-        <p>A local-first workspace for coding agents.</p>
+        <p>JAM Code · a local-first workspace for coding agents.</p>
       </header>
 
       <Section label="Version">
@@ -87,17 +86,16 @@ export default function AboutPage({ platform }: SettingsPageProps) {
         </Card>
       </Section>
 
-      <nav className="sv-about-links" aria-label="Links">
-        {LINKS.map((link, index) => (
-          <span key={link}>
-            {index > 0 && <span className="sep">·</span>}
-            <span className="sv-about-link" aria-disabled="true">
-              {link}
-            </span>
-          </span>
-        ))}
-        <Planned />
-      </nav>
+      <p className="sv-about-legal">
+        Free and open source under the MIT License. The license and third-party notices are
+        installed with the app (LICENSE and THIRD_PARTY_NOTICES.md).
+      </p>
     </div>
   );
+}
+
+/** "Alpha" for 0.1.0-alpha, "Beta 2" for 1.0.0-beta.2. */
+function prerelease(version: string) {
+  const tag = version.slice(version.indexOf('-') + 1).replace(/\./g, ' ');
+  return tag.charAt(0).toUpperCase() + tag.slice(1);
 }

@@ -1,6 +1,8 @@
 {
   "name": "jam-code",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha",
+  "license": "MIT",
+  "repository": "github:jayamartinez/jam-code",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@12.6.0",

@@ -304,3 +304,8 @@
     align-self: flex-start;
   }
 }
+.gt-agent-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

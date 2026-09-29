@@ -1,15 +1,14 @@
 import { useState } from 'react';
 import { FolderPlus, X } from 'lucide-react';
-import { PROJECT_ICONS, type Project, type ProjectIcon } from '@jam/protocol';
+import { PROJECT_ICONS, initialsOf, type Project, type ProjectIcon } from '@jam/protocol';
 import { Dialog } from './Controls';
 import { PRESET_GLYPHS, ProjectBadge, TONE_LABELS, squareProjectImage } from './ProjectBadge';
 
 /**
- * Edit project details: name, folders and badge.
- *
- * Opened from a project's context menu. Everything is staged in the dialog and
- * sent in one `project.update` when saved, so cancelling leaves the project as
- * it was.
+ * A project's name, folders and badge: New project when `project` is absent,
+ * otherwise Edit project from its context menu. Everything is staged in the
+ * dialog and sent in one request when saved, so cancelling changes nothing.
+ * Where the host has a folder chooser, new folders come only from it.
  */
 
 type IconKind = ProjectIcon['kind'];
@@ -43,27 +42,41 @@ export const QUICK_EMOJI = [
 export function ProjectEditor({
   project,
   platform,
+  onPickFolder,
   onSave,
   onClose,
 }: {
-  project: Project;
+  /** Absent for a new project. */
+  project?: Project;
   platform: 'macos' | 'windows' | 'web';
+  /** The system folder chooser; absent where the host has none. */
+  onPickFolder?(): Promise<string | null>;
   onSave(changes: { name: string; paths: string[]; icon: ProjectIcon }): Promise<void>;
   onClose(): void;
 }) {
-  const [name, setName] = useState(project.name);
-  const [paths, setPaths] = useState<string[]>(project.paths ?? []);
-  const [kind, setKind] = useState<IconKind>(project.icon?.kind ?? 'initials');
-  const [tone, setTone] = useState(project.icon?.tone ?? 'blue');
+  const creating = !project;
+  const [name, setName] = useState(project?.name ?? '');
+  /** A new project's name follows its first folder until it is typed. */
+  const [named, setNamed] = useState(!creating);
+  const [paths, setPaths] = useState<string[]>(project?.paths ?? []);
+  const [kind, setKind] = useState<IconKind>(project?.icon?.kind ?? 'initials');
+  const [tone, setTone] = useState(project?.icon?.tone ?? 'blue');
   const [preset, setPreset] = useState(
-    project.icon?.kind === 'preset' ? (project.icon.value ?? 'rocket') : 'rocket',
+    project?.icon?.kind === 'preset' ? (project.icon.value ?? 'rocket') : 'rocket',
   );
   const [emoji, setEmoji] = useState(
-    project.icon?.kind === 'emoji' ? (project.icon.value ?? '') : '',
+    project?.icon?.kind === 'emoji' ? (project.icon.value ?? '') : '',
   );
   const [image, setImage] = useState(
-    project.icon?.kind === 'image' ? project.icon.value : undefined,
+    project?.icon?.kind === 'image' ? project.icon.value : undefined,
   );
+  const chooseFolder = async () => {
+    if (!onPickFolder) return setPaths((current) => [...current, '']);
+    const chosen = await onPickFolder();
+    if (!chosen) return;
+    setPaths((current) => (current.includes(chosen) ? current : [...current, chosen]));
+    if (!named && !paths.length) setName(folderName(chosen));
+  };
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -77,7 +90,15 @@ export function ProjectEditor({
           : tone === 'blue'
             ? { kind: 'initials' }
             : { kind: 'initials', tone };
-  const preview: Project = { ...project, name: name || project.name, icon };
+  const shownName = name || project?.name || 'New project';
+  const preview: Project = {
+    id: project?.id ?? 'new',
+    branch: project?.branch ?? '',
+    ...project,
+    name: shownName,
+    initials: initialsOf(shownName),
+    icon,
+  };
   const limits = PROJECT_ICONS.limits;
   const pathPlaceholder =
     platform === 'windows' ? 'C:\\Users\\you\\code\\project' : '/Users/you/code/project';
@@ -91,6 +112,8 @@ export function ProjectEditor({
   const save = async () => {
     setError(null);
     if (!name.trim()) return setError('A project needs a name.');
+    if (creating && !paths.some((path) => path.trim()))
+      return setError('Choose the project’s folder.');
     if (kind === 'emoji' && !emoji.trim()) return setError('Choose or type an emoji.');
     if (kind === 'image' && !image) return setError('Choose an image first.');
     setSaving(true);
@@ -109,12 +132,20 @@ export function ProjectEditor({
   };
 
   return (
-    <Dialog title={`Edit ${project.name}`} className="project-editor" onClose={onClose}>
+    <Dialog
+      title={project ? `Edit ${project.name}` : 'New project'}
+      className="project-editor"
+      onClose={onClose}
+    >
       <header className="project-editor-header">
         <ProjectBadge project={preview} size={40} />
         <div>
-          <h2>Edit project</h2>
-          <p className="mono">{project.branch}</p>
+          <h2>{project ? 'Edit project' : 'New project'}</h2>
+          {project ? (
+            <p className="mono">{project.branch}</p>
+          ) : (
+            <p>A folder on this computer. Git is optional.</p>
+          )}
         </div>
         <button type="button" className="icon-button" aria-label="Close" onClick={onClose}>
           <X size={14} />
@@ -126,30 +157,41 @@ export function ProjectEditor({
         <input
           value={name}
           maxLength={limits.nameUtf16}
-          onChange={(event) => setName(event.target.value)}
-          autoFocus
+          placeholder={creating ? 'Named after its folder' : undefined}
+          onChange={(event) => {
+            setName(event.target.value);
+            setNamed(true);
+          }}
+          autoFocus={!creating}
         />
       </label>
 
       <div className="editor-field">
         <span>Folders</span>
-        <p className="editor-hint">
-          The first folder supplies Git review and read-only files. Projects without folders keep
-          the demo file tree.
-        </p>
+        <p className="editor-hint">Agents, the file browser and Review work in the first folder.</p>
         {paths.map((path, index) => (
           <div className="editor-path" key={index}>
-            <input
-              className="mono"
-              value={path}
-              placeholder={pathPlaceholder}
-              maxLength={limits.pathUtf16}
-              onChange={(event) =>
-                setPaths((current) =>
-                  current.map((item, i) => (i === index ? event.target.value : item)),
-                )
-              }
-            />
+            {onPickFolder && creating ? (
+              <span className="editor-path-chosen mono" title={path}>
+                {path}
+              </span>
+            ) : (
+              <input
+                className="mono"
+                value={path}
+                aria-label={`Folder ${index + 1}`}
+                placeholder={pathPlaceholder}
+                maxLength={limits.pathUtf16}
+                onChange={(event) =>
+                  setPaths((current) =>
+                    current.map((item, i) => (i === index ? event.target.value : item)),
+                  )
+                }
+              />
+            )}
+            {index === 0 && paths.length > 1 && (
+              <span className="editor-path-primary">Primary</span>
+            )}
             <button
               type="button"
               className="icon-button"
@@ -163,11 +205,12 @@ export function ProjectEditor({
         {paths.length < limits.paths && (
           <button
             type="button"
-            className="button editor-add"
-            onClick={() => setPaths((current) => [...current, ''])}
+            className={`button editor-add ${creating && !paths.length ? 'primary' : ''}`}
+            onClick={() => void chooseFolder()}
+            autoFocus={creating}
           >
             <FolderPlus size={13} />
-            Add folder
+            {paths.length ? 'Add another folder…' : onPickFolder ? 'Choose folder…' : 'Add folder'}
           </button>
         )}
       </div>
@@ -307,12 +350,22 @@ export function ProjectEditor({
         <button
           type="button"
           className="button primary"
-          disabled={saving}
+          disabled={saving || (creating && !paths.length)}
           onClick={() => void save()}
         >
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? 'Saving…' : creating ? 'Create project' : 'Save'}
         </button>
       </footer>
     </Dialog>
+  );
+}
+
+/** The last part of a folder path, written on either platform. */
+function folderName(path: string) {
+  return (
+    path
+      .replace(/[\\/]+$/, '')
+      .split(/[\\/]/)
+      .pop() || path
   );
 }

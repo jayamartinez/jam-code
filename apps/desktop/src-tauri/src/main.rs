@@ -2,8 +2,10 @@
 
 mod bridge;
 mod browser;
+mod folders;
 mod lifecycle;
 mod snapshots;
+mod text_input;
 
 use jam_runtime::Runtime;
 use std::sync::{Arc, atomic::AtomicBool};
@@ -32,12 +34,23 @@ fn main() {
             browser::browser_action,
             browser::browser_close,
             snapshots::snapshot_host,
-            snapshots::snapshot_toast_request
+            snapshots::snapshot_toast_request,
+            folders::pick_directory
         ])
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
-            let runtime = Runtime::open_demo(data_dir.join("jam-demo.sqlite"))?;
+            // `JAM_DEMO=1` opens a separate demo database with sample
+            // projects and the demo provider, for development and
+            // demonstrations. It never touches the user's history.
+            let runtime = if std::env::var_os("JAM_DEMO").is_some_and(|value| value == "1") {
+                let demo_dir = data_dir.join("demo");
+                std::fs::create_dir_all(&demo_dir)?;
+                Runtime::open_demo(demo_dir.join("demo.sqlite"))?
+            } else {
+                Runtime::open_user_data(&data_dir)?
+            };
+            text_input::keep_typed_text();
             app.manage(browser::BrowserHost::default());
             app.manage(snapshots::SnapshotHost::default());
             app.manage(Host {

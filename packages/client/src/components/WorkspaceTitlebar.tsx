@@ -11,7 +11,7 @@ import { ResourceIcon } from './icons';
 interface WorkspaceTitlebarProps {
   desktop: DesktopServices;
   layout: Pick<LayoutState, 'tabs' | 'activeTabId' | 'mode' | 'focus'>;
-  workspace: Pick<WorkspaceSnapshot, 'resources' | 'sessions' | 'projects'>;
+  workspace: Pick<WorkspaceSnapshot, 'resources' | 'sessions' | 'projects' | 'providers'>;
   drafts: Record<string, ChatDraft>;
   project?: Project;
   activeResource?: Resource;
@@ -251,16 +251,21 @@ export function WorkspaceTitlebar({
         }}
         onDoubleClick={() => void desktop.toggleMaximize()}
       />
-      <span
-        className="chrome-demo"
-        title={
-          desktop.platform === 'web'
-            ? 'Browser preview · in-memory data only'
-            : 'Isolated demo database · no tools execute'
-        }
-      >
-        {desktop.platform === 'web' ? 'Preview · Demo' : 'Demo'}
-      </span>
+      {/* Only the browser preview and an explicit demo database (JAM_DEMO=1)
+          carry the demo provider; a user's own workspace is never labelled. */}
+      {(desktop.platform === 'web' ||
+        workspace.providers.some((provider) => provider.id === 'mock')) && (
+        <span
+          className="chrome-demo"
+          title={
+            desktop.platform === 'web'
+              ? 'Browser preview · in-memory data only'
+              : 'Demo database · sample data, separate from your history'
+          }
+        >
+          {desktop.platform === 'web' ? 'Preview · Demo' : 'Demo'}
+        </span>
+      )}
       {layout.focus ? (
         <button className="focus-exit" onClick={onExitFocus}>
           Exit focus<Shortcut>{shortcut} .</Shortcut>

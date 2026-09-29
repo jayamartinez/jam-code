@@ -46,6 +46,8 @@ export interface SidebarProps {
   onCollapse(): void;
   /** Right-click (or the context-menu key) on a project. */
   onProjectMenu(projectId: string, event: React.MouseEvent): void;
+  /** Opens the folder picker; absent where the host has none. */
+  onAddProject?(): void;
 }
 
 export function Sidebar(props: SidebarProps) {
@@ -120,10 +122,22 @@ export function Sidebar(props: SidebarProps) {
       <section className="sidebar-section">
         <div className="section-label">
           Projects
-          <IconButton label="Adding local projects is planned" disabled>
+          <IconButton
+            label={props.onAddProject ? 'Add project' : 'Adding a folder needs the desktop app'}
+            disabled={!props.onAddProject}
+            onClick={props.onAddProject}
+          >
             <Plus size={12} />
           </IconButton>
         </div>
+        {!projects.length && (
+          <button className="project-row add-project" onClick={props.onAddProject}>
+            <span className="project-add-badge" aria-hidden="true">
+              <Plus size={11} />
+            </span>
+            <span className="name truncate">New project…</span>
+          </button>
+        )}
         {projects.map((project) => {
           const expanded = props.expandedProjectIds.includes(project.id);
           return (
@@ -144,7 +158,13 @@ export function Sidebar(props: SidebarProps) {
                     <Pin size={11} />
                   </span>
                 )}
-                <span className="branch mono">{project.branch}</span>
+                {project.folderMissing ? (
+                  <span className="branch missing" title="This project's folder can't be found">
+                    folder missing
+                  </span>
+                ) : (
+                  <span className="branch mono">{project.branch}</span>
+                )}
               </button>
               {expanded && (
                 <ProjectThreads
@@ -207,7 +227,9 @@ export function Sidebar(props: SidebarProps) {
             onChange={(event) => props.onProviderFilter(event.target.value)}
           >
             <option value="">Any provider</option>
-            <option value="mock">Mock</option>
+            {workspace.providers.some((provider) => provider.id === 'mock') && (
+              <option value="mock">Demo</option>
+            )}
             <option value="claude">Claude Code</option>
             <option value="codex">Codex</option>
           </select>

@@ -226,6 +226,69 @@ h2 {
   text-align: center;
   color: var(--color-text-muted);
 }
+.first-run {
+  gap: 10px;
+}
+.first-run h2 {
+  margin: 6px 0 0;
+  color: var(--color-text-strong);
+  font-size: calc(18px * var(--ui-scale));
+  font-weight: var(--font-weight-semibold);
+}
+.first-run > p {
+  max-width: 420px;
+  margin: 0;
+  line-height: calc(19px * var(--ui-scale));
+  font-size: calc(13px * var(--ui-scale));
+}
+.first-run > .button.primary {
+  margin-top: 6px;
+}
+.first-run-agents {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 300px;
+  margin: 14px 0 0;
+  padding: 6px;
+  list-style: none;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-fill-subtle);
+}
+.first-run-agents li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  font-size: calc(12px * var(--ui-scale));
+}
+.first-run-agent-name {
+  color: var(--color-text-secondary);
+}
+.first-run-agent-state {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: calc(11px * var(--ui-scale));
+}
+.first-run-agent-state.tone-success {
+  color: var(--color-success);
+}
+.first-run-agent-state.tone-warning {
+  color: var(--color-warning);
+}
+.first-run-agent-state.tone-muted {
+  color: var(--color-text-faint);
+}
+.first-run > .first-run-hint {
+  max-width: 320px;
+  font-size: calc(12px * var(--ui-scale));
+}
+.first-run-alpha {
+  margin: 10px 0 0;
+  color: var(--color-text-faint);
+  font-size: calc(11px * var(--ui-scale));
+}
 ::-webkit-scrollbar {
   width: 7px;
   height: 7px;

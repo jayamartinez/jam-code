@@ -20,10 +20,13 @@ export function ProjectSwitcher({
   projects,
   project,
   onChange,
+  onAddProject,
 }: {
   projects: readonly Project[];
   project?: Project;
   onChange(projectId: string): void;
+  /** Opens the folder picker; absent where the host has none. */
+  onAddProject?(): Promise<Project | null>;
 }) {
   const { open, place, root, trigger, menu, toggle, close } = useAnchoredMenu({
     compact: true,
@@ -34,7 +37,9 @@ export function ProjectSwitcher({
       )?.focus(),
   });
   const items = () => [
-    ...(menu.current?.querySelectorAll<HTMLElement>('[role="menuitemradio"]') ?? []),
+    ...(menu.current?.querySelectorAll<HTMLElement>(
+      '[role="menuitemradio"], [role="menuitem"]:not([disabled])',
+    ) ?? []),
   ];
   return (
     <span className="project-switcher" ref={root}>
@@ -84,22 +89,37 @@ export function ProjectSwitcher({
                 <span className="choice-option-copy">
                   <strong>{item.name}</strong>
                 </span>
-                {!item.paths?.length && <small className="project-option-note">no folder</small>}
+                {item.folderMissing ? (
+                  <small className="project-option-note">folder missing</small>
+                ) : (
+                  !item.paths?.length && <small className="project-option-note">no folder</small>
+                )}
                 <span className="choice-option-check">
                   {selected && <Check size={12} strokeWidth={2} />}
                 </span>
               </button>
             );
           })}
-          <div className="project-menu-new" aria-disabled="true" title="Adding projects is planned">
+          <button
+            type="button"
+            role="menuitem"
+            className="choice-option project-menu-new"
+            disabled={!onAddProject}
+            title={onAddProject ? undefined : 'Adding a folder needs the desktop app'}
+            onClick={() => {
+              close(true);
+              void onAddProject?.().then((added) => {
+                if (added && added.id !== project?.id) onChange(added.id);
+              });
+            }}
+          >
             <span className="project-menu-new-badge" aria-hidden="true">
               +
             </span>
             <span className="choice-option-copy">
               <strong>New project…</strong>
             </span>
-            <small className="project-option-note">Planned</small>
-          </div>
+          </button>
         </div>
       )}
     </span>

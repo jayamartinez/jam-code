@@ -4,6 +4,13 @@ export interface DesktopServices {
   toggleMaximize(): Promise<void>;
   close(): Promise<void>;
   startDragging(): Promise<void>;
+  /**
+   * The operating system's folder chooser. Resolves to the chosen folder's
+   * path, or `null` when the chooser was cancelled. Absent where the host
+   * has no local folders, such as the browser preview or a future remote
+   * client.
+   */
+  pickDirectory?(): Promise<string | null>;
   /** Native Browser views. Absent where the host cannot embed one. */
   browser?: BrowserHost;
   snapshots?: SnapshotHost;

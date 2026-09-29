@@ -1943,3 +1943,14 @@ button.context-action:disabled:not(:has(.context-spinner)) > span {
   color: var(--color-text-faint);
   font-size: calc(11px * var(--ui-scale));
 }
+button.project-menu-new {
+  width: 100%;
+  border-radius: 0;
+  text-align: left;
+}
+button.project-menu-new:not(:disabled) {
+  cursor: pointer;
+}
+button.project-menu-new:not(:disabled) strong {
+  color: var(--color-text-secondary);
+}

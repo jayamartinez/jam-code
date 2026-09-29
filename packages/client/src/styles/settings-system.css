@@ -163,18 +163,9 @@
   color: var(--color-text-subtle);
   font-size: calc(12.5px * var(--ui-scale));
 }
-.sv-about-links {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+.sv-about-legal {
   padding-left: 2px;
-  font-size: calc(12px * var(--ui-scale));
-}
-.sv-about-links .sep {
-  margin-right: 8px;
-  color: var(--color-text-ghost);
-}
-.sv-about-link {
   color: var(--color-text-muted);
+  font-size: calc(12px * var(--ui-scale));
+  line-height: calc(17px * var(--ui-scale));
 }

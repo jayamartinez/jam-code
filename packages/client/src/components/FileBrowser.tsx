@@ -50,6 +50,8 @@ export interface FileBrowserProps extends Pick<
 > {
   transport: JamTransport;
   project?: Project;
+  /** Lists the chat's worktree instead of the project's folder. */
+  worktreeId?: string;
   /** Project-relative path of the file currently open in the workspace. */
   selectedPath?: string;
   /** Expanded folders, owned by the client outside this pane's lifetime. */
@@ -64,6 +66,7 @@ export interface FileBrowserProps extends Pick<
 export function FileBrowser({
   transport,
   project,
+  worktreeId,
   selectedPath,
   expanded,
   onExpandedChange,
@@ -73,64 +76,68 @@ export function FileBrowser({
   ...chrome
 }: FileBrowserProps) {
   const projectId = project?.id ?? '';
+  const cacheKey = worktreeId ? `${projectId}@${worktreeId}` : projectId;
   const [listings, setListings] = useState<Record<string, Listing>>(
-    () => listingCache.get(projectId) ?? {},
+    () => listingCache.get(cacheKey) ?? {},
   );
-  const [demo, setDemo] = useState(true);
+  const [demo, setDemo] = useState(false);
 
   const load = useCallback(
     (path: string) => {
       setListings((current) => {
         if (current[path]?.state === 'ready') return current;
         const next = { ...current, [path]: { state: 'loading' as const } };
-        listingCache.set(projectId, next);
+        listingCache.set(cacheKey, next);
         return next;
       });
-      transport.request('directory.list', { projectId, path }).then(
-        (listing) => {
-          setDemo(listing.demo);
-          setListings((current) => {
-            const next = {
-              ...current,
-              [path]: {
-                state: 'ready' as const,
-                entries: listing.entries,
-                truncated: listing.truncated,
-              },
-            };
-            listingCache.set(projectId, next);
-            return next;
-          });
-        },
-        (error: unknown) => {
-          setListings((current) => {
-            const next = {
-              ...current,
-              [path]: {
-                state: 'error' as const,
-                message:
-                  error instanceof Error ? error.message : 'This folder could not be listed.',
-              },
-            };
-            listingCache.set(projectId, next);
-            return next;
-          });
-        },
-      );
+      transport
+        .request('directory.list', { projectId, path, ...(worktreeId ? { worktreeId } : {}) })
+        .then(
+          (listing) => {
+            setDemo(listing.demo);
+            setListings((current) => {
+              const next = {
+                ...current,
+                [path]: {
+                  state: 'ready' as const,
+                  entries: listing.entries,
+                  truncated: listing.truncated,
+                },
+              };
+              listingCache.set(cacheKey, next);
+              return next;
+            });
+          },
+          (error: unknown) => {
+            setListings((current) => {
+              const next = {
+                ...current,
+                [path]: {
+                  state: 'error' as const,
+                  message:
+                    error instanceof Error ? error.message : 'This folder could not be listed.',
+                },
+              };
+              listingCache.set(cacheKey, next);
+              return next;
+            });
+          },
+        );
     },
-    [projectId, transport],
+    [cacheKey, projectId, transport, worktreeId],
   );
 
   // Each project keeps its own cached tree; switching never shows stale paths.
   useEffect(() => {
-    const cached = listingCache.get(projectId) ?? {};
+    const cached = listingCache.get(cacheKey) ?? {};
     setListings(cached);
-    if (projectId && cached['']?.state !== 'ready') load('');
+    // A real folder changes; the cached top level shows at once and refreshes.
+    if (projectId) load('');
     // Re-expanded folders that were never cached still need their listing.
     for (const path of expanded) if (!cached[path]) load(path);
     // `expanded` is client-owned and intentionally not a trigger here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, load]);
+  }, [cacheKey, projectId, load]);
 
   const toggle = (path: string) => {
     if (expanded.includes(path)) {

@@ -658,9 +658,31 @@ span.icon-slot {
   display: flex;
   gap: 6px;
 }
+.editor-path {
+  align-items: center;
+}
 .editor-path input {
   flex: 1;
   font-size: calc(12px * var(--ui-scale));
+}
+/* A folder chosen in the system chooser: shown, not typed. */
+.editor-path-chosen {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-fill-subtle);
+  color: var(--color-text-secondary);
+  font-size: calc(12px * var(--ui-scale));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.editor-path-primary {
+  flex-shrink: 0;
+  color: var(--color-text-subtle);
+  font-size: calc(11px * var(--ui-scale));
 }
 .editor-add {
   align-self: flex-start;

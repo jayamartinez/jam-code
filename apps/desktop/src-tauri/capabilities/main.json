@@ -21,6 +21,7 @@
     "core:window:allow-start-dragging",
     "core:window:allow-is-maximized",
     "allow-snapshot-host",
+    "allow-pick-directory",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

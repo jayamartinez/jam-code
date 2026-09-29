@@ -1,4 +1,5 @@
-import type { Project } from '@jam/protocol';
+import { useEffect, useRef } from 'react';
+import type { Project, ProviderId } from '@jam/protocol';
 import { ProviderIcon } from '../../icons';
 import { IDLE_THREAD_OPTIONS, TIME_FORMAT_OPTIONS } from '../../../state/preferences';
 import { ProjectBadge } from '../../ProjectBadge';
@@ -14,12 +15,21 @@ import {
   Toggle,
 } from '../controls';
 import type { SettingsPageProps } from '../types';
-import { NOTIFICATION_EVENTS, defaultProvider } from '../general-model';
+import { effortLabel } from '../../composer-model';
+import {
+  NOTIFICATION_EVENTS,
+  defaultProvider,
+  liveProviders,
+  sharedDefault,
+  sharedEfforts,
+  withSharedDefault,
+} from '../general-model';
 
 /**
- * General: how new chats and threads start. The idle-thread suggestion, the
- * default provider, streamed replies, the time format and where new threads
- * start are real today; every other control shows its intended shape,
+ * General: how new chats and threads start. The default agent, the effort
+ * and permissions every agent starts with, the idle-thread suggestion,
+ * streamed replies, the time format and where new threads start are real
+ * today; every other control shows its intended shape,
  * disabled, beside a Planned mark.
  */
 export default function GeneralPage({
@@ -34,8 +44,29 @@ export default function GeneralPage({
   newThreadWorkspace,
   onNewThreadWorkspace,
   onNavigate,
+  providerControl,
 }: SettingsPageProps) {
   const provider = defaultProvider(providers);
+  const agents = liveProviders(providers);
+  // Effort levels come from the agents' models, which a check reports.
+  useEffect(() => void providerControl.ensure(), [providerControl]);
+  const efforts = sharedEfforts(providers);
+  const effort = sharedDefault(providers, 'effort');
+  const access = sharedDefault(providers, 'access');
+  // A save replaces an agent's whole defaults record, so each change builds
+  // on the one sent before it rather than on a snapshot that may be stale.
+  const pending = useRef(new Map<string, Record<string, string>>());
+  useEffect(() => pending.current.clear(), [providers]);
+  const applyShared = (key: 'access' | 'effort', value: string) => {
+    const latest = providers.map((agent) => {
+      const defaults = pending.current.get(agent.id);
+      return defaults ? { ...agent, defaults } : agent;
+    });
+    for (const change of withSharedDefault(latest, key, value)) {
+      pending.current.set(change.providerId, change.defaults);
+      void providerControl.configure(change);
+    }
+  };
   return (
     <div className="sv-page">
       <PageHeader
@@ -47,15 +78,31 @@ export default function GeneralPage({
         <Card>
           <Row
             title="Default agent"
-            sub="Used when you start a chat without picking one. Each provider's own defaults live in Providers."
+            sub="New chats start with this agent; you can switch before sending."
           >
-            {provider ? (
-              <span className="gt-pill">
-                <ProviderIcon providerId={provider.id} />
-                {provider.name}
-              </span>
+            {agents.some((agent) => agent.enabled) ? (
+              <Segmented
+                label="Default agent"
+                value={(provider?.id ?? '') as string}
+                options={agents
+                  .filter((agent) => agent.enabled)
+                  .map((agent) => ({
+                    value: agent.id,
+                    label: (
+                      <span className="gt-agent-choice">
+                        <ProviderIcon providerId={agent.id} />
+                        {agent.name}
+                      </span>
+                    ),
+                  }))}
+                onChange={(id) =>
+                  void providerControl.configure({ providerId: id as ProviderId, isDefault: true })
+                }
+              />
             ) : (
-              <span className="sv-mono">None enabled</span>
+              <button type="button" className="sv-link" onClick={() => onNavigate('Providers')}>
+                Turn on an agent in Providers ›
+              </button>
             )}
           </Row>
           <Row
@@ -65,46 +112,41 @@ export default function GeneralPage({
             <Toggle label="Stream replies" on={streamReplies} onChange={onStreamReplies} />
           </Row>
           <Row
-            title={
-              <>
-                Effort <Planned />
-              </>
+            title="Effort"
+            sub={
+              effort === null
+                ? 'Your agents currently start at different levels. Pick one to align them.'
+                : 'For every agent. An agent whose model lacks a level keeps its own default.'
             }
+            disabled={!efforts.length}
           >
             <Segmented
               label="Effort"
-              value="medium"
+              value={effort ?? ''}
               options={[
-                { value: 'low', label: 'Low' },
-                { value: 'medium', label: 'Medium' },
-                { value: 'high', label: 'High' },
-                { value: 'max', label: 'Max' },
+                { value: '', label: 'Agent default' },
+                ...efforts.map((level) => ({ value: level, label: effortLabel(level) })),
               ]}
+              onChange={(value) => applyShared('effort', value)}
             />
           </Row>
           <Row
-            title={
-              <>
-                Default permissions <Planned />
-              </>
-            }
+            title="Default permissions"
             sub={
-              <>
-                Applies to new chats. Fine-tune it for each agent in{' '}
-                <button type="button" className="sv-link" onClick={() => onNavigate('Providers')}>
-                  Providers ›
-                </button>
-              </>
+              access === null
+                ? 'Your agents currently start with different access. Pick one to align them.'
+                : 'What agents may do without asking, in every new chat. A chat can still change it.'
             }
           >
             <Segmented
               label="Default permissions"
-              value="ask"
+              value={access === null ? '' : access || 'ask'}
               options={[
                 { value: 'ask', label: 'Ask for approval' },
                 { value: 'edits', label: 'Auto-accept edits' },
                 { value: 'full', label: 'Full access' },
               ]}
+              onChange={(value) => applyShared('access', value)}
             />
           </Row>
         </Card>
