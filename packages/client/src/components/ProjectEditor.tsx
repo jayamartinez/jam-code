@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Folder, FolderOpen, Plus, X } from 'lucide-react';
 import { PROJECT_ICONS, initialsOf, type Project, type ProjectIcon } from '@jam/protocol';
 import { Dialog } from './Controls';
-import { EmojiButton } from './EmojiButton';
 import { PRESET_GLYPHS, ProjectBadge, TONE_LABELS, squareProjectImage } from './ProjectBadge';
 
 /**
@@ -21,7 +20,6 @@ type IconKind = ProjectIcon['kind'];
 export function ProjectEditor({
   project,
   onPickFolder,
-  onOpenEmojiPicker,
   onSave,
   onClose,
 }: {
@@ -29,8 +27,6 @@ export function ProjectEditor({
   project?: Project;
   /** The system folder chooser, opened in `start` when given. */
   onPickFolder?(start?: string): Promise<string | null>;
-  /** The system emoji picker. */
-  onOpenEmojiPicker?(): Promise<void>;
   onSave(changes: { name: string; paths: string[]; icon: ProjectIcon }): Promise<void>;
   onClose(): void;
 }) {
@@ -44,9 +40,8 @@ export function ProjectEditor({
   const [preset, setPreset] = useState(
     project?.icon?.kind === 'preset' ? (project.icon.value ?? 'rocket') : 'rocket',
   );
-  const [emoji, setEmoji] = useState(
-    project?.icon?.kind === 'emoji' ? (project.icon.value ?? '') : '',
-  );
+  // Emoji icons can no longer be chosen; one a project already has is kept.
+  const emoji = project?.icon?.kind === 'emoji' ? (project.icon.value ?? '') : '';
   const [image, setImage] = useState(
     project?.icon?.kind === 'image' ? project.icon.value : undefined,
   );
@@ -159,13 +154,10 @@ export function ProjectEditor({
                     kind={kind}
                     tone={tone}
                     preset={preset}
-                    emoji={emoji}
                     image={image}
-                    {...(onOpenEmojiPicker ? { onOpenEmojiPicker } : {})}
                     onKind={setKind}
                     onTone={setTone}
                     onPreset={setPreset}
-                    onEmoji={setEmoji}
                     onImage={setImage}
                     onError={setError}
                     onClose={() => setIconOpen(false)}
@@ -245,18 +237,15 @@ export function ProjectEditor({
   );
 }
 
-/** The icon's kinds, glyphs, emoji, image and tones, under the icon. */
+/** The icon's kinds, glyphs, image and tones, under the icon. */
 function IconPopover({
   kind,
   tone,
   preset,
-  emoji,
   image,
-  onOpenEmojiPicker,
   onKind,
   onTone,
   onPreset,
-  onEmoji,
   onImage,
   onError,
   onClose,
@@ -264,13 +253,10 @@ function IconPopover({
   kind: IconKind;
   tone: string;
   preset: string;
-  emoji: string;
   image: string | undefined;
-  onOpenEmojiPicker?(): Promise<void>;
   onKind(kind: IconKind): void;
   onTone(tone: string): void;
   onPreset(preset: string): void;
-  onEmoji(emoji: string): void;
   onImage(image: string): void;
   onError(message: string | null): void;
   onClose(): void;
@@ -300,7 +286,7 @@ function IconPopover({
       }}
     >
       <div className="icon-popover-kinds" role="tablist" aria-label="Icon type">
-        {(['initials', 'preset', 'emoji', 'image'] as const).map((option) => (
+        {(['initials', 'preset', 'image'] as const).map((option) => (
           <button
             key={option}
             type="button"
@@ -333,14 +319,6 @@ function IconPopover({
             );
           })}
         </div>
-      )}
-
-      {kind === 'emoji' && (
-        <EmojiButton
-          value={emoji}
-          onChange={onEmoji}
-          {...(onOpenEmojiPicker ? { onOpenPicker: onOpenEmojiPicker } : {})}
-        />
       )}
 
       {kind === 'image' && (

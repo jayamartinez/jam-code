@@ -36,6 +36,8 @@ export interface SidebarProps {
   shortcut: string;
   /** Selects a project and shows or hides its threads. */
   onProject(id: string): void;
+  /** A new thread in this project, from the + on its row. */
+  onNewThread(projectId: string): void;
   /** Projects whose threads are listed under them; several can be open. */
   expandedProjectIds: string[];
   /** Days idle before suggesting a thread be closed; null never suggests. */
@@ -177,6 +179,15 @@ export function Sidebar(props: SidebarProps) {
                 ) : (
                   <span className="branch mono">{project.branch}</span>
                 )}
+              </button>
+              <button
+                type="button"
+                className="project-new-thread"
+                aria-label={`New thread in ${project.name}`}
+                title="New thread"
+                onClick={() => props.onNewThread(project.id)}
+              >
+                <Plus size={13} />
               </button>
               {expanded && (
                 <ProjectThreads

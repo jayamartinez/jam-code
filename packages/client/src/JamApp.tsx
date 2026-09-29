@@ -352,8 +352,10 @@ export function JamApp({ transport, desktop }: JamAppProps) {
    * with the requested agent when that is enabled, else the default one.
    */
   const newChat = useCallback(
-    (requested?: ProviderId, paneId?: string) => {
+    (requested?: ProviderId, paneId?: string, inProject = projectId) => {
+      const projectId = inProject;
       if (!projectId) return;
+      setProjectId(projectId);
       const id = `draft:${crypto.randomUUID()}`;
       const providers = client.getSnapshot().workspace?.providers ?? [];
       const providerId = draftProvider(providers, requested);
@@ -620,7 +622,6 @@ export function JamApp({ transport, desktop }: JamAppProps) {
           pickFolder: (start?: string) => desktop.pickDirectory!(start),
         }
       : {}),
-    ...(desktop.openEmojiPicker ? { openEmojiPicker: desktop.openEmojiPicker } : {}),
     remove: removeProject,
   };
 
@@ -1553,6 +1554,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                 providerFilter={providerFilter}
                 shortcut={shortcut}
                 onProject={toggleProject}
+                onNewThread={(id) => newChat(undefined, undefined, id)}
                 expandedProjectIds={expandedProjects ?? [projectId]}
                 idleThreadDays={idleThreadDays}
                 onCloseThread={(id) => setThreadClosed(id, true)}
@@ -1811,7 +1813,6 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         {creatingProject && (
           <ProjectEditor
             {...(desktop.pickDirectory ? { onPickFolder: desktop.pickDirectory } : {})}
-            {...(desktop.openEmojiPicker ? { onOpenEmojiPicker: desktop.openEmojiPicker } : {})}
             onSave={createProject}
             onClose={() => closeNewProject(null)}
           />
@@ -1823,7 +1824,6 @@ export function JamApp({ transport, desktop }: JamAppProps) {
               <ProjectEditor
                 project={target}
                 {...(desktop.pickDirectory ? { onPickFolder: desktop.pickDirectory } : {})}
-                {...(desktop.openEmojiPicker ? { onOpenEmojiPicker: desktop.openEmojiPicker } : {})}
                 onSave={(changes) => updateProject(target.id, changes)}
                 onClose={() => setEditingProject(null)}
               />

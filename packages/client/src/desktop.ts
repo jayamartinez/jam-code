@@ -12,11 +12,6 @@ export interface DesktopServices {
    */
   pickDirectory?(start?: string): Promise<string | null>;
   /**
-   * Opens the operating system's emoji picker, which types into the focused
-   * field. Absent where the host has none.
-   */
-  openEmojiPicker?(): Promise<void>;
-  /**
    * Opens JAM Code's GitHub page for a bug report (prefilled with version,
    * OS and WebView only), a feature idea, or the documentation.
    */

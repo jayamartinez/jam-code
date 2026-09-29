@@ -22,7 +22,6 @@
     "core:window:allow-is-maximized",
     "allow-snapshot-host",
     "allow-pick-directory",
-    "allow-open-emoji-picker",
     "allow-open-feedback",
     "allow-set-attention-badge",
     "allow-notify",

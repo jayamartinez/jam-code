@@ -49,7 +49,6 @@ fn main() {
             "snapshot_host",
             "snapshot_toast_request",
             "pick_directory",
-            "open_emoji_picker",
             "open_feedback",
             "set_attention_badge",
             "notify",

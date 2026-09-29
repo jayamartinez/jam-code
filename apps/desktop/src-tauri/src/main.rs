@@ -4,7 +4,6 @@ mod app_webview;
 mod attention;
 mod bridge;
 mod browser;
-mod emoji;
 mod feedback;
 mod folders;
 mod lifecycle;
@@ -41,7 +40,6 @@ fn main() {
             snapshots::snapshot_host,
             snapshots::snapshot_toast_request,
             folders::pick_directory,
-            emoji::open_emoji_picker,
             feedback::open_feedback,
             attention::set_attention_badge,
             attention::notify

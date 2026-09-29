@@ -187,10 +187,3 @@ void jam_disable_text_substitution(void) {
     }
 }
 
-// Not Snapshots: the Character Viewer for picking a project emoji (see
-// src/emoji.rs). AppKit wants the main thread.
-void jam_open_character_palette(void) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [NSApp orderFrontCharacterPalette:nil];
-    });
-}
