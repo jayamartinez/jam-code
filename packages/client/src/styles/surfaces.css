@@ -576,3 +576,85 @@
     width: 230px;
   }
 }
+
+/* Settings search: the field from Paper's nav; results replace the sections. */
+.settings-search {
+  height: 36px;
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: var(--color-fill-subtle);
+  color: var(--color-text-subtle);
+}
+.settings-search:focus-within {
+  border-color: var(--color-accent-border);
+}
+.settings-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: calc(12px * var(--ui-scale));
+  outline: none;
+}
+.settings-search input::placeholder {
+  color: var(--color-text-subtle);
+}
+.settings-inner-search {
+  padding: 0 8px 10px;
+}
+.settings-inner-search .settings-search {
+  height: 30px;
+}
+.settings-results {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.settings-result {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  text-align: left;
+}
+.settings-result span {
+  color: var(--color-text-primary);
+  font-size: calc(13px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
+}
+.settings-result small {
+  color: var(--color-text-subtle);
+  font-size: calc(11px * var(--ui-scale));
+  line-height: calc(14px * var(--ui-scale));
+}
+.settings-result:hover:not(:disabled),
+.settings-result:focus-visible {
+  background: var(--color-fill);
+}
+.settings-no-results {
+  padding: 8px;
+  color: var(--color-text-subtle);
+  font-size: calc(12px * var(--ui-scale));
+}
+.sv-row-found {
+  border-radius: var(--radius-md);
+  animation: sv-row-found 1.8s ease-out;
+}
+@keyframes sv-row-found {
+  0%,
+  40% {
+    background: var(--color-accent-soft);
+    box-shadow: 0 0 0 1px var(--color-accent-border);
+  }
+  100% {
+    background: transparent;
+    box-shadow: none;
+  }
+}
