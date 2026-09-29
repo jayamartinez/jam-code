@@ -1293,13 +1293,18 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             annotations={annotations}
             destination={target?.title}
             onAnnotated={(annotation) =>
-              setBrowserAnnotations((current) => ({
-                ...current,
-                [resource.id]: [...(current[resource.id] ?? emptyAnnotations), annotation].slice(
-                  0,
-                  16,
-                ),
-              }))
+              setBrowserAnnotations((current) => {
+                const list = current[resource.id] ?? emptyAnnotations;
+                // An edited annotation comes back under the number it had.
+                const at = list.findIndex(
+                  (item) => item.index !== undefined && item.index === annotation.index,
+                );
+                const next =
+                  at >= 0
+                    ? list.map((item, i) => (i === at ? annotation : item))
+                    : [...list, annotation].slice(0, 16);
+                return { ...current, [resource.id]: next };
+              })
             }
             onClearAnnotations={() => setAnnotations(emptyAnnotations)}
             onStageAnnotations={() => {

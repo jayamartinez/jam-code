@@ -42,6 +42,8 @@ export interface BrowserPageState {
  */
 export interface BrowserAnnotation {
   kind: 'element' | 'region';
+  /** Its number on the page; an edit arrives again with the same number. */
+  index?: number;
   comment: string;
   /** For a region, the selectors of the elements it mostly covers. */
   selector: string;
