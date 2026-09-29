@@ -78,6 +78,8 @@ import type { FileReference } from './markdown/file-refs';
 import { parseAddress } from './state/browser-address';
 import { ProjectEditor } from './components/ProjectEditor';
 import { FirstRun } from './components/FirstRun';
+import { AgentSetup } from './components/AgentSetup';
+import { isAgentReady } from './components/agent-setup-model';
 import { withSharedDefault } from './components/settings/general-model';
 import { BrowserResource, describeAnnotation } from './components/BrowserResource';
 
@@ -172,6 +174,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   const [iconTheme, setIconTheme] = useFileIconThemeChoice();
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [editingProject, setEditingProject] = useState<string | null>(null);
+  /** A re-check the "no agent ready" screen asked for is running. */
+  const [checkingAgents, setCheckingAgents] = useState(false);
   const [idleThreadDays, setIdleThreadDays] = useIdleThreadDays();
   const [streamReplies, setStreamReplies] = useStreamReplies();
   const [timeFormat, setTimeFormat] = useTimeFormat();
@@ -1104,6 +1108,45 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     const draft = newChats[resourceId];
     if (draft) {
       const draftProject = workspace.projects.find((item) => item.id === draft.projectId);
+      // Once the agents have been checked and none can run, the chat says
+      // what to install or sign in to instead of offering a composer.
+      const agents = workspace.providers.filter((item) => item.id !== 'mock');
+      const noAgent =
+        agents.some((item) => item.checkedAt) &&
+        !workspace.providers.some((item) => item.id === 'mock' && item.enabled) &&
+        !agents.some(isAgentReady);
+      if (noAgent)
+        return (
+          <PaneChrome
+            {...chrome}
+            className="new-chat-pane"
+            label="New chat"
+            heading={
+              <>
+                <span className="project-label muted">{draftProject?.name}</span>
+                <span className="separator subtle">/</span>
+                <span className="resource-title">New chat</span>
+              </>
+            }
+          >
+            <AgentSetup
+              providers={workspace.providers}
+              platform={desktop.platform}
+              checking={checkingAgents}
+              onCheckAgain={() => {
+                setCheckingAgents(true);
+                void client.refreshProviders().finally(() => setCheckingAgents(false));
+              }}
+              onOpenTerminal={() =>
+                void openKind('terminal', undefined, paneId ?? undefined, draft.projectId)
+              }
+              onSettings={() => {
+                setSettingsStartPage('Providers');
+                setSettingsMode('dedicated');
+              }}
+            />
+          </PaneChrome>
+        );
       return (
         <PaneChrome
           {...chrome}
