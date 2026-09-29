@@ -180,6 +180,34 @@
   border-radius: 5px;
   border: 1px dashed var(--color-border-strong);
 }
+/* On hover, a project's branch gives way to + for a new thread there. */
+.project-group {
+  position: relative;
+}
+.project-new-thread {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--color-text-secondary);
+}
+.project-new-thread:hover:not(:disabled) {
+  background: var(--color-fill-strong);
+  color: var(--color-text-primary);
+}
+.project-group:hover > .project-new-thread,
+.project-new-thread:focus-visible {
+  display: flex;
+}
+.project-group:hover > .project-row .branch,
+.project-group:hover > .project-row .project-pin {
+  visibility: hidden;
+}
 /* An expanded project hands the highlight to its threads and keeps its weight. */
 .project-row.selected.expanded {
   background: transparent;

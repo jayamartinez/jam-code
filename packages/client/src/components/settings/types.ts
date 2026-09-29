@@ -47,8 +47,6 @@ export interface ProjectControl {
   remove(projectId: string): Promise<void>;
   /** Chooses a folder with the picker, opened in `start`; absent without one. */
   pickFolder?(start?: string): Promise<string | null>;
-  /** Opens the system emoji picker; absent without one. */
-  openEmojiPicker?(): Promise<void>;
 }
 
 /** Everything a Settings page may read or change. Pages own no records. */

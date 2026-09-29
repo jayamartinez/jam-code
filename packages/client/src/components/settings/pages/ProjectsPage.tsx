@@ -1,6 +1,5 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { PROJECT_ICONS, type Project } from '@jam/protocol';
-import { EmojiButton } from '../../EmojiButton';
 import { PRESET_GLYPHS, ProjectBadge, TONE_LABELS, squareProjectImage } from '../../ProjectBadge';
 import { Planned, Row, Segmented, Select, Toggle } from '../controls';
 import {
@@ -19,7 +18,6 @@ import type { ProjectChanges, ProjectControl, SettingsPageProps } from '../types
 const ICON_KINDS: { value: IconKind; label: string }[] = [
   { value: 'initials', label: 'Initials' },
   { value: 'preset', label: 'Glyph' },
-  { value: 'emoji', label: 'Emoji' },
   { value: 'image', label: 'Image' },
 ];
 const limits = PROJECT_ICONS.limits;
@@ -285,15 +283,6 @@ function ProjectDetail({
                 })}
               </div>
             )}
-            {draft.kind === 'emoji' && (
-              <div className="sv-icon-line">
-                <EmojiButton
-                  value={draft.emoji}
-                  onChange={(emoji) => changeIcon({ ...draft, emoji })}
-                  {...(control.openEmojiPicker ? { onOpenPicker: control.openEmojiPicker } : {})}
-                />
-              </div>
-            )}
             {draft.kind === 'image' && (
               <div className="sv-icon-line">
                 <label className="sv-button">
@@ -469,7 +458,7 @@ function ProjectDetail({
 
       <div className="sv-danger-row">
         <div>
-          <strong>Remove from JAM</strong>
+          <strong>Remove from JAM Code</strong>
           <p>
             {confirmingRemoval
               ? `Remove ${project.name}? Its folder isn’t touched, and its chats come back if you add the folder again.`
