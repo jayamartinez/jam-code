@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { Session } from '@jam/protocol';
 
 export type ChatEvent = 'finished' | 'input' | 'error';
@@ -87,4 +87,20 @@ export function attentionBadge(
   if (!count) return null;
   const tone = input ? 'input' : attention.failed.size ? 'error' : 'finished';
   return { count, tone };
+}
+
+/** Whether JAM's window is the one in use; a chat on screen only counts as seen then. */
+export function useWindowFocused() {
+  return useSyncExternalStore(
+    (listener) => {
+      window.addEventListener('focus', listener);
+      window.addEventListener('blur', listener);
+      return () => {
+        window.removeEventListener('focus', listener);
+        window.removeEventListener('blur', listener);
+      };
+    },
+    () => document.hasFocus(),
+    () => true,
+  );
 }
