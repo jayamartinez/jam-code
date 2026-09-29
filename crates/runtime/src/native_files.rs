@@ -15,13 +15,70 @@ pub(crate) fn project_folder(project: &Project) -> Result<Option<PathBuf>, JamEr
     } else {
         PathBuf::from(path)
     };
-    let root = path
-        .canonicalize()
+    let root = canonical(&path)
         .map_err(|_| JamError::new("not_found", "The project's first folder is unavailable."))?;
     if !root.is_dir() {
         return Err(JamError::invalid("The project path must be a directory."));
     }
     Ok(Some(root))
+}
+
+/// `canonicalize`, without the verbatim `\\?\` prefix Windows adds when the
+/// ordinary path names the same file. Providers, Git and Explorer report and
+/// expect ordinary paths, and the prefix must not reach the interface.
+pub(crate) fn canonical(path: &Path) -> std::io::Result<PathBuf> {
+    path.canonicalize().map(simplified)
+}
+
+#[cfg(windows)]
+fn simplified(path: PathBuf) -> PathBuf {
+    use std::path::{Component, Prefix};
+    let mut components = path.components();
+    let Some(Component::Prefix(prefix)) = components.next() else {
+        return path;
+    };
+    let ordinary = match prefix.kind() {
+        Prefix::VerbatimDisk(drive) => format!("{}:", drive as char),
+        Prefix::VerbatimUNC(server, share) => match (server.to_str(), share.to_str()) {
+            (Some(server), Some(share)) => format!(r"\\{server}\{share}"),
+            _ => return path,
+        },
+        _ => return path,
+    };
+    let rest = components.as_path();
+    // Win32 path parsing would reinterpret these, so they stay verbatim.
+    let reinterpreted = rest.components().any(|component| {
+        let std::path::Component::Normal(name) = component else {
+            return false;
+        };
+        let Some(name) = name.to_str() else {
+            return true;
+        };
+        let stem = name
+            .split('.')
+            .next()
+            .unwrap_or(name)
+            .trim_end()
+            .to_ascii_uppercase();
+        name.ends_with(['.', ' '])
+            || matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+            || ((stem.starts_with("COM") || stem.starts_with("LPT"))
+                && stem.len() == 4
+                && stem.as_bytes()[3].is_ascii_digit())
+    });
+    let Some(rest) = rest.to_str() else {
+        return path;
+    };
+    let candidate = format!("{ordinary}{rest}");
+    if reinterpreted || candidate.len() >= 260 {
+        return path;
+    }
+    PathBuf::from(candidate)
+}
+
+#[cfg(not(windows))]
+fn simplified(path: PathBuf) -> PathBuf {
+    path
 }
 /// Reject traversal, platform prefixes and repository metadata.
 /// Literal Git pathspec mode also protects valid names like `:(glob)*`.
@@ -143,9 +200,8 @@ fn open_scoped(root: &Path, path: &str) -> Result<std::fs::File, JamError> {
             return Err(JamError::new("unavailable", "Symlinks are unsupported."));
         }
     }
-    let resolved = target
-        .canonicalize()
-        .map_err(|_| JamError::new("not_found", "File is unavailable."))?;
+    let resolved =
+        canonical(&target).map_err(|_| JamError::new("not_found", "File is unavailable."))?;
     if !resolved.starts_with(root) || !resolved.is_file() {
         return Err(JamError::invalid(
             "Only regular project files can be opened.",
@@ -153,4 +209,34 @@ fn open_scoped(root: &Path, path: &str) -> Result<std::fs::File, JamError> {
     }
     std::fs::File::open(resolved)
         .map_err(|_| JamError::new("unavailable", "File could not be opened."))
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::simplified;
+    use std::path::PathBuf;
+
+    #[test]
+    fn verbatim_prefixes_are_dropped_only_when_equivalent() {
+        let plain = |s: &str| simplified(PathBuf::from(s));
+        assert_eq!(
+            plain(r"\\?\C:\Users\a b\café"),
+            PathBuf::from(r"C:\Users\a b\café")
+        );
+        assert_eq!(
+            plain(r"\\?\UNC\server\share\dir"),
+            PathBuf::from(r"\\server\share\dir")
+        );
+        assert_eq!(plain(r"C:\already"), PathBuf::from(r"C:\already"));
+        for kept in [
+            r"\\?\C:\dir\con",
+            r"\\?\C:\dir\nul.txt",
+            r"\\?\C:\trailing.",
+            r"\\?\C:\com1",
+        ] {
+            assert_eq!(plain(kept), PathBuf::from(kept), "{kept}");
+        }
+        let long = format!(r"\\?\C:\{}", "a".repeat(300));
+        assert_eq!(plain(&long), PathBuf::from(&long));
+    }
 }

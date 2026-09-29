@@ -509,9 +509,16 @@ impl TerminalManager {
         // SIGHUP on macOS/Linux, as closing a terminal window sends; an
         // interactive shell passes it on to its jobs. TerminateProcess on
         // Windows, where the pseudoconsole is then closed on exit.
-        live.killer
-            .kill()
-            .map_err(|_| JamError::new("conflict", "The shell could not be stopped."))?;
+        let killed = live.killer.kill();
+        // portable-pty 0.9 reports a successful TerminateProcess as an error
+        // on Windows. The reader reports the exit once the shell has actually
+        // gone, so a shell that survived still shows as running.
+        #[cfg(windows)]
+        let killed: std::io::Result<()> = {
+            let _ = killed;
+            Ok(())
+        };
+        killed.map_err(|_| JamError::new("conflict", "The shell could not be stopped."))?;
         state.kill_requested = true;
         state.session.clone().ok_or_else(not_running)
     }

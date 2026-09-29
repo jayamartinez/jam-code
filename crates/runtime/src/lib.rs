@@ -6,6 +6,8 @@ mod events;
 mod files;
 pub mod git;
 mod native_files;
+#[cfg(windows)]
+mod process_tree;
 pub mod protocol;
 mod provider_requests;
 pub mod providers;

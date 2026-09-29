@@ -666,7 +666,7 @@ impl Runtime {
         }
         // Every provider process ends with JAM, including idle ones kept
         // for their next turn; sessions resume from the provider's ID.
-        self.providers.shutdown();
+        self.providers.shutdown().await;
         Ok(())
     }
 }

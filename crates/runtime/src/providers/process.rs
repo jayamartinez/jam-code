@@ -82,6 +82,7 @@ pub(crate) struct StdioChild {
     exit: watch::Receiver<Option<Exit>>,
     stderr: Arc<Mutex<Vec<u8>>>,
     kill: Mutex<Option<oneshot::Sender<()>>>,
+    pid: Option<u32>,
 }
 
 impl StdioChild {
@@ -153,15 +154,16 @@ impl StdioChild {
             let status = tokio::select! {
                 status = child.wait() => status.ok().map(|status| (status.code(), false)),
                 _ = kill_rx => {
-                    terminate_group(pid);
+                    terminate_tree(pid).await;
                     let _ = child.start_kill();
                     child.wait().await.ok().map(|status| (status.code(), true))
                 }
             };
             let (code, killed) = status.unwrap_or((None, true));
             // The group may still hold tools the agent started.
+            #[cfg(unix)]
             if !killed {
-                terminate_group(pid);
+                terminate_tree(pid).await;
             }
             let _ = exit_tx.send(Some(Exit { code, killed }));
         });
@@ -172,6 +174,7 @@ impl StdioChild {
                 exit,
                 stderr,
                 kill: Mutex::new(Some(kill_tx)),
+                pid,
             },
             lines_rx,
         ))
@@ -216,6 +219,26 @@ impl StdioChild {
         }
     }
 
+    /// Terminates the process group before returning, for shutdown, where
+    /// JAM may exit before the background task that `kill` signals runs.
+    /// Blocks briefly on Windows; call it off the async threads.
+    pub fn kill_now(&self) {
+        if self.exited().is_none() {
+            #[cfg(unix)]
+            if let Some(pid) = self
+                .pid
+                .and_then(|pid| rustix::process::Pid::from_raw(pid as i32))
+            {
+                let _ = rustix::process::kill_process_group(pid, rustix::process::Signal::KILL);
+            }
+            #[cfg(windows)]
+            if let Some(pid) = self.pid {
+                crate::process_tree::terminate(pid);
+            }
+        }
+        self.kill();
+    }
+
     /// The last line of stderr, bounded for display. Provider stderr can echo
     /// arbitrary content, so it only ever appears in a local error message.
     pub fn stderr_summary(&self) -> Option<String> {
@@ -232,12 +255,18 @@ impl Drop for StdioChild {
     }
 }
 
-fn terminate_group(pid: Option<u32>) {
+/// Ends the child and everything it started: its process group on Unix,
+/// its live process tree on Windows (see `process_tree`).
+async fn terminate_tree(pid: Option<u32>) {
     #[cfg(unix)]
     if let Some(pid) = pid.and_then(|pid| rustix::process::Pid::from_raw(pid as i32)) {
         let _ = rustix::process::kill_process_group(pid, rustix::process::Signal::KILL);
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    if let Some(pid) = pid {
+        let _ = tokio::task::spawn_blocking(move || crate::process_tree::terminate(pid)).await;
+    }
+    #[cfg(not(any(unix, windows)))]
     let _ = pid;
 }
 
@@ -330,5 +359,41 @@ mod tests {
         let exit = child.wait().await;
         assert_eq!(exit.code, Some(0));
         assert!(!exit.killed);
+    }
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::*;
+
+    /// A command the agent started must end with the provider, as Unix
+    /// process-group termination guarantees there.
+    #[tokio::test]
+    async fn killing_the_child_ends_its_descendants() {
+        let dir = std::env::temp_dir().join(format!("jam-tree-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let marker = dir.join("marker.txt");
+        let script = dir.join("tree.cmd");
+        // The grandchild writes the marker after about two seconds unless it
+        // was ended with the provider.
+        std::fs::write(
+            &script,
+            "@echo off\r\nstart \"\" /b cmd /c \"ping -n 3 127.0.0.1 >nul & echo survived>\"%~dp0marker.txt\"\"\r\nping -n 30 127.0.0.1 >nul\r\n",
+        )
+        .unwrap();
+        let spec = LaunchSpec::new("cmd.exe".into())
+            .arg("/c")
+            .arg(script.as_os_str());
+        let (child, _lines) = StdioChild::spawn(&spec).unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(700)).await;
+        child.kill();
+        let exit = tokio::time::timeout(std::time::Duration::from_secs(5), child.wait())
+            .await
+            .unwrap();
+        assert!(exit.killed);
+        tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+        let survived = marker.exists();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(!survived, "a descendant outlived the provider process");
     }
 }

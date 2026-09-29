@@ -124,7 +124,7 @@ Answers are validated against the offered choices and questions and delivered ex
 - Providers are checked on first need (the New Chat picker, a real conversation, Settings → Providers), not at launch; "Check again" re-asks. A check runs `--version`, reads sign-in state and lists models. It makes no inference request.
 - Codex: one shared `codex app-server`, started on the first turn and stopped after 15 idle minutes or on Quit. Threads are resumed on a new process.
 - Claude Code: one process per JAM session while it is in use, stopped after 15 idle minutes, on Quit, or when it cannot be reused (a different effort). The next turn resumes it by Claude's session ID.
-- Processes run in their own process group, without a shell, with the login shell's PATH; stdout lines are bounded (32 MiB) and stderr keeps an 8 KiB tail for local error messages only.
+- Processes run in their own process group (on Windows, their process tree is ended with `taskkill /T`), without a shell, with the login shell's PATH; stdout lines are bounded (32 MiB) and stderr keeps an 8 KiB tail for local error messages only.
 - **Interrupt** asks the provider to stop the current turn (`turn/interrupt`, control `interrupt`) and withdraws open requests. The session is marked interrupted at once; the provider gets up to ten seconds to settle, and a Claude process that does not settle is ended and resumed next turn. A new turn waits (bounded) for the old one to finish stopping. Interrupting is not closing the conversation, cancelling queued input or ending the provider's session.
 - A provider crash fails the turn with a notice; the next Send restarts the process and resumes. On restart, unanswered requests become `expired` and running sessions `interrupted`.
 - Closing panes, switching tabs, Single ↔ Tiles and reloading the interface never touch a provider process.
@@ -137,10 +137,11 @@ Answers are validated against the offered choices and questions and delivered ex
 
 - Steering, queued messages and forking are supported by both providers but not offered by JAM yet, and are reported as unsupported.
 - Codex questions need its experimental API and are unsupported.
+- Claude Code streams no command output while a command runs (only `task_started` and `task_notification`), and replaces an interrupted command's result with a rejection message, so its partial output never reaches JAM. Codex streams command output as it runs.
 - Claude subagent text is not shown (only the sub-agent's tool card), and Codex sub-agent items show as sub-agent cards without their inner activity.
 - A project needs a folder before an agent chat can start; agents run in that folder with the provider's own sandbox and permission rules.
 - Account-level usage and rate limits (Settings → Usage) are not collected.
-- Windows has not been tested; `.cmd` shims and process-group termination behave differently there.
+- Windows was validated with native `claude.exe` and `codex.exe` (see VALIDATION.md). `.cmd`/`.ps1` shims were not exercised. Windows has no process groups: JAM ends a provider's live process tree with `taskkill /T`, so a descendant already orphaned by its own parent cannot be reached.
 
 ## Tests
 

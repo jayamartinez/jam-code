@@ -176,7 +176,7 @@ impl ProviderAdapter for CodexAdapter {
         if let Ok(mut slot) = self.inner.server.try_lock()
             && let Some(server) = slot.take()
         {
-            server.connection.child.kill();
+            server.connection.child.kill_now();
         }
     }
 }
