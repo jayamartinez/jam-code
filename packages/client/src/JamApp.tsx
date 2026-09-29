@@ -243,8 +243,9 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     if (!desktop.setAttentionBadge) return;
     const [count, tone] = badgeKey.split(':');
     const size = badgeIconSize();
-    const overlay = badgeKey ? drawBadge(Number(count), tone as BadgeTone, size) : null;
-    const tray = badgeKey ? drawBadge(Number(count), tone as BadgeTone, trayBadgeSize(size)) : null;
+    // The taskbar dot fills most of its slot; the tray's sits in the icon's corner.
+    const overlay = badgeKey ? drawBadge(tone as BadgeTone, size, 0.7) : null;
+    const tray = badgeKey ? drawBadge(tone as BadgeTone, trayBadgeSize(size)) : null;
     void desktop
       .setAttentionBadge(overlay && tray ? { count: Number(count), size, overlay, tray } : null)
       .catch(() => {});

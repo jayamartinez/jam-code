@@ -5,10 +5,10 @@ import type { BadgeTone } from '../../../state/chat-activity';
 import { Card, PageHeader, Row, Section, Select, Toggle } from '../controls';
 import type { SettingsPageProps } from '../types';
 
-const BADGES: { tone: BadgeTone; count: number; label: string }[] = [
-  { tone: 'input', count: 2, label: 'Needs you' },
-  { tone: 'error', count: 1, label: 'Error' },
-  { tone: 'finished', count: 3, label: 'Finished' },
+const BADGES: { tone: BadgeTone; label: string }[] = [
+  { tone: 'input', label: 'Needs you' },
+  { tone: 'error', label: 'Error' },
+  { tone: 'finished', label: 'Finished' },
 ];
 
 /** Paper, Settings "Settings v2 · Notifications". */
@@ -58,7 +58,7 @@ export default function NotificationsPage({ platform }: SettingsPageProps) {
             title="Show a badge"
             sub={
               desktop
-                ? `How many chats want you, on the ${platform === 'macos' ? 'Dock' : 'taskbar'} and tray icon. Its colour is the most urgent one.`
+                ? `A dot on the ${platform === 'macos' ? 'Dock' : 'taskbar'} and tray icon while a chat wants you, coloured by the most urgent reason.`
                 : 'Only the desktop app can badge its icon.'
             }
             disabled={!desktop}
@@ -67,7 +67,8 @@ export default function NotificationsPage({ platform }: SettingsPageProps) {
               {BADGES.map((badge) => (
                 <span key={badge.tone} className="notify-badge-sample">
                   <span className="notify-badge-icon">
-                    jam<i className={`notify-badge ${badge.tone}`}>{badge.count}</i>
+                    jam
+                    <i className={`notify-badge ${badge.tone}`} />
                   </span>
                   <span>{badge.label}</span>
                 </span>

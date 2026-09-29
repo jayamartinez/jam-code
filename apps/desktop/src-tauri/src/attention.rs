@@ -14,7 +14,7 @@ const MAX_BODY: usize = 240;
 
 /// The tray badge's side for an icon of `size` pixels; the client uses the same rule.
 fn tray_badge_size(size: u32) -> u32 {
-    size * 5 / 8
+    size / 2
 }
 
 #[derive(serde::Deserialize)]
