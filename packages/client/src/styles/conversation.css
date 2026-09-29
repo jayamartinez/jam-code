@@ -1767,7 +1767,11 @@ button.context-action:disabled:not(:has(.context-spinner)) > span {
   border-top: 1px solid var(--color-border);
 }
 
-/* Where a new chat works (Paper, "14 · New chat: project, workspace & branch"). */
+/*
+ * Where a new chat works (Paper, "14 · New chat: project, workspace &
+ * branch"): the project in the heading, then workspace and branch in the
+ * composer's footer.
+ */
 .project-switcher {
   display: inline-flex;
   vertical-align: baseline;
@@ -1830,4 +1834,112 @@ button.context-action:disabled:not(:has(.context-spinner)) > span {
   border: 1px dashed var(--color-border-strong);
   color: var(--color-text-subtle);
   font-size: calc(12px * var(--ui-scale));
+}
+.workspace-target {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.workspace-pill,
+.branch-pill {
+  height: calc(24px * var(--ui-scale));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  border-radius: 7px;
+  color: var(--color-text-muted);
+  font-size: calc(11.5px * var(--ui-scale));
+  white-space: nowrap;
+}
+.branch-pill .choice-pill-value {
+  font-size: calc(11px * var(--ui-scale));
+}
+.workspace-pill:hover:not(:disabled),
+.workspace-pill[aria-expanded='true'],
+.branch-pill:hover:not(:disabled),
+.branch-pill[aria-expanded='true'] {
+  background: var(--color-fill);
+}
+.workspace-pill.worktree {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+}
+.workspace-pill.unchosen {
+  color: var(--color-warning);
+}
+.branch-pill.pending {
+  color: var(--color-accent-strong);
+}
+.choice-menu.branch-menu {
+  width: calc(320px * var(--ui-scale));
+}
+.branch-option {
+  align-items: center;
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+.branch-option strong {
+  font-size: calc(12px * var(--ui-scale));
+}
+.branch-option .choice-option-check {
+  margin-top: 0;
+}
+.branch-option:disabled strong,
+.branch-option:disabled small {
+  color: var(--color-text-faint);
+}
+.branch-note {
+  flex-shrink: 0;
+  color: var(--color-text-subtle);
+  font-size: calc(11px * var(--ui-scale));
+}
+.branch-note.pending {
+  color: var(--color-accent-strong);
+}
+.branch-tag {
+  flex-shrink: 0;
+  padding: 0 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  color: var(--color-text-subtle);
+  font-size: calc(10.5px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
+}
+.branch-notice {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-bottom: 4px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+.branch-notice svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.branch-notice > span {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--color-text-body);
+  font-size: calc(11.5px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
+}
+.branch-notice-action {
+  align-self: flex-start;
+  color: var(--color-accent-strong);
+}
+.branch-notice-action:hover {
+  text-decoration: underline;
+}
+.branch-footnote {
+  margin: 4px 0 0;
+  padding: 8px 10px 4px;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-faint);
+  font-size: calc(11px * var(--ui-scale));
 }

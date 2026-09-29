@@ -23,10 +23,11 @@ import type {
   ProviderId,
   Resource,
   Session,
+  Worktree,
 } from '@jam/protocol';
 import { IconButton, Shortcut } from './Controls';
 import { PaneChrome, type PaneChromeProps } from './PaneChrome';
-import { ProviderIcon, sessionProviderName } from './icons';
+import { ProviderIcon, WorktreeIcon, sessionProviderName } from './icons';
 import { ContextChip } from './ContextChip';
 import { ProjectBadge } from './ProjectBadge';
 import type { InteractionAnswer } from './InteractionCard';
@@ -65,6 +66,8 @@ interface ConversationProps extends Pick<
 > {
   resource: Resource;
   project?: Project;
+  /** The worktree the chat works in, when it started in a new one. */
+  worktree?: Worktree;
   session?: Session;
   conversation?: Conversation;
   draft: string;
@@ -133,9 +136,15 @@ export function ConversationPane(props: ConversationProps) {
           <span className="project-label muted">{project?.name}</span>
           <span className="separator subtle">/</span>
           <span className="resource-title truncate">{resource.title}</span>
-          <span className="branch mono">
-            <GitBranch size={10} /> {project?.branch}
-          </span>
+          {props.worktree ? (
+            <span className="branch mono" title={props.worktree.path}>
+              <WorktreeIcon size={10} /> {props.worktree.branch}
+            </span>
+          ) : (
+            <span className="branch mono">
+              <GitBranch size={10} /> {project?.branch}
+            </span>
+          )}
         </>
       }
       status={
@@ -231,6 +240,8 @@ type ComposerProps = Pick<
   presentation?: Presentation;
   /** New chats only: choose the agent before the first Send. */
   onProvider?(providerId: ProviderId): void;
+  /** New chats only: where the chat will work, in place of the folder name. */
+  target?: React.ReactNode;
   onCompact?(): Promise<void>;
 };
 
@@ -451,10 +462,14 @@ export function Composer(props: ComposerProps) {
               </span>
             ) : (
               <span className="new-run-choices">
-                <FolderOpen size={11} />
-                <span className="truncate" title={props.project?.paths?.[0]}>
-                  {folderName(props.project?.paths?.[0]) || props.project?.name}
-                </span>
+                {props.target ?? (
+                  <>
+                    <FolderOpen size={11} />
+                    <span className="truncate" title={props.project?.paths?.[0]}>
+                      {folderName(props.project?.paths?.[0]) || props.project?.name}
+                    </span>
+                  </>
+                )}
                 {pills.map((option) => (
                   <AccessPill
                     key={option.id}

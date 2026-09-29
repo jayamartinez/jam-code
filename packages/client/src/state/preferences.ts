@@ -99,3 +99,33 @@ export function useIdleThreadDays(): [number | null, (next: number | null) => vo
   }, []);
   return [days, update];
 }
+
+/**
+ * Where a new chat starts: the current checkout, a new worktree, or neither
+ * until the reader picks one ("Ask each time").
+ */
+export type NewThreadWorkspace = 'checkout' | 'worktree' | 'ask';
+const NEW_THREAD_WORKSPACE_KEY = 'jam.newThreadWorkspace';
+
+function readNewThreadWorkspace(): NewThreadWorkspace {
+  try {
+    const stored = localStorage.getItem(NEW_THREAD_WORKSPACE_KEY);
+    return stored === 'worktree' || stored === 'ask' ? stored : 'checkout';
+  } catch {
+    return 'checkout';
+  }
+}
+
+export function useNewThreadWorkspace(): [NewThreadWorkspace, (next: NewThreadWorkspace) => void] {
+  const [choice, setChoice] = useState<NewThreadWorkspace>('checkout');
+  useEffect(() => setChoice(readNewThreadWorkspace()), []);
+  const update = useCallback((next: NewThreadWorkspace) => {
+    setChoice(next);
+    try {
+      localStorage.setItem(NEW_THREAD_WORKSPACE_KEY, next);
+    } catch {
+      // Losing the preference only restores the default.
+    }
+  }, []);
+  return [choice, update];
+}

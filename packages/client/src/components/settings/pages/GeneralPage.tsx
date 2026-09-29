@@ -18,9 +18,9 @@ import { NOTIFICATION_EVENTS, defaultProvider } from '../general-model';
 
 /**
  * General: how new chats and threads start. The idle-thread suggestion, the
- * default provider, streamed replies and the time format are real today;
- * every other control shows its intended shape, disabled, beside a Planned
- * mark.
+ * default provider, streamed replies, the time format and where new threads
+ * start are real today; every other control shows its intended shape,
+ * disabled, beside a Planned mark.
  */
 export default function GeneralPage({
   providers,
@@ -31,6 +31,8 @@ export default function GeneralPage({
   onStreamReplies,
   timeFormat,
   onTimeFormat,
+  newThreadWorkspace,
+  onNewThreadWorkspace,
   onNavigate,
 }: SettingsPageProps) {
   const provider = defaultProvider(providers);
@@ -121,25 +123,20 @@ export default function GeneralPage({
         </Card>
       </Section>
 
-      <Section
-        label={
-          <>
-            Where new threads work <Planned />
-          </>
-        }
-        hint="Projects will be able to override this"
-      >
+      <Section label="Where new threads work" hint="Projects will be able to override this">
         <Card>
           <div className="sv-row general-worktree">
             <div className="sv-row-text">
               <strong>New threads start in</strong>
               <p>
                 A worktree gives each thread its own branch and folder, so threads working in
-                parallel never edit the same files.
+                parallel never edit the same files. It is created when you send, and JAM never
+                deletes it.
               </p>
               <Segmented
                 label="New threads start in"
-                value="worktree"
+                value={newThreadWorkspace}
+                onChange={onNewThreadWorkspace}
                 options={[
                   { value: 'checkout', label: 'Current checkout' },
                   { value: 'worktree', label: 'New worktree' },
@@ -151,16 +148,18 @@ export default function GeneralPage({
           </div>
           <Row
             title="Worktree location"
-            sub={<span className="sv-mono">../&lt;project&gt;-worktrees/&lt;thread&gt;</span>}
+            sub={<span className="sv-mono">../&lt;repository&gt;-worktrees/&lt;name&gt;</span>}
           >
             <button type="button" className="sv-button" disabled>
               Change…
             </button>
+            <Planned />
           </Row>
           <Row
             title="Branch prefix"
             sub="Followed by a short name from the thread's first message."
           >
+            <Planned>Editing planned</Planned>
             <input
               className="gt-input mono"
               aria-label="Branch prefix"

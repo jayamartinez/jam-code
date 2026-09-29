@@ -21,7 +21,15 @@ import type {
   RequestMap,
   TerminalSession,
 } from '@jam/protocol';
-import { type ChatDraft, draftProvider, inProject, presentationFor } from './state/chat-draft';
+import {
+  type ChatDraft,
+  type DraftWorkspace,
+  draftProvider,
+  inProject,
+  presentationFor,
+  workspaceProblem,
+  workspaceRequest,
+} from './state/chat-draft';
 import type { InteractionAnswer } from './components/InteractionCard';
 import type { BrowserAnnotation, DesktopServices } from './desktop';
 import {
@@ -35,7 +43,13 @@ import {
   type SplitDirection,
 } from './state/layout';
 import { RuntimeClient } from './state/runtime-client';
-import { useIdleThreadDays, useStreamReplies, useTimeFormat } from './state/preferences';
+import {
+  type NewThreadWorkspace,
+  useIdleThreadDays,
+  useNewThreadWorkspace,
+  useStreamReplies,
+  useTimeFormat,
+} from './state/preferences';
 import { AppearanceContext, AppearanceStore } from './appearance/store';
 import { Brand, Dialog, IconButton } from './components/Controls';
 import { Sidebar } from './components/Sidebar';
@@ -48,6 +62,7 @@ import { useSnapshots, snapshotFocus } from './state/snapshots';
 import { SettingsPanel } from './components/SettingsPanel';
 import { NewResourceLauncher } from './components/NewResourceLauncher';
 import { NewChat } from './components/NewChat';
+import { DraftWorkspacePicker } from './components/NewChatTarget';
 import { WorkspaceTitlebar } from './components/WorkspaceTitlebar';
 import { PaneChrome, type PaneMenuItem } from './components/PaneChrome';
 import { TileLayout } from './components/TileLayout';
@@ -107,6 +122,11 @@ const browserRatio = (paneId: string | undefined) => {
     : BROWSER_WIDTH / 1160;
 };
 
+/** A new chat's workspace from the Settings choice; "Ask each time" leaves it open. */
+function startingWorkspace(choice: NewThreadWorkspace): DraftWorkspace {
+  return choice === 'ask' ? {} : { kind: choice };
+}
+
 export function JamApp({ transport, desktop }: JamAppProps) {
   const client = useMemo(() => new RuntimeClient(transport), [transport]);
   const appearance = useMemo(() => new AppearanceStore(transport), [transport]);
@@ -150,6 +170,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   const [idleThreadDays, setIdleThreadDays] = useIdleThreadDays();
   const [streamReplies, setStreamReplies] = useStreamReplies();
   const [timeFormat, setTimeFormat] = useTimeFormat();
+  const [newThreadWorkspace, setNewThreadWorkspace] = useNewThreadWorkspace();
   /**
    * Projects whose threads the sidebar lists. Any number can be open at once;
    * until the reader toggles one, the current project is shown open.
@@ -290,6 +311,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
           providerId,
           presentation: presentationFor(providerId, requested === 'codex' ? 'codex' : 'claude'),
           options: withoutStaleChoices(provider, { ...provider?.defaults }),
+          workspace: startingWorkspace(newThreadWorkspace),
         },
       }));
       // The agent picker needs real installation and sign-in state.
@@ -300,7 +322,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       setLauncher(null);
       setSettingsMode(null);
     },
-    [assignPane, projectId, client],
+    [assignPane, projectId, client, newThreadWorkspace],
   );
 
   /**
@@ -308,14 +330,23 @@ export function JamApp({ transport, desktop }: JamAppProps) {
    * A terminal is the exception: every Terminal choice is a new shell.
    */
   const openKind = useCallback(
-    async (kind: OpenableKind, path?: string, paneId?: string, inProject?: string) => {
+    async (
+      kind: OpenableKind,
+      path?: string,
+      paneId?: string,
+      inProject?: string,
+      worktreeId?: string,
+    ) => {
       const target = inProject ?? projectId;
       if (!target) return;
+      // A browser is a web page; it has no folder to work in.
+      const inWorktree = worktreeId && kind !== 'browser' ? { worktreeId } : {};
       try {
         const { resource } =
           kind === 'terminal'
             ? await transport.request('terminal.create', {
                 projectId: target,
+                ...inWorktree,
                 // Start the shell at the size of the pane it will appear in.
                 ...estimateTerminalSize(
                   document.querySelector(paneId ? `[data-pane-id="${paneId}"]` : '.workspace'),
@@ -325,6 +356,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                 projectId: target,
                 kind,
                 ...(path === undefined ? {} : { path }),
+                ...inWorktree,
               });
         client.addResource(resource);
         if (paneId) assignPane(resource.id, paneId);
@@ -358,6 +390,17 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     },
     [client, openResource, projectId, transport],
   );
+
+  /**
+   * The worktree of the active tab's own resource. A pane filled inside a
+   * worktree chat's tab belongs to that chat's workspace, so it works there.
+   */
+  const tabWorktree = () => {
+    const current = layoutRef.current;
+    const tab = current.tabs.find((item) => item.id === current.activeTabId);
+    return client.getSnapshot().workspace?.resources.find((item) => item.id === tab?.resourceId)
+      ?.worktreeId;
+  };
 
   const launcherOpen = launcher !== null;
   useEffect(() => {
@@ -474,7 +517,13 @@ export function JamApp({ transport, desktop }: JamAppProps) {
 
   /** A file a chat or preview linked to, beside it, at `line` when given. */
   const openFileFrom = useCallback(
-    async (path: string, fromPaneId: string | null, inProject?: string, line?: number) => {
+    async (
+      path: string,
+      fromPaneId: string | null,
+      inProject?: string,
+      line?: number,
+      worktreeId?: string,
+    ) => {
       const target = inProject ?? projectId;
       if (!target) return;
       try {
@@ -482,6 +531,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
           projectId: target,
           kind: 'file',
           path,
+          ...(worktreeId ? { worktreeId } : {}),
         });
         client.addResource(resource);
         if (line)
@@ -534,6 +584,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       event: React.MouseEvent,
       fromPaneId: string | null,
       inProject?: string,
+      worktreeId?: string,
     ) => {
       const target = inProject ?? projectId;
       setContextMenu({
@@ -542,11 +593,11 @@ export function JamApp({ transport, desktop }: JamAppProps) {
           {
             label: 'Open beside',
             hint: 'Click',
-            onSelect: () => void openFileFrom(file.path, fromPaneId, target, file.line),
+            onSelect: () => void openFileFrom(file.path, fromPaneId, target, file.line, worktreeId),
           },
           {
             label: 'Open in new tab',
-            onSelect: () => void openKind('file', file.path, undefined, target),
+            onSelect: () => void openKind('file', file.path, undefined, target, worktreeId),
           },
           {
             label: desktop.platform === 'windows' ? 'Show in Explorer' : 'Reveal in Finder',
@@ -554,7 +605,11 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             onSelect: () => {
               if (target)
                 void transport
-                  .request('file.reveal', { projectId: target, path: file.path })
+                  .request('file.reveal', {
+                    projectId: target,
+                    path: file.path,
+                    ...(worktreeId ? { worktreeId } : {}),
+                  })
                   .catch(client.reportError);
             },
           },
@@ -640,6 +695,13 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       ...snapshots.snapshots.filter((s) => s.resourceId === resourceId).map((s) => s.context),
     ];
   }
+  /** The same request ID for an unchanged retry, so the runtime never does it twice. */
+  function requestIdFor(key: string, payload: string) {
+    const previous = requests.current.get(key);
+    const requestId = previous?.payload === payload ? previous.requestId : crypto.randomUUID();
+    requests.current.set(key, { payload, requestId });
+    return requestId;
+  }
   async function send(sendId: string) {
     const text = layout.drafts[sendId] ?? '';
     const staged = contextFor(sendId);
@@ -666,14 +728,26 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     try {
       const draft = newChats[sendId];
       if (draft) {
-        const created = await transport.request('conversation.create', {
+        const real = draft.providerId !== 'mock';
+        const problem = real ? workspaceProblem(draft.workspace) : null;
+        if (problem) throw new Error(problem);
+        const workspaceChoice = real ? workspaceRequest(draft.workspace, text) : undefined;
+        const createParams = {
           projectId: draft.projectId,
           presentation: draft.presentation,
           providerId: draft.providerId,
-          ...(draft.providerId !== 'mock' && Object.keys(draft.options).length
-            ? { options: draft.options }
-            : {}),
+          ...(real && Object.keys(draft.options).length ? { options: draft.options } : {}),
+          ...(workspaceChoice ? { workspace: workspaceChoice } : {}),
+        };
+        // A retried Send reuses its request ID, so a worktree is made once.
+        const createKey = `create:${sendId}`;
+        const created = await transport.request('conversation.create', {
+          ...createParams,
+          requestId: requestIdFor(createKey, JSON.stringify(createParams)),
         });
+        requests.current.delete(createKey);
+        // The checkout is on another branch now; labels read it again.
+        if (workspaceChoice?.kind === 'checkout') void git.refresh(draft.projectId);
         client.addConversation(created);
         resourceId = created.resource.id;
         busyRef.current.add(resourceId);
@@ -689,9 +763,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       // Choices made since the last Send apply from this turn on.
       const options = draft ? undefined : pendingOptions[resourceId];
       const payload = JSON.stringify({ text, context: staged, options });
-      const previous = requests.current.get(resourceId);
-      const requestId = previous?.payload === payload ? previous.requestId : crypto.randomUUID();
-      requests.current.set(resourceId, { payload, requestId });
+      const requestId = requestIdFor(resourceId, payload);
       await transport.request('turn.start', {
         resourceId,
         text,
@@ -825,7 +897,10 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         [resourceId]: (current[resourceId] ?? emptyContext).filter((item) => item.id !== id),
       }));
     },
-    onOpenReview: () => void openKind('diff'),
+    onOpenReview: () => {
+      const resource = workspace?.resources.find((item) => item.id === resourceId);
+      void openKind('diff', undefined, undefined, resource?.projectId, resource?.worktreeId);
+    },
   });
 
   if (!workspace)
@@ -870,6 +945,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       onStreamReplies={setStreamReplies}
       timeFormat={timeFormat}
       onTimeFormat={setTimeFormat}
+      newThreadWorkspace={newThreadWorkspace}
+      onNewThreadWorkspace={setNewThreadWorkspace}
       onClose={() => setSettingsMode(null)}
       onMode={() => {
         if (dedicated) {
@@ -1009,6 +1086,23 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                     };
                   })
                 }
+                target={
+                  <DraftWorkspacePicker
+                    key={draft.projectId}
+                    transport={transport}
+                    projectId={draft.projectId}
+                    workspace={draft.workspace}
+                    disabled={busy.has(resourceId)}
+                    onChange={(next: DraftWorkspace) =>
+                      setNewChats((current) => {
+                        const previous = current[resourceId];
+                        return previous
+                          ? { ...current, [resourceId]: { ...previous, workspace: next } }
+                          : current;
+                      })
+                    }
+                  />
+                }
                 isNew
               />
             }
@@ -1037,11 +1131,12 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             session={session}
             composer={{
               ...composerFor(resource.id, session?.id),
+              worktree: workspace.worktrees.find((item) => item.id === resource.worktreeId),
               onOpenUrl: (url: string) => void openPreviewFrom(url, paneId, resource.projectId),
               onOpenFile: (path: string, line?: number) =>
-                void openFileFrom(path, paneId, resource.projectId, line),
+                void openFileFrom(path, paneId, resource.projectId, line, resource.worktreeId),
               onFileMenu: (file: FileReference, event: React.MouseEvent) =>
-                fileMenu(file, event, paneId, resource.projectId),
+                fileMenu(file, event, paneId, resource.projectId, resource.worktreeId),
               ...(desktop.platform !== 'web' && {
                 onOpenExternal: (url: string) =>
                   void transport.request('url.openExternal', { url }).catch(client.reportError),
@@ -1059,7 +1154,9 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             project={workspace.projects.find((item) => item.id === resource.projectId)}
             saveShortcut={shortcut}
             onOpenUrl={(url) => void openUrl(url, resource.projectId)}
-            onOpenFile={(path) => void openKind('file', path, undefined, resource.projectId)}
+            onOpenFile={(path) =>
+              void openKind('file', path, undefined, resource.projectId, resource.worktreeId)
+            }
             reveal={fileReveals[resource.id]}
           />
         );
@@ -1076,7 +1173,9 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             onExpandedChange={(next) =>
               setTreeExpansion((current) => ({ ...current, [resource.id]: next }))
             }
-            onOpenFile={(path) => void openFileFrom(path, paneId, resource.projectId)}
+            onOpenFile={(path) =>
+              void openFileFrom(path, paneId, resource.projectId, undefined, resource.worktreeId)
+            }
           />
         );
       case 'browser': {
@@ -1170,7 +1269,9 @@ export function JamApp({ transport, desktop }: JamAppProps) {
               git={git}
               resource={resource}
               chrome={chrome}
-              onOpenFile={(path) => void openFileFrom(path, paneId, resource.projectId)}
+              onOpenFile={(path) =>
+                void openFileFrom(path, paneId, resource.projectId, undefined, resource.worktreeId)
+              }
             />
           </Suspense>
         );
@@ -1333,7 +1434,15 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                   onClose={() => setLauncher(null)}
                   onProject={switchProject}
                   onAgentChat={(presentation) => newChat(presentation, launcher.paneId)}
-                  onResource={(kind) => void openKind(kind, undefined, launcher.paneId)}
+                  onResource={(kind) =>
+                    void openKind(
+                      kind,
+                      undefined,
+                      launcher.paneId,
+                      undefined,
+                      launcher.paneId ? tabWorktree() : undefined,
+                    )
+                  }
                   terminals={runningTerminals.map((item) => ({
                     id: item.resourceId,
                     label: item.title,

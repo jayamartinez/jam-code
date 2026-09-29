@@ -23,7 +23,8 @@ export default function ReviewResource({
 }) {
   useSyncExternalStore(git.subscribe, git.getSnapshot, git.getSnapshot);
   const projectId = resource.projectId ?? '';
-  const state = git.get(projectId);
+  const worktreeId = resource.worktreeId;
+  const state = git.get(projectId, worktreeId);
   const status = state.status;
   const [selected, setSelected] = useState(() => git.selection(resource.id)?.path ?? '');
   const [side, setSide] = useState<GitDiffSide>(
@@ -48,8 +49,14 @@ export default function ReviewResource({
       ? loadedDiff
       : undefined;
   useEffect(() => {
-    void git.refresh(projectId);
-  }, [git, projectId]);
+    void git.refresh(projectId, worktreeId);
+    // Project checkouts refresh on focus for every view; a worktree's
+    // Review is its only view, so it listens itself.
+    if (!worktreeId) return;
+    const refresh = () => void git.refresh(projectId, worktreeId);
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
+  }, [git, projectId, worktreeId]);
   useEffect(() => {
     let current = true;
     setDiff(undefined);
@@ -60,7 +67,12 @@ export default function ReviewResource({
     }
     setLoading(true);
     git.transport
-      .request('git.diff', { projectId, path, side: effectiveSide })
+      .request('git.diff', {
+        projectId,
+        path,
+        side: effectiveSide,
+        ...(worktreeId ? { worktreeId } : {}),
+      })
       .then(
         (result) => {
           if (current) setDiff(result);
@@ -75,13 +87,13 @@ export default function ReviewResource({
     return () => {
       current = false;
     };
-  }, [git, projectId, path, effectiveSide, state.revision, state.loading]);
+  }, [git, projectId, worktreeId, path, effectiveSide, state.revision, state.loading]);
   const mutate = async () => {
     if (!file) return;
     setBusy(true);
     setMutationError(undefined);
     try {
-      await git.setStaged(projectId, file.path, effectiveSide !== 'staged');
+      await git.setStaged(projectId, file.path, effectiveSide !== 'staged', worktreeId);
     } catch (cause) {
       setMutationError(cause instanceof Error ? cause.message : 'Git operation failed.');
     } finally {
@@ -106,7 +118,7 @@ export default function ReviewResource({
         <button
           className="button"
           disabled={state.loading || busy}
-          onClick={() => void git.refresh(projectId)}
+          onClick={() => void git.refresh(projectId, worktreeId)}
         >
           {state.loading ? 'Refreshing…' : 'Refresh'}
         </button>
