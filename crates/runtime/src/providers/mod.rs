@@ -210,9 +210,45 @@ pub(crate) fn plain(text: &str) -> String {
     out
 }
 
+/// Longest provider-reported plan or sign-in method JAM shows.
+pub(crate) const ACCOUNT_LABEL_LIMIT: usize = 128;
+/// Longest provider-reported account identity (an email is at most 254).
+pub(crate) const ACCOUNT_IDENTITY_LIMIT: usize = 256;
+
+/// One provider-reported account field as display text: a trimmed, single
+/// line of at most `limit` characters. Anything else, including a value that
+/// is too long or not a string, is unknown rather than cut or guessed.
+pub(crate) fn account_text(value: Option<&serde_json::Value>, limit: usize) -> Option<String> {
+    account_label(value?.as_str()?, limit)
+}
+
+/// [`account_text`] for a value already read as a string.
+pub(crate) fn account_label(text: &str, limit: usize) -> Option<String> {
+    let text = text.trim();
+    if text.is_empty() || text.chars().count() > limit || text.chars().any(char::is_control) {
+        return None;
+    }
+    Some(text.to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn account_text_is_bounded_plain_and_otherwise_unknown() {
+        let field = |value: serde_json::Value| account_text(Some(&value), 16);
+        assert_eq!(field(json!("  Claude Max ")).as_deref(), Some("Claude Max"));
+        assert_eq!(field(json!("a".repeat(16))), Some("a".repeat(16)));
+        assert_eq!(field(json!("a".repeat(17))), None);
+        assert_eq!(field(json!("line\nbreak")), None);
+        assert_eq!(field(json!("\u{1b}[31mred")), None);
+        assert_eq!(field(json!("   ")), None);
+        assert_eq!(field(json!(42)), None);
+        assert_eq!(field(json!(null)), None);
+        assert_eq!(account_text(None, 16), None);
+    }
 
     #[test]
     fn long_text_keeps_both_ends() {

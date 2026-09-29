@@ -67,18 +67,32 @@ async fn installed_providers_are_described_without_inference() {
             .as_array()
             .map(|m| m.iter().filter_map(|m| m["id"].as_str()).collect())
             .unwrap_or_default();
+        // The identity is personal: say only whether one was reported.
+        let mut provider = provider.clone();
+        let identity = provider["account"]
+            .as_object_mut()
+            .and_then(|account| account.remove("identity"));
         println!(
-            "{}: installation={} authentication={} version={} account={} models={:?} status={}",
+            "{}: installation={} authentication={} version={} account={} identity={} models={:?} status={}",
             provider["id"],
             provider["installation"],
             provider["authentication"],
             provider["version"],
             provider["account"],
+            if identity.is_some() {
+                "reported"
+            } else {
+                "none"
+            },
             models,
             provider["status"]["message"]
         );
+        // The email reaches the client only as the account's identity.
         let text = provider.to_string();
-        assert!(!text.contains('@'), "no email address reaches the client");
+        assert!(
+            !text.contains('@'),
+            "no other field carries an email address"
+        );
     }
 }
 

@@ -225,6 +225,21 @@ export interface ProviderOption {
 }
 
 /** These states are independent; installation is not proof of authentication. */
+/**
+ * The signed-in account as the provider's own CLI reports it. Each field is
+ * absent when the provider did not report it. `identity` (usually an email)
+ * is personal: it lives only in the runtime's live descriptor, is never
+ * persisted or logged, and the client keeps it hidden until revealed.
+ */
+export interface ProviderAccount {
+  /** How the CLI signed in, such as "Claude account" or "ChatGPT". */
+  method?: string;
+  /** The subscription's full name, such as "Claude Max" or "ChatGPT Pro 5x". */
+  plan?: string;
+  /** Who is signed in, such as an email address. */
+  identity?: string;
+}
+
 export interface ProviderDescriptor {
   id: ProviderId;
   name: string;
@@ -247,7 +262,7 @@ export interface ProviderDescriptor {
   /** A problem or note from the last check, such as an untested version. */
   status?: { tone: 'info' | 'warning' | 'error'; message: string };
   /** Only what the provider itself reports; absent means unknown. */
-  account?: { method?: string; plan?: string };
+  account?: ProviderAccount;
   models?: ProviderModel[];
   options?: ProviderOption[];
   /** Saved defaults for new chats, keyed like `Session.options`. */

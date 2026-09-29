@@ -8,8 +8,9 @@ mod items;
 mod rpc;
 
 use super::{
-    Answer, ProbeFuture, ProviderAdapter, ProviderConfig, ProviderFuture, ProviderTurn,
-    ProviderUpdate, SPEED, Transcript, TurnIo, access, descriptor, discovery, process::LaunchSpec,
+    ACCOUNT_IDENTITY_LIMIT, ACCOUNT_LABEL_LIMIT, Answer, ProbeFuture, ProviderAdapter,
+    ProviderConfig, ProviderFuture, ProviderTurn, ProviderUpdate, SPEED, Transcript, TurnIo,
+    access, account_label, account_text, descriptor, discovery, process::LaunchSpec,
     set_capability, transcript::until,
 };
 use crate::{
@@ -164,6 +165,52 @@ impl CodexAdapter {
     }
 }
 
+/// The account `account/read` reports, as JAM shows it. The email is kept as
+/// the display identity (hidden until the reader reveals it); every other
+/// identifier, such as the workspace routing account ID, is dropped here.
+fn account_from(account: &Value) -> ProviderAccount {
+    ProviderAccount {
+        method: match account.get("type").and_then(Value::as_str) {
+            Some("chatgpt") => Some("ChatGPT".into()),
+            Some("apiKey") => Some("API key".into()),
+            Some("amazonBedrock") => Some("Amazon Bedrock".into()),
+            _ => None,
+        },
+        plan: account
+            .get("planType")
+            .and_then(Value::as_str)
+            .and_then(chatgpt_plan),
+        identity: account_text(account.get("email"), ACCOUNT_IDENTITY_LIMIT),
+    }
+}
+
+/// The full ChatGPT plan name for Codex's `PlanType` code. A code without a
+/// public name JAM knows is shown as Codex sent it, never guessed; `unknown`
+/// is unknown.
+fn chatgpt_plan(code: &str) -> Option<String> {
+    let name = match code {
+        "unknown" => return None,
+        "free" => "Free",
+        "go" => "Go",
+        "plus" => "Plus",
+        "pro" => "Pro",
+        "prolite" => "Pro 5x",
+        "team" => "Team",
+        "business" | "self_serve_business_prolite" | "self_serve_business_usage_based" => {
+            "Business"
+        }
+        "enterprise" | "ent26" | "enterprise_cbp_automation" | "enterprise_cbp_usage_based" => {
+            "Enterprise"
+        }
+        "edu" => "Edu",
+        other => {
+            return account_label(other, ACCOUNT_LABEL_LIMIT)
+                .map(|code| format!("ChatGPT ({code})"));
+        }
+    };
+    Some(format!("ChatGPT {name}"))
+}
+
 fn missing(missing: discovery::Missing) -> JamError {
     match missing {
         discovery::Missing::InvalidOverride => JamError::new(
@@ -277,23 +324,7 @@ async fn probe(mut d: ProviderDescriptor, config: ProviderConfig) -> ProviderDes
                 (None, false) => "not-required",
             }
             .into();
-            // Only the kind of sign-in and a plan Codex itself reports.
-            // Email and account identifiers are dropped here.
-            if let Some(account) = account {
-                d.account = Some(ProviderAccount {
-                    method: match account.get("type").and_then(Value::as_str) {
-                        Some("chatgpt") => Some("ChatGPT".into()),
-                        Some("apiKey") => Some("API key".into()),
-                        Some("amazonBedrock") => Some("Amazon Bedrock".into()),
-                        _ => None,
-                    },
-                    plan: account
-                        .get("planType")
-                        .and_then(Value::as_str)
-                        .filter(|plan| *plan != "unknown")
-                        .map(str::to_owned),
-                });
-            }
+            d.account = account.map(account_from);
         }
         Err(error) => {
             d.status = Some(ProviderStatus {
@@ -850,8 +881,50 @@ impl Drop for Unroute {
 
 #[cfg(test)]
 mod tests {
-    use super::{STANDARD_TIER, reported_tier, tier_to_send};
+    use super::{STANDARD_TIER, account_from, chatgpt_plan, reported_tier, tier_to_send};
     use serde_json::json;
+
+    #[test]
+    fn account_keeps_the_email_as_identity_and_names_the_plan() {
+        let account = account_from(&json!({
+            "type": "chatgpt",
+            "email": "reader@example.com",
+            "planType": "prolite",
+            "chatgptAccountId": "acct-1"
+        }));
+        assert_eq!(account.method.as_deref(), Some("ChatGPT"));
+        assert_eq!(account.plan.as_deref(), Some("ChatGPT Pro 5x"));
+        assert_eq!(account.identity.as_deref(), Some("reader@example.com"));
+        // Debug output never carries the identity.
+        assert!(!format!("{account:?}").contains("reader@"));
+
+        // An API key sign-in reports no email or plan: both stay unknown.
+        let key = account_from(&json!({"type": "apiKey"}));
+        assert_eq!(key.method.as_deref(), Some("API key"));
+        assert_eq!((key.plan, key.identity), (None, None));
+
+        // An oversized or multi-line email is unknown, not cut.
+        let long = format!("{}@example.com", "a".repeat(300));
+        assert_eq!(
+            account_from(&json!({"type": "chatgpt", "email": long})).identity,
+            None
+        );
+        assert_eq!(
+            account_from(&json!({"type": "chatgpt", "email": "a@b.c\nx"})).identity,
+            None
+        );
+    }
+
+    #[test]
+    fn plans_have_full_names_and_unfamiliar_codes_are_not_guessed() {
+        assert_eq!(chatgpt_plan("pro").as_deref(), Some("ChatGPT Pro"));
+        assert_eq!(chatgpt_plan("plus").as_deref(), Some("ChatGPT Plus"));
+        assert_eq!(chatgpt_plan("ent26").as_deref(), Some("ChatGPT Enterprise"));
+        assert_eq!(chatgpt_plan("promax").as_deref(), Some("ChatGPT (promax)"));
+        assert_eq!(chatgpt_plan("unknown"), None);
+        assert_eq!(chatgpt_plan(""), None);
+        assert_eq!(chatgpt_plan("bad\ncode"), None);
+    }
 
     #[test]
     fn a_faster_tier_is_sent_once_and_left_explicitly() {

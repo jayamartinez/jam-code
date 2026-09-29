@@ -103,6 +103,35 @@ describe('JAM wire boundary', () => {
     );
   });
 
+  it('accepts a reported account only as bounded plain text', () => {
+    const withAccount = (account: unknown) => ({
+      providers: [{ ...fixture.workspace.providers[0], account }],
+    });
+    const account = { method: 'ChatGPT', plan: 'ChatGPT Pro 5x', identity: 'reader@example.com' };
+    expect(validateResponse('provider.list', withAccount(account)).providers[0]?.account).toEqual(
+      account,
+    );
+    expect(validateResponse('provider.list', withAccount({})).providers[0]?.account).toEqual({});
+    for (const bad of [
+      { identity: 'a'.repeat(257) },
+      { identity: 'reader@example.com\nforged' },
+      { identity: '\u001b[31mred' },
+      { plan: 'x'.repeat(129) },
+      { identity: 42 },
+      { token: 'secret' },
+    ]) {
+      expect(() => validateResponse('provider.list', withAccount(bad))).toThrow(
+        expect.objectContaining({ code: 'invalid_response' }),
+      );
+    }
+    // The error names no reported value.
+    try {
+      validateResponse('provider.list', withAccount({ identity: 'reader@example.com\n' }));
+    } catch (error) {
+      expect(String((error as Error).message)).not.toContain('reader@');
+    }
+  });
+
   it('rejects malformed native responses and mismatched event identities', () => {
     expect(() => validateResponse('turn.start', { accepted: true })).toThrow(
       expect.objectContaining({ code: 'invalid_response' }),
