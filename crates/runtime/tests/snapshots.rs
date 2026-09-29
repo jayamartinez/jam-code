@@ -348,7 +348,7 @@ fn pre_integration_databases_upgrade_without_losing_snapshots_or_settings() {
     let version: i64 = connection
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 6, "every migration applies on upgrade");
+    assert_eq!(version, 7, "every migration applies on upgrade");
     let leftover: i64 = connection
         .query_row(
             "SELECT count(*) FROM metadata WHERE key='snapshot_settings'",

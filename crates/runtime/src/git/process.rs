@@ -64,6 +64,13 @@ pub fn run_within(
         use std::os::unix::process::CommandExt;
         command.process_group(0);
     }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        // The app has no console of its own; without this every Git call
+        // flashes an empty console window.
+        command.creation_flags(crate::CREATE_NO_WINDOW);
+    }
     let mut child = command.spawn().map_err(|_| {
         JamError::new(
             "unavailable",

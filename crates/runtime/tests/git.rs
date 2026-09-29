@@ -22,6 +22,8 @@ impl Repo {
             paths: vec![path.to_str().unwrap().into()],
             icon: None,
             pinned: false,
+            removed_at: None,
+            folder_missing: false,
         };
         let repo = Self {
             path,

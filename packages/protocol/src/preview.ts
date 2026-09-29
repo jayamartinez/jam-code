@@ -26,15 +26,10 @@ type Receipt = { signature: string; result: RequestMap['turn.start']['result'] }
 
 const NO_TERMINALS =
   'Terminals run in the jam desktop app. The browser preview cannot start a shell.';
+import { initialsOf } from './projects';
 const copy = <T>(value: T): T => structuredClone(value);
 const now = () => new Date().toISOString();
-/** Mirrors the runtime: first letters of the first two words, else two letters. */
-export const initialsOf = (name: string) => {
-  const words = name.split(/[\s._-]+/).filter(Boolean);
-  const letters =
-    words.length > 1 ? `${words[0]![0]}${words[1]![0]}` : (words[0] ?? '').slice(0, 2);
-  return (letters || '··').toUpperCase();
-};
+export { initialsOf } from './projects';
 
 /**
  * Explicit development-only, volatile runtime substitute. Never select this as
@@ -149,6 +144,32 @@ export class BrowserPreviewTransport implements JamTransport {
           request.params.text,
         );
         return { projectId: request.params.projectId, path: request.params.path, savedAt };
+      }
+      case 'project.create': {
+        const { paths, name: requested, icon } = request.params;
+        const path = (paths[0] ?? '').trim().replace(/[\\/]+$/, '');
+        const known = this.workspace.projects.find((item) => item.paths?.[0] === path);
+        if (known) return { project: known, existing: true };
+        const name = requested?.trim() || path.split(/[\\/]/).pop() || path;
+        const project = {
+          id: `project-${crypto.randomUUID()}`,
+          name,
+          initials: initialsOf(name),
+          branch: '',
+          paths: [path, ...paths.slice(1).map((item) => item.trim())],
+          ...(icon ? { icon } : {}),
+        };
+        this.workspace.projects.push(project);
+        return { project, existing: false };
+      }
+      case 'project.remove': {
+        const { projectId } = request.params;
+        this.requireProject(projectId);
+        this.workspace.projects = this.workspace.projects.filter((item) => item.id !== projectId);
+        this.workspace.resources = this.workspace.resources.filter(
+          (item) => item.projectId !== projectId,
+        );
+        return { projectId };
       }
       case 'project.update': {
         this.requireProject(request.params.projectId);

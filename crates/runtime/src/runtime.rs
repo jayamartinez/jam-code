@@ -55,6 +55,11 @@ pub struct Runtime {
     pub(crate) git: crate::git::GitManager,
 }
 
+/// The user's database in the application data folder.
+pub const USER_DATABASE: &str = "jam.sqlite";
+/// Where builds before the alpha kept the same history, beside a demo seed.
+pub const LEGACY_DATABASE: &str = "jam-demo.sqlite";
+
 const APPEARANCE_KEY: &str = "appearance";
 /// Kept apart from the appearance record so saving a font size never rewrites
 /// a megabyte of image data.
@@ -70,9 +75,40 @@ pub(crate) fn now() -> String {
 }
 
 impl Runtime {
-    /// Opens the local database with the demo seed, the demo provider and
-    /// the real Claude Code and Codex adapters. Adapters start no process
-    /// until a provider is checked or a turn is sent.
+    /// Opens the user's database in `data_dir` with the real Claude Code and
+    /// Codex adapters and no demo content. Adapters start no process until a
+    /// provider is checked or a turn is sent.
+    ///
+    /// Builds before the alpha kept the same history in `jam-demo.sqlite`,
+    /// beside a demo seed. The first open copies that file to `jam.sqlite`,
+    /// leaving the original untouched, and migration 7 then removes the seed
+    /// while keeping everything the person made (ADR 0013).
+    pub fn open_user_data(data_dir: impl AsRef<Path>) -> Result<Arc<Self>, JamError> {
+        let data_dir = data_dir.as_ref();
+        std::fs::create_dir_all(data_dir).map_err(|error| {
+            JamError::new(
+                "unavailable",
+                format!("JAM Code could not create its data folder: {error}"),
+            )
+        })?;
+        let database = data_dir.join(USER_DATABASE);
+        let legacy = data_dir.join(LEGACY_DATABASE);
+        if !database.exists() && legacy.exists() {
+            crate::storage::import_database(&legacy, &database)?;
+        }
+        Self::open_store(
+            &database,
+            vec![
+                Arc::new(ClaudeAdapter::default()),
+                Arc::new(CodexAdapter::default()),
+            ],
+            false,
+        )
+    }
+
+    /// Opens an explicit demo database: the synthetic projects and chats and
+    /// the deterministic demo provider beside the real adapters. For
+    /// development and demonstrations only; never the user's history.
     pub fn open_demo(path: impl AsRef<Path>) -> Result<Arc<Self>, JamError> {
         Self::open_with(
             path,
@@ -84,17 +120,37 @@ impl Runtime {
         )
     }
 
-    /// Opens with a chosen set of adapters, for tests and alternative hosts.
+    /// Opens a demo-seeded database with a chosen set of adapters, for tests
+    /// and alternative hosts.
     pub fn open_with(
         path: impl AsRef<Path>,
         adapters: Vec<Arc<dyn ProviderAdapter>>,
     ) -> Result<Arc<Self>, JamError> {
-        let mut store = Store::open(path.as_ref())?;
-        store.seed_demo()?;
+        Self::open_store(path.as_ref(), adapters, true)
+    }
+
+    /// Opens a database with no demo seed and a chosen set of adapters.
+    pub fn open_unseeded_with(
+        path: impl AsRef<Path>,
+        adapters: Vec<Arc<dyn ProviderAdapter>>,
+    ) -> Result<Arc<Self>, JamError> {
+        Self::open_store(path.as_ref(), adapters, false)
+    }
+
+    fn open_store(
+        path: &Path,
+        adapters: Vec<Arc<dyn ProviderAdapter>>,
+        seed: bool,
+    ) -> Result<Arc<Self>, JamError> {
+        let mut store = Store::open(path)?;
+        if seed {
+            store.seed_demo()?;
+        }
+        store.ensure_settings_resource()?;
         Ok(Arc::new(Self {
             id: new_id("runtime"),
             snapshots: crate::snapshots::SnapshotManager::new(
-                path.as_ref().parent().unwrap_or_else(|| Path::new(".")),
+                path.parent().unwrap_or_else(|| Path::new(".")),
             ),
             state: Mutex::new(State {
                 store,
@@ -144,6 +200,11 @@ impl Runtime {
                 let _: Empty = parse(request.params)?;
                 let state = self.lock()?;
                 let mut workspace = state.store.workspace(self.cursor(&state))?;
+                workspace.projects = workspace
+                    .projects
+                    .into_iter()
+                    .map(crate::projects::describe)
+                    .collect();
                 workspace.providers = self
                     .providers
                     .describe(&self.provider_settings(&state)?, &workspace.sessions);
@@ -195,11 +256,18 @@ impl Runtime {
             "directory.list" => {
                 let input: ListDirectory = parse(request.params)?;
                 validate_id(&input.project_id)?;
-                if !self.project(&input.project_id)?.paths.is_empty() {
-                    return Err(JamError::new(
-                        "unavailable",
-                        "Native directory browsing is not available yet. Open changed files from Review.",
-                    ));
+                if let Some(id) = &input.worktree_id {
+                    validate_id(id)?;
+                }
+                if let Some(root) = self.work_folder(
+                    &self.project(&input.project_id)?,
+                    input.worktree_id.as_deref(),
+                )? {
+                    return Ok(serde_json::to_value(crate::native_files::list_native(
+                        &input.project_id,
+                        &root,
+                        &input.path,
+                    )?)?);
                 }
                 Ok(serde_json::to_value(crate::files::list(
                     &input.project_id,
@@ -288,6 +356,16 @@ impl Runtime {
                     saved_at,
                 })?)
             }
+            "project.create" => {
+                let input: crate::projects::CreateProject = parse(request.params)?;
+                Ok(serde_json::to_value(self.create_project(input)?)?)
+            }
+            "project.remove" => {
+                let input: crate::projects::RemoveProject = parse(request.params)?;
+                let project_id = input.project_id.clone();
+                self.remove_project(input)?;
+                Ok(json!({ "projectId": project_id }))
+            }
             "project.update" => {
                 let input: UpdateProject = parse(request.params)?;
                 input.validate()?;
@@ -318,7 +396,7 @@ impl Runtime {
                     project.pinned = pinned;
                 }
                 state.store.save_project(&project)?;
-                Ok(json!({ "project": project }))
+                Ok(json!({ "project": crate::projects::describe(project) }))
             }
             "thread.setClosed" => {
                 let input: SetThreadClosed = parse(request.params)?;

@@ -4,7 +4,9 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use std::{path::Path, time::Duration};
 
-pub(crate) const SCHEMA_VERSION: i64 = 6;
+pub(crate) const SCHEMA_VERSION: i64 = 7;
+/// Projects that have not been removed from JAM.
+const ACTIVE_PROJECT: &str = "json_extract(data,'$.removedAt') IS NULL";
 
 /// A JAM session's link to the provider's own session or thread.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,26 +34,24 @@ impl Store {
         if version > SCHEMA_VERSION {
             return Err(JamError::new(
                 "unavailable",
-                "This database was created by a newer JAM version.",
+                "This database was created by a newer version of JAM Code. Update JAM Code to open it.",
             ));
+        }
+        if version > 0 && version < SCHEMA_VERSION {
+            backup_before_upgrade(&connection, path, version)?;
         }
         // Numbered, transactional, additive. A failed migration leaves the
         // previous version intact rather than resetting anything.
-        const MIGRATIONS: [&str; 6] = [
-            include_str!("migrations/001-foundation.sql"),
-            include_str!("migrations/002-file-edits.sql"),
-            include_str!("migrations/003-settings.sql"),
-            include_str!("migrations/004-snapshots.sql"),
-            include_str!("migrations/005-provider-bindings.sql"),
-            include_str!("migrations/006-worktrees.sql"),
-        ];
         for (index, migration) in MIGRATIONS.iter().enumerate() {
             let target = index as i64 + 1;
             if version >= target {
                 continue;
             }
             let transaction = connection.transaction()?;
-            transaction.execute_batch(migration)?;
+            match migration {
+                Migration::Sql(sql) => transaction.execute_batch(sql)?,
+                Migration::Code(step) => step(&transaction)?,
+            }
             transaction.pragma_update(None, "user_version", target)?;
             transaction.commit()?;
         }
@@ -99,6 +99,23 @@ impl Store {
                 return Err(error);
             }
         }
+        Ok(())
+    }
+
+    /// The one Settings resource, so Settings can open as a tab. It is part
+    /// of every database, not of the demo, and reopening never duplicates it.
+    pub fn ensure_settings_resource(&self) -> Result<(), JamError> {
+        self.connection.execute(
+            "INSERT OR IGNORE INTO resources(id,project_id,data) VALUES ('settings',NULL,?1)",
+            [serde_json::json!({
+                "id": "settings",
+                "kind": "settings",
+                "title": "Settings",
+                "pinned": false,
+                "updatedAt": crate::runtime::now(),
+            })
+            .to_string()],
+        )?;
         Ok(())
     }
 
@@ -158,11 +175,23 @@ impl Store {
             protocol_version: VERSION,
             runtime_id: cursor.runtime_id,
             sequence: cursor.sequence,
-            projects: self.all("SELECT data FROM projects ORDER BY rowid")?,
-            resources: self.all("SELECT data FROM resources ORDER BY rowid")?,
-            sessions: self.sessions()?,
+            projects: self.all(&format!(
+                "SELECT data FROM projects WHERE {ACTIVE_PROJECT} ORDER BY rowid"
+            ))?,
+            resources: self.all(&format!(
+                "SELECT data FROM resources WHERE project_id IS NULL OR project_id IN
+                   (SELECT id FROM projects WHERE {ACTIVE_PROJECT}) ORDER BY rowid"
+            ))?,
+            sessions: self.all(&format!(
+                "SELECT s.data FROM sessions s JOIN resources r ON r.id=s.conversation_id
+                 WHERE r.project_id IS NULL OR r.project_id IN
+                   (SELECT id FROM projects WHERE {ACTIVE_PROJECT}) ORDER BY s.rowid"
+            ))?,
             providers: Vec::new(),
-            worktrees: self.all("SELECT data FROM worktrees ORDER BY rowid")?,
+            worktrees: self.all(&format!(
+                "SELECT data FROM worktrees WHERE project_id IN
+                   (SELECT id FROM projects WHERE {ACTIVE_PROJECT}) ORDER BY rowid"
+            ))?,
         })
     }
 
@@ -312,6 +341,20 @@ impl Store {
     pub fn delete_setting(&self, key: &str) -> Result<(), JamError> {
         self.connection
             .execute("DELETE FROM settings WHERE key=?1", params![key])?;
+        Ok(())
+    }
+
+    /// Every project, including removed ones, so adding a folder again can
+    /// bring its history back.
+    pub fn all_projects(&self) -> Result<Vec<Project>, JamError> {
+        self.all("SELECT data FROM projects ORDER BY rowid")
+    }
+
+    pub fn insert_project(&self, project: &Project) -> Result<(), JamError> {
+        self.connection.execute(
+            "INSERT INTO projects(id,data) VALUES (?1,?2)",
+            params![project.id, serde_json::to_string(project)?],
+        )?;
         Ok(())
     }
 
@@ -495,7 +538,9 @@ impl Store {
                 JOIN search_documents d ON d.id=search_fts.rowid
                 JOIN resources r ON r.id=d.resource_id
                 JOIN sessions s ON s.conversation_id=r.id
+                JOIN projects p ON p.id=r.project_id
                 WHERE search_fts MATCH ?1
+                  AND json_extract(p.data,'$.removedAt') IS NULL
                   AND (?2 IS NULL OR r.project_id=?2)
                   AND (?3 IS NULL OR json_extract(r.data,'$.pinned')=?3)
                   AND (?4 IS NULL OR json_extract(s.data,'$.providerId')=?4)
@@ -536,6 +581,104 @@ impl Store {
             .take(50)
             .collect())
     }
+}
+
+enum Migration {
+    Sql(&'static str),
+    Code(fn(&rusqlite::Transaction<'_>) -> Result<(), JamError>),
+}
+
+const MIGRATIONS: [Migration; 7] = [
+    Migration::Sql(include_str!("migrations/001-foundation.sql")),
+    Migration::Sql(include_str!("migrations/002-file-edits.sql")),
+    Migration::Sql(include_str!("migrations/003-settings.sql")),
+    Migration::Sql(include_str!("migrations/004-snapshots.sql")),
+    Migration::Sql(include_str!("migrations/005-provider-bindings.sql")),
+    Migration::Sql(include_str!("migrations/006-worktrees.sql")),
+    Migration::Code(crate::demo_cleanup::remove_demo_seed),
+];
+
+/// A copy of the database as it was before an upgrade, beside it, so a
+/// failed or unwanted upgrade can be undone by hand. Written once per
+/// version; an in-memory database has nothing to copy.
+fn backup_before_upgrade(
+    connection: &Connection,
+    path: &Path,
+    version: i64,
+) -> Result<(), JamError> {
+    if path.as_os_str().is_empty() || path == Path::new(":memory:") {
+        return Ok(());
+    }
+    let mut name = path.file_name().unwrap_or_default().to_os_string();
+    name.push(format!(".before-v{}.bak", version + 1));
+    let backup = path.with_file_name(name);
+    if backup.exists() {
+        return Ok(());
+    }
+    let target = backup.to_str().ok_or_else(|| {
+        JamError::new(
+            "unavailable",
+            "The database folder's name cannot be used for a backup.",
+        )
+    })?;
+    connection
+        .execute("VACUUM INTO ?1", [target])
+        .map_err(|error| {
+            JamError::new(
+                "unavailable",
+                format!("JAM Code could not back up its database before upgrading it: {error}"),
+            )
+        })?;
+    Ok(())
+}
+
+/// Copies a database written by an earlier build under another file name to
+/// `target`, leaving the original untouched as a fallback. The copy is
+/// consistent even with a write-ahead log beside the source, and appears at
+/// `target` only once it is complete.
+pub(crate) fn import_database(source: &Path, target: &Path) -> Result<(), JamError> {
+    let partial = target.with_extension("sqlite.importing");
+    if partial.exists() {
+        std::fs::remove_file(&partial).map_err(file_error)?;
+    }
+    {
+        let connection = Connection::open(source)?;
+        connection.busy_timeout(Duration::from_secs(3))?;
+        let version: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
+        if version > SCHEMA_VERSION {
+            return Err(JamError::new(
+                "unavailable",
+                "The existing database was created by a newer version of JAM Code.",
+            ));
+        }
+        let destination = partial.to_str().ok_or_else(|| {
+            JamError::new("unavailable", "The data folder's name cannot be used.")
+        })?;
+        connection.execute("VACUUM INTO ?1", [destination])?;
+    }
+    if let Some(name) = source.file_name().and_then(|name| name.to_str()) {
+        let connection = Connection::open(&partial)?;
+        let has_metadata: bool = connection.query_row(
+            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='metadata'",
+            [],
+            |row| row.get(0),
+        )?;
+        if has_metadata {
+            connection.execute(
+                "INSERT OR REPLACE INTO metadata(key,value) VALUES ('imported_from',?1)",
+                [name],
+            )?;
+        }
+    }
+    std::fs::rename(&partial, target).map_err(file_error)?;
+    Ok(())
+}
+
+fn file_error(error: std::io::Error) -> JamError {
+    JamError::new(
+        "unavailable",
+        format!("JAM Code could not prepare its database: {error}"),
+    )
 }
 
 fn bounded_snippet(text: String) -> String {

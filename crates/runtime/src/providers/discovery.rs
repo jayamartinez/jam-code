@@ -198,19 +198,19 @@ fn login_shell_path() -> Option<OsString> {
 /// Runs `<program> <args>` briefly and returns the first version-looking
 /// token of its output, such as `2.1.283` or `0.157.0`.
 pub(crate) async fn version(program: &Path, args: &[&str]) -> Option<String> {
-    let output = tokio::time::timeout(
-        Duration::from_secs(8),
-        tokio::process::Command::new(program)
-            .args(args)
-            .env("PATH", search_path())
-            .stdin(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .kill_on_drop(true)
-            .output(),
-    )
-    .await
-    .ok()?
-    .ok()?;
+    let mut command = tokio::process::Command::new(program);
+    command
+        .args(args)
+        .env("PATH", search_path())
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .kill_on_drop(true);
+    #[cfg(windows)]
+    command.creation_flags(crate::CREATE_NO_WINDOW);
+    let output = tokio::time::timeout(Duration::from_secs(8), command.output())
+        .await
+        .ok()?
+        .ok()?;
     parse_version(&String::from_utf8_lossy(&output.stdout))
 }
 

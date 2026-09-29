@@ -108,7 +108,7 @@ impl StdioChild {
         #[cfg(windows)]
         {
             // No console window flashes for a background agent.
-            command.creation_flags(0x0800_0000);
+            command.creation_flags(crate::CREATE_NO_WINDOW);
         }
         let mut child = command.spawn().map_err(|error| {
             JamError::new(
