@@ -4,6 +4,7 @@ import type { OpenableKind, Presentation, Project } from '@jam/protocol';
 import { IconSlot, ProviderIcon } from './icons';
 import { ProjectBadge } from './ProjectBadge';
 import { useOccludesNativeViews } from '../state/native-occlusion';
+import { useShortcutHint } from '../state/keybindings';
 
 /**
  * The New Resource launcher answers "what do I want to open?".
@@ -80,6 +81,8 @@ export function NewResourceLauncher({
   onOpenTerminal,
   onAddProject,
 }: NewResourceLauncherProps) {
+  const newChatHint = useShortcutHint('new-chat', shortcut === '⌘');
+  const codexHint = useShortcutHint('new-chat-codex', shortcut === '⌘');
   const container = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
   useOccludesNativeViews();
@@ -121,14 +124,14 @@ export function NewResourceLauncher({
           {
             id: 'claude',
             label: 'Claude Code chat',
-            shortcut: `${shortcut} N`,
+            shortcut: newChatHint,
             icon: <ProviderIcon presentation="claude" />,
             run: () => onAgentChat('claude'),
           },
           {
             id: 'codex',
             label: 'Codex chat',
-            shortcut: `${shortcut} ⇧ N`,
+            shortcut: codexHint,
             icon: <ProviderIcon presentation="codex" />,
             run: () => onAgentChat('codex'),
           },
@@ -274,7 +277,16 @@ export function NewResourceLauncher({
           ]
         : []),
     ],
-    [folderless, onAgentChat, onOpenTerminal, onResource, shortcut, terminals],
+    [
+      codexHint,
+      folderless,
+      newChatHint,
+      onAgentChat,
+      onOpenTerminal,
+      onResource,
+      shortcut,
+      terminals,
+    ],
   );
 
   useEffect(() => {

@@ -1,5 +1,6 @@
 import { Plus } from 'lucide-react';
 import { PaneChrome, type PaneChromeProps } from './PaneChrome';
+import { useShortcutHint } from '../state/keybindings';
 
 /**
  * A pane with no resource yet.
@@ -19,6 +20,7 @@ export function EmptyPane({
   shortcut: string;
   onChoose(anchor: Element): void;
 }) {
+  const newTabHint = useShortcutHint('new-tab', shortcut === '⌘');
   return (
     <PaneChrome
       {...chrome}
@@ -39,7 +41,14 @@ export function EmptyPane({
         <p className="subtle">
           A chat, terminal, file, file browser or review can go in any pane.
           <br />
-          This pane belongs to this tab. <kbd>{shortcut} T</kbd> opens a new tab instead.
+          This pane belongs to this tab.{' '}
+          {newTabHint ? (
+            <>
+              <kbd>{newTabHint}</kbd> opens a new tab instead.
+            </>
+          ) : (
+            'A new tab is another way in.'
+          )}
         </p>
       </div>
     </PaneChrome>

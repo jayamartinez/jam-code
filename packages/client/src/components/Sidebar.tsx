@@ -18,6 +18,7 @@ import { MenuSelect } from './MenuSelect';
 import { HelpMenu, type FeedbackKind } from './HelpMenu';
 import { SessionDot } from './SessionDot';
 import { compactAge, daysSince, orderProjects, suggestsClosing, threadsOf } from '../state/threads';
+import { useShortcutHint } from '../state/keybindings';
 
 export { ProjectBadge };
 
@@ -60,6 +61,9 @@ export interface SidebarProps {
 
 export function Sidebar(props: SidebarProps) {
   const { workspace, collapsed, projectId, activeResourceId, shortcut } = props;
+  // Hints follow Settings → Keybindings; a command without keys shows none.
+  const searchHint = useShortcutHint('search', shortcut === '⌘');
+  const settingsHint = useShortcutHint('settings', shortcut === '⌘');
   // On macOS the native traffic lights occupy the sidebar header's left inset;
   // the brand follows them there, and yields to them on the narrow rail.
   const mac = props.platform === 'macos';
@@ -124,7 +128,7 @@ export function Sidebar(props: SidebarProps) {
         <button className="search-trigger" onClick={props.onSearch}>
           <Search size={14} />
           <span>Search all history</span>
-          <Shortcut>{shortcut} K</Shortcut>
+          {searchHint && <Shortcut>{searchHint}</Shortcut>}
         </button>
       </div>
       <section className="sidebar-section">
@@ -262,7 +266,7 @@ export function Sidebar(props: SidebarProps) {
         <button onClick={props.onSettings}>
           <Settings size={14} />
           <span>Settings</span>
-          <Shortcut>{shortcut} ,</Shortcut>
+          {settingsHint && <Shortcut>{settingsHint}</Shortcut>}
         </button>
         {props.onFeedback && (
           <HelpMenu onFeedback={props.onFeedback} onCopyDiagnostics={props.onCopyDiagnostics} />

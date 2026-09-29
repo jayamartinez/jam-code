@@ -1,12 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { BINDING_GROUPS, filterBindings, keyLabels, usesCommand } from './keybindings-data';
+import {
+  BINDING_GROUPS,
+  chordFromEvent,
+  chordProblem,
+  filterBindings,
+  keyLabels,
+  usesCommand,
+} from './keybindings-data';
 
 describe('keybindings table', () => {
   const all = BINDING_GROUPS.flatMap((group) => group.bindings);
 
   it('has unique ids and keys for both platforms', () => {
     expect(new Set(all.map((binding) => binding.id)).size).toBe(all.length);
-    for (const binding of all) {
+    // Only a rebindable command may start without keys.
+    for (const binding of all.filter((item) => !item.editable)) {
       expect(binding.keys.mac.length).toBeGreaterThan(0);
       expect(binding.keys.other.length).toBeGreaterThan(0);
     }
@@ -47,5 +55,33 @@ describe('keybindings table', () => {
       'search',
     ]);
     expect(filterBindings(BINDING_GROUPS, 'no such command', false)).toEqual([]);
+  });
+
+  it('records a key press as a chord by key position, with the platform modifier', () => {
+    const press = (code: string, key: string, held: Partial<KeyboardEvent> = {}) => ({
+      code,
+      key,
+      metaKey: false,
+      ctrlKey: false,
+      altKey: false,
+      shiftKey: false,
+      ...held,
+    });
+    expect(chordFromEvent(press('KeyK', 'k', { ctrlKey: true }), false)).toBe('mod+k');
+    expect(chordFromEvent(press('KeyK', 'k', { metaKey: true, ctrlKey: true }), true)).toBe(
+      'mod+ctrl+k',
+    );
+    // Shift turns "," into "<", but the chord keeps the key.
+    expect(chordFromEvent(press('Comma', '<', { ctrlKey: true, shiftKey: true }), false)).toBe(
+      'mod+shift+,',
+    );
+    expect(chordFromEvent(press('ControlLeft', 'Control', { ctrlKey: true }), false)).toBeNull();
+  });
+
+  it('refuses chords without a modifier and those text editing needs', () => {
+    expect(chordProblem('shift+k')).not.toBeNull();
+    expect(chordProblem('mod+c')).not.toBeNull();
+    expect(chordProblem('f5')).toBeNull();
+    expect(chordProblem('mod+shift+c')).toBeNull();
   });
 });
