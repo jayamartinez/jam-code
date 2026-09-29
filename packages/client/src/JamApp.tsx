@@ -44,6 +44,8 @@ import {
   type SplitDirection,
 } from './state/layout';
 import { RuntimeClient } from './state/runtime-client';
+import { commandFor, useKeybindings, useShortcutHint } from './state/keybindings';
+import { chordFromEvent } from './components/settings/keybindings-data';
 import {
   type NewThreadWorkspace,
   useIdleThreadDays,
@@ -208,6 +210,9 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       typeof navigator !== 'undefined' &&
       /Mac|iPhone|iPad/.test(navigator.platform));
   const shortcut = usesCommand ? '⌘' : 'Ctrl';
+  const { overrides: keybindings } = useKeybindings(usesCommand);
+  const closeTabHint = useShortcutHint('close-tab', usesCommand);
+  const reopenHint = useShortcutHint('reopen-tab', usesCommand);
 
   const activeTabId = layout.activeTabId;
   const activeId = activeResourceId(layout);
@@ -750,30 +755,51 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         else if (layout.focus) dispatch({ type: 'focus' });
         return;
       }
-      if (!(usesCommand ? event.metaKey : event.ctrlKey) || event.altKey) return;
-      const key = event.key.toLowerCase();
-      if (key === 'k') {
-        event.preventDefault();
-        setOverlay('search');
-      } else if (key === 'n') {
-        event.preventDefault();
-        if (!overlay && !launcher) newChat(event.shiftKey ? 'codex' : undefined);
-      } else if (key === 't' && event.shiftKey) {
-        event.preventDefault();
-        if (!overlay && !launcher && !settingsMode) reopenTab();
-      } else if (key === 't') {
-        event.preventDefault();
-        // The keyboard path hangs from the tab strip's own new-tab button.
-        setLauncher({ anchor: anchorOf(document.querySelector('.new-resource')) });
-      } else if (event.key === ',') {
-        event.preventDefault();
-        openSettings();
-      } else if (event.key === '.') {
-        event.preventDefault();
-        dispatch({ type: 'focus' });
-      } else if (key === 'w' && activeTabId && !overlay && !launcher && !settingsMode) {
-        event.preventDefault();
-        closeTab(activeTabId);
+      // JAM's own commands run by chord, as bound in Settings → Keybindings.
+      const chord = chordFromEvent(event, usesCommand);
+      const command = chord ? commandFor(chord, keybindings, usesCommand) : null;
+      if (!command) return;
+      event.preventDefault();
+      const busy = Boolean(overlay || launcher);
+      switch (command) {
+        case 'search':
+          setOverlay('search');
+          break;
+        case 'new-chat':
+          if (!busy) newChat();
+          break;
+        case 'new-chat-codex':
+          if (!busy) newChat('codex');
+          break;
+        case 'new-tab':
+          // The keyboard path hangs from the tab strip's own new-tab button.
+          setLauncher({ anchor: anchorOf(document.querySelector('.new-resource')) });
+          break;
+        case 'reopen-tab':
+          if (!busy && !settingsMode) reopenTab();
+          break;
+        case 'settings':
+          openSettings();
+          break;
+        case 'focus':
+          dispatch({ type: 'focus' });
+          break;
+        case 'close-tab':
+          if (activeTabId && !busy && !settingsMode) closeTab(activeTabId);
+          break;
+        case 'split-right':
+          if (!busy && !settingsMode) splitPane('row');
+          break;
+        case 'split-down':
+          if (!busy && !settingsMode) splitPane('column');
+          break;
+        case 'close-pane': {
+          // Only a split tab has a pane to close; the last one closes with its tab.
+          const pane = focusedPane(layoutRef.current);
+          if (pane && !busy && !settingsMode && leaves(activeTree(layoutRef.current)).length > 1)
+            dispatch({ type: 'closePane', paneId: pane.id });
+          break;
+        }
       }
     };
     window.addEventListener('keydown', onKey);
@@ -781,7 +807,9 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   }, [
     activeTabId,
     closeTab,
+    keybindings,
     reopenTab,
+    splitPane,
     usesCommand,
     launcher,
     layout.focus,
@@ -1113,7 +1141,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         onSelect: activeTabId ? () => closeTab(activeTabId) : undefined,
         danger: true,
         separated: true,
-        shortcut: `${shortcut} W`,
+        shortcut: closeTabHint,
         description:
           tiled && paneCount > 1 ? `Closes all ${paneCount} panes in this tab` : 'Closes this tab',
       },
@@ -1561,7 +1589,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                   <span className="truncate">Closed “{closedNotice.title}”</span>
                   <button type="button" onClick={reopenTab}>
                     Reopen
-                    <kbd>{shortcut} ⇧ T</kbd>
+                    {reopenHint && <kbd>{reopenHint}</kbd>}
                   </button>
                 </div>
               )}

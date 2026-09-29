@@ -7,6 +7,7 @@ import type { LayoutState } from '../state/layout';
 import { Brand, IconButton, Shortcut, WindowControls } from './Controls';
 import { ProjectBadge } from './ProjectBadge';
 import { ResourceIcon } from './icons';
+import { useShortcutHint } from '../state/keybindings';
 
 interface WorkspaceTitlebarProps {
   desktop: DesktopServices;
@@ -41,6 +42,7 @@ export function WorkspaceTitlebar({
   onExitFocus,
   onMode,
 }: WorkspaceTitlebarProps) {
+  const focusHint = useShortcutHint('focus', shortcut === '⌘');
   const strip = useRef<HTMLDivElement>(null);
   /** Set when a press turned into a drag, so the release does not also select. */
   const suppressClick = useRef(false);
@@ -268,7 +270,7 @@ export function WorkspaceTitlebar({
       )}
       {layout.focus ? (
         <button className="focus-exit" onClick={onExitFocus}>
-          Exit focus<Shortcut>{shortcut} .</Shortcut>
+          Exit focus{focusHint && <Shortcut>{focusHint}</Shortcut>}
         </button>
       ) : (
         <div className="layout-toggle">
