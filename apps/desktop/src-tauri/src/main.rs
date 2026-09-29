@@ -2,6 +2,7 @@
 
 mod bridge;
 mod browser;
+mod feedback;
 mod folders;
 mod lifecycle;
 mod snapshots;
@@ -35,7 +36,8 @@ fn main() {
             browser::browser_close,
             snapshots::snapshot_host,
             snapshots::snapshot_toast_request,
-            folders::pick_directory
+            folders::pick_directory,
+            feedback::open_feedback
         ])
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;

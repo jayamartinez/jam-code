@@ -74,4 +74,6 @@ export interface SettingsPageProps {
   transport: JamTransport;
   /** Present only in the desktop app, where capture exists. */
   snapshots?: SnapshotHost;
+  /** JAM Code's GitHub pages; present only in the desktop app. */
+  openFeedback?: DesktopServices['openFeedback'];
 }

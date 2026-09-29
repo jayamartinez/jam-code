@@ -11,6 +11,11 @@ export interface DesktopServices {
    * client.
    */
   pickDirectory?(): Promise<string | null>;
+  /**
+   * Opens JAM Code's GitHub page for a bug report (prefilled with version,
+   * OS and WebView only), a feature idea, or the documentation.
+   */
+  openFeedback?(kind: 'bug' | 'feature' | 'docs'): Promise<void>;
   /** Native Browser views. Absent where the host cannot embed one. */
   browser?: BrowserHost;
   snapshots?: SnapshotHost;

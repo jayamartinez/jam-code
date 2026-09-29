@@ -1,0 +1,28 @@
+name: Bug report
+description: Something in JAM Code doesn't work as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. …\n2. …"
+  - type: input
+    id: version
+    attributes:
+      label: JAM Code version
+      description: Filled in when you use Help → Report a bug in the app.
+  - type: input
+    id: environment
+    attributes:
+      label: OS and WebView
+  - type: markdown
+    attributes:
+      value: Please don't paste credentials, tokens or private code. Screenshots help.

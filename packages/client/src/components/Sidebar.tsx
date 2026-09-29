@@ -14,6 +14,7 @@ import type { Project, Resource, Session, WorkspaceSnapshot } from '@jam/protoco
 import { Brand, IconButton, Shortcut, TrafficLightInset } from './Controls';
 import { ProviderIcon } from './icons';
 import { ProjectBadge } from './ProjectBadge';
+import { HelpMenu, type FeedbackKind } from './HelpMenu';
 import { compactAge, daysSince, orderProjects, suggestsClosing, threadsOf } from '../state/threads';
 
 export { ProjectBadge };
@@ -48,6 +49,9 @@ export interface SidebarProps {
   onProjectMenu(projectId: string, event: React.MouseEvent): void;
   /** Opens the folder picker; absent where the host has none. */
   onAddProject?(): void;
+  /** JAM Code's GitHub pages; absent where the host cannot open them. */
+  onFeedback?(kind: FeedbackKind): void;
+  onCopyDiagnostics(): Promise<void>;
 }
 
 export function Sidebar(props: SidebarProps) {
@@ -255,6 +259,9 @@ export function Sidebar(props: SidebarProps) {
           <span>Settings</span>
           <Shortcut>{shortcut} ,</Shortcut>
         </button>
+        {props.onFeedback && (
+          <HelpMenu onFeedback={props.onFeedback} onCopyDiagnostics={props.onCopyDiagnostics} />
+        )}
       </footer>
     </aside>
   );

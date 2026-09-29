@@ -1,4 +1,4 @@
-import { Copy } from 'lucide-react';
+import { ArrowUpRight, Copy } from 'lucide-react';
 import { PROTOCOL_VERSION } from '@jam/protocol';
 import { useEffect, useState } from 'react';
 import { Card, Chip, Planned, Row, Section } from '../controls';
@@ -6,7 +6,7 @@ import { buildFacts, webViewName } from '../system-info';
 import type { SettingsPageProps } from '../types';
 
 /** Only facts a real source reports; a build that does not embed its version omits it. */
-export default function AboutPage({ platform }: SettingsPageProps) {
+export default function AboutPage({ platform, openFeedback }: SettingsPageProps) {
   const facts = buildFacts();
   const [copied, setCopied] = useState(false);
   useEffect(() => {
@@ -75,6 +75,35 @@ export default function AboutPage({ platform }: SettingsPageProps) {
           </Row>
         </Card>
       </Section>
+
+      {openFeedback && (
+        <Section label="Feedback">
+          <Card>
+            {(
+              [
+                [
+                  'bug',
+                  'Report a bug',
+                  'Opens a GitHub issue with this version and system filled in.',
+                ],
+                ['feature', 'Suggest a feature', 'Share an idea on GitHub.'],
+                ['docs', 'Documentation', 'The README on GitHub.'],
+              ] as const
+            ).map(([kind, title, sub]) => (
+              <Row key={kind} title={title} sub={sub}>
+                <button
+                  type="button"
+                  className="sv-button"
+                  onClick={() => void openFeedback(kind).catch(() => {})}
+                >
+                  Open
+                  <ArrowUpRight size={12} aria-hidden="true" />
+                </button>
+              </Row>
+            ))}
+          </Card>
+        </Section>
+      )}
 
       <Section label="Built with">
         <Card>

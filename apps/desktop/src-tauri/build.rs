@@ -49,6 +49,7 @@ fn main() {
             "snapshot_host",
             "snapshot_toast_request",
             "pick_directory",
+            "open_feedback",
         ]),
     ))
     .expect("could not build the desktop application metadata");
