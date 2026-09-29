@@ -21,7 +21,10 @@ export function NotificationSettings({ platform }: { platform: DesktopServices['
   return (
     <Section label="Notifications" hint="When a chat finishes, needs you, or hits an error.">
       <Card>
-        <Row title="Play a sound" sub="When an agent finishes or needs your input.">
+        <Row
+          title="Play a sound"
+          sub="When an agent finishes or needs your input while you’re in another app."
+        >
           <Toggle label="Play a sound" on={prefs.sound} onChange={(sound) => update({ sound })} />
         </Row>
         <Row title="Sound" disabled={!prefs.sound}>
