@@ -33,5 +33,7 @@ export function createDesktopServices(): DesktopServices {
     pickDirectory: () => invoke<string | null>('pick_directory'),
     browser: createBrowserHost(),
     snapshots: createSnapshotHost(),
+    setAttentionBadge: (badge) => invoke('set_attention_badge', { badge }),
+    notify: ({ title, body }) => invoke('notify', { title, body }),
   };
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 /**
  * Client-owned reader preferences that describe behaviour in this browser
@@ -128,44 +128,4 @@ export function useNewThreadWorkspace(): [NewThreadWorkspace, (next: NewThreadWo
     }
   }, []);
   return [choice, update];
-}
-
-const FINISH_SOUND_KEY = 'jam.finishSound';
-const finishSoundListeners = new Set<() => void>();
-let finishSound: boolean | null = null;
-
-function readFinishSound() {
-  if (finishSound === null) {
-    try {
-      finishSound = localStorage.getItem(FINISH_SOUND_KEY) !== 'false';
-    } catch {
-      finishSound = true;
-    }
-  }
-  return finishSound;
-}
-
-/**
- * Whether a chime plays when an agent finishes (on by default). Shared by
- * every reader, so General's toggle takes effect at once.
- */
-export function useFinishSound(): [boolean, (next: boolean) => void] {
-  const on = useSyncExternalStore(
-    (listener) => {
-      finishSoundListeners.add(listener);
-      return () => finishSoundListeners.delete(listener);
-    },
-    readFinishSound,
-    () => true,
-  );
-  const update = useCallback((next: boolean) => {
-    finishSound = next;
-    try {
-      localStorage.setItem(FINISH_SOUND_KEY, String(next));
-    } catch {
-      // Losing the preference only restores the default.
-    }
-    finishSoundListeners.forEach((listener) => listener());
-  }, []);
-  return [on, update];
 }

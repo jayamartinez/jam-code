@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod attention;
 mod bridge;
 mod browser;
 mod folders;
@@ -19,6 +20,7 @@ pub(crate) struct Host {
 
 fn main() {
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             lifecycle::show(app)
         }))
@@ -35,7 +37,9 @@ fn main() {
             browser::browser_close,
             snapshots::snapshot_host,
             snapshots::snapshot_toast_request,
-            folders::pick_directory
+            folders::pick_directory,
+            attention::set_attention_badge,
+            attention::notify
         ])
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;

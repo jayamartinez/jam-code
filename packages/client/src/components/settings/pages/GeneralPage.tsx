@@ -1,12 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { Project, ProviderId } from '@jam/protocol';
 import { ProviderIcon } from '../../icons';
-import {
-  IDLE_THREAD_OPTIONS,
-  TIME_FORMAT_OPTIONS,
-  useFinishSound,
-} from '../../../state/preferences';
-import { playFinishChime } from '../../finish-chime';
+import { IDLE_THREAD_OPTIONS, TIME_FORMAT_OPTIONS } from '../../../state/preferences';
 import { ProjectBadge } from '../../ProjectBadge';
 import {
   Card,
@@ -22,7 +17,6 @@ import {
 import type { SettingsPageProps } from '../types';
 import { effortLabel } from '../../composer-model';
 import {
-  NOTIFICATION_EVENTS,
   defaultProvider,
   liveProviders,
   sharedDefault,
@@ -52,7 +46,6 @@ export default function GeneralPage({
   providerControl,
 }: SettingsPageProps) {
   const provider = defaultProvider(providers);
-  const [finishSound, setFinishSound] = useFinishSound();
   const agents = liveProviders(providers);
   // Effort levels come from the agents' models, which a check reports.
   useEffect(() => void providerControl.ensure(), [providerControl]);
@@ -116,19 +109,6 @@ export default function GeneralPage({
             sub="Show agent replies as they are written. Off shows each part once it is complete."
           >
             <Toggle label="Stream replies" on={streamReplies} onChange={onStreamReplies} />
-          </Row>
-          <Row
-            title="Sound when an agent finishes"
-            sub="A short chime when a chat's agent is done, wherever the chat is."
-          >
-            <Toggle
-              label="Sound when an agent finishes"
-              on={finishSound}
-              onChange={(next) => {
-                setFinishSound(next);
-                if (next) playFinishChime();
-              }}
-            />
           </Row>
           <Row
             title="Effort"
@@ -280,58 +260,6 @@ export default function GeneralPage({
             </Row>
           </div>
           <IdlePreview projects={projects} days={idleThreadDays} />
-        </Card>
-      </Section>
-
-      <Section
-        label={
-          <>
-            Thread notifications <Planned />
-          </>
-        }
-      >
-        <Card>
-          <div className="general-matrix" role="table" aria-label="Thread notifications">
-            <div className="general-matrix-row head" role="row">
-              <span role="columnheader">When a thread…</span>
-              <span role="columnheader">Notification</span>
-              <span role="columnheader">Dock badge</span>
-              <span role="columnheader">Sound</span>
-            </div>
-            {NOTIFICATION_EVENTS.map((event) => (
-              <div className="general-matrix-row" role="row" key={event.id}>
-                <span role="cell" className="general-matrix-event">
-                  <i className={`general-dot ${event.tone}`} aria-hidden="true" />
-                  {event.label}
-                </span>
-                {(['notification', 'badge', 'sound'] as const).map((channel) => (
-                  <span role="cell" key={channel}>
-                    <input
-                      type="checkbox"
-                      className="gt-check"
-                      aria-label={`${event.label}: ${channel}`}
-                      checked={event.defaults[channel]}
-                      disabled
-                      readOnly
-                    />
-                  </span>
-                ))}
-              </div>
-            ))}
-          </div>
-          <Row
-            title="Only when JAM isn't focused"
-            sub="While you're looking at JAM, the sidebar shows it instead."
-          >
-            <Toggle label="Only when JAM isn't focused" on />
-          </Row>
-          <Row title="Sound">
-            <Select
-              label="Notification sound"
-              value="chime"
-              options={[{ value: 'chime', label: 'Soft chime' }]}
-            />
-          </Row>
         </Card>
       </Section>
     </div>
