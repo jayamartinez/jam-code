@@ -1,9 +1,12 @@
 import type { ReactNode } from 'react';
 import type { Project, ProviderId, Resource, Session } from '@jam/protocol';
 import { ProviderIcon } from './icons';
+import { ProjectSwitcher } from './NewChatTarget';
 
 interface NewChatProps {
   project?: Project;
+  projects: readonly Project[];
+  onProject(projectId: string): void;
   resources: Resource[];
   composer: ReactNode;
   providerId: ProviderId;
@@ -26,6 +29,8 @@ const DEMO_LABELS: Record<string, string> = {
 
 export function NewChat({
   project,
+  projects,
+  onProject,
   resources,
   composer,
   providerId,
@@ -34,7 +39,6 @@ export function NewChat({
   onStarter,
 }: NewChatProps) {
   const demo = providerId === 'mock';
-  const folder = project?.paths?.[0];
   // The pane frame (header and controls) is supplied by the caller so a new
   // chat can occupy any pane, like every other resource.
   return (
@@ -42,12 +46,10 @@ export function NewChat({
       <div className="new-chat-body">
         <div className="new-chat-content">
           <div className="new-chat-heading">
-            <h1>What should we work on in {project?.name}?</h1>
-            <p className="mono">
-              {[folder ?? 'no project folder', project?.branch, demo ? 'demo provider' : null]
-                .filter(Boolean)
-                .join(' · ')}
-            </p>
+            <h1>
+              What should we work on in{' '}
+              <ProjectSwitcher projects={projects} project={project} onChange={onProject} />?
+            </h1>
           </div>
           {composer}
           <div className="new-chat-suggestions">
