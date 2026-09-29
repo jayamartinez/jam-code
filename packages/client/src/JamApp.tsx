@@ -21,7 +21,7 @@ import type {
   RequestMap,
   TerminalSession,
 } from '@jam/protocol';
-import { type ChatDraft, draftProvider, presentationFor } from './state/chat-draft';
+import { type ChatDraft, draftProvider, inProject, presentationFor } from './state/chat-draft';
 import type { InteractionAnswer } from './components/InteractionCard';
 import type { BrowserAnnotation, DesktopServices } from './desktop';
 import {
@@ -968,6 +968,15 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         >
           <NewChat
             project={draftProject}
+            projects={workspace.projects}
+            onProject={(projectId) =>
+              setNewChats((current) => {
+                const previous = current[resourceId];
+                return previous
+                  ? { ...current, [resourceId]: inProject(previous, projectId) }
+                  : current;
+              })
+            }
             resources={workspace.resources.filter(
               (item) => item.projectId === draft.projectId && item.kind === 'conversation',
             )}

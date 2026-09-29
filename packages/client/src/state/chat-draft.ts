@@ -34,6 +34,13 @@ export function draftProvider(
   );
 }
 
+/**
+ * The same draft in another project: text, context, agent and options stay.
+ */
+export function inProject(draft: ChatDraft, projectId: string): ChatDraft {
+  return draft.projectId === projectId ? draft : { ...draft, projectId };
+}
+
 /** Why a provider cannot start a chat right now, or null when it can. */
 export function unavailableReason(provider: ProviderDescriptor | undefined): string | null {
   if (!provider) return 'This provider is not available.';
