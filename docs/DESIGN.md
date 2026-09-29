@@ -1,6 +1,6 @@
 # Design foundation
 
-The canonical design is the Paper document **JAM code design**. Its References, workspace, Core flows, and Settings pages were inspected before implementation using screenshots, hierarchy, exact JSX, computed styles, and semantic tokens. This document records the product foundation rather than embedding private exports or reference images. Components are original implementation. The provisional wordmark is lowercase typographic `jam`; the reference's abstract mark is deliberately omitted.
+The canonical design is the Paper document **JAM code design**. Its References, workspace, Core flows, and Settings pages were inspected before implementation using screenshots, hierarchy, exact JSX, computed styles, and semantic tokens. This document records the product foundation rather than embedding private exports or reference images. Components are original implementation. The brand is the `jam` app mark with the lowercase `jam` wordmark; see Brand below.
 
 ## Nightglass
 
@@ -43,15 +43,30 @@ Dedicated Settings replaces the normal sidebar with a 260px settings navigation.
 | Project threads       | Frame 7: a selected project expands its open threads, one idle-close prompt, and a collapsible Closed group  |
 | Settings              | Dedicated providers, provider detail, snapshot options, shortcut states, and resource-tab presentation       |
 
+## Brand
+
+Paper's **Brand · jam** board is canonical. The mark is a 22.5%-radius tile of
+the Nightglass base with the Nightglass backdrop glows and `jam` in Geist
+SemiBold, drawn from a 512-unit master (`components/BrandMark.tsx`). Its edge
+ring stays 1px at every size so the dark tile still reads on dark chrome. The
+mark is artwork rather than themed chrome, so its colours do not follow the
+active theme. The brand row is an 18px mark, an 8px gap and the 13px/16px
+semibold `jam` wordmark in `text-primary`; the collapsed rail shows the 20px
+mark alone. `apps/desktop/src-tauri/icons/icon.svg` is the same mark as the app
+icon; regenerate `icon.png` and `icon.ico` from it with the Tauri CLI's `icon`
+command. The product name in window titles, the tray and the operating system
+is **JAM Code**; `jam` remains the typographic brand inside the app.
+
 ## Window chrome
 
 Windows draws JAM's own controls at the right of the titlebar. macOS keeps the
 host's real traffic lights and JAM draws none: the desktop host positions them
 at an 18px left inset, 16px from the top, so the system's 12px buttons and 8px
 spacing centre in the 44px titlebar. They occupy the sidebar header's left
-inset, which is where the wordmark sits on Windows; on macOS the wordmark
-yields to them rather than being pushed sideways. A collapsed 56px rail is
-narrower than the buttons need, so the rail's own content starts below them.
+inset, which is where the brand starts on Windows; on macOS the brand follows
+them 16px after the last light. A collapsed 56px rail is narrower than the
+buttons need, so the rail's own content starts below them and the rail's mark
+is left out there.
 Only noninteractive titlebar space starts a native drag, and tab reordering is
 pointer-driven rather than HTML5 drag-and-drop: a native drag hands the tab to
 the operating system as a draggable item that could be dropped into another

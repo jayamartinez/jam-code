@@ -48,7 +48,7 @@ fn main() {
             let config = tauri::utils::config::WindowConfig {
                 label: "main".into(),
                 url: WebviewUrl::default(),
-                title: "jam — local workspace".into(),
+                title: "JAM Code".into(),
                 width: 1440.0,
                 height: 900.0,
                 min_width: Some(960.0),

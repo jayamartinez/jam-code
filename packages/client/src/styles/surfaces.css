@@ -290,9 +290,6 @@
   font-size: calc(12px * var(--ui-scale));
   font-weight: 500;
 }
-.settings-nav-header .wordmark {
-  font-size: calc(14px * var(--ui-scale));
-}
 .settings-nav-sections {
   padding: 0 8px;
   overflow: auto;

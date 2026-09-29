@@ -15,7 +15,7 @@ Native runtime tests cover migration/seed idempotence, persistence/reopen, FTS q
 
 ## Manual acceptance sequence
 
-1. Run `pnpm desktop`. Confirm the compact Nightglass sidebar/tabs and lowercase jam mark. No provider login or credential prompt should appear.
+1. Run `pnpm desktop`. Confirm the compact Nightglass sidebar/tabs and the jam mark and wordmark. No provider login or credential prompt should appear.
 2. Open several conversations from history. Switch Single/Tiles. Close and reopen a tab; the transcript should remain available. Collapse/reopen the sidebar.
 3. Send an ordinary mock message. Observe streamed response/tool state and completion. Submit `/fail` to check honest failure, then recover with another message.
 4. Send, interrupt promptly, and confirm no late completion overwrites interrupted state. Send again; switch resources or hide/reopen the window while it runs. Work must continue independently of view visibility.
@@ -30,7 +30,7 @@ Deferred functions must be visibly labeled or disabled. No demo command should e
 
 Compare the running shell against Paper's Windows Single and Windows Tiled frames, plus the semantic token frame. Inspect 280px sidebar, 44px titlebar, 42px pane header, 6px tile gaps, 8px outer padding, max-width 700px single conversation, compact typography and subtle translucent surfaces. The semantic token `container-thread` is 640px while the actual Single frame uses 700px; follow the frame per surface. Check collapsed rail at 56px separately.
 
-The intentional branding deviation is a lowercase text mark instead of the provisional abstract icon. Mock labels and disabled future controls are intentional honesty requirements. Paper's provider/model/version/count numbers are design examples, not live facts.
+Mock labels and disabled future controls are intentional honesty requirements. Paper's provider/model/version/count numbers are design examples, not live facts.
 
 ## Resource and layout milestone (2026-09-26, macOS)
 
