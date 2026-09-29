@@ -221,6 +221,7 @@ available from crates.io at the versions listed.
 | litemap | 0.8.3 | Unicode-3.0 |
 | lock_api | 0.4.14 | MIT OR Apache-2.0 |
 | log | 0.4.34 | MIT OR Apache-2.0 |
+| mac-notification-sys | 0.6.15 | MIT/Apache-2.0 |
 | markup5ever | 0.39.0 | MIT OR Apache-2.0 |
 | memchr | 2.8.3 | Unlicense OR MIT |
 | mime | 0.3.17 | MIT OR Apache-2.0 |
@@ -231,6 +232,7 @@ available from crates.io at the versions listed.
 | muda | 0.20.0 | Apache-2.0 OR MIT |
 | new_debug_unreachable | 1.0.6 | MIT |
 | nix | 0.28.0 | MIT |
+| notify-rust | 4.18.1 | MIT OR Apache-2.0 |
 | num-conv | 0.2.2 | MIT OR Apache-2.0 |
 | num-traits | 0.2.19 | MIT OR Apache-2.0 |
 | objc2 | 0.6.4 | MIT |
@@ -261,11 +263,15 @@ available from crates.io at the versions listed.
 | portable-pty | 0.9.0 | MIT |
 | potential_utf | 0.1.6 | Unicode-3.0 |
 | powerfmt | 0.2.0 | MIT OR Apache-2.0 |
+| ppv-lite86 | 0.2.21 | MIT OR Apache-2.0 |
 | precomputed-hash | 0.1.1 | MIT |
 | proc-macro2 | 1.0.107 | MIT OR Apache-2.0 |
 | pxfm | 0.1.30 | BSD-3-Clause OR Apache-2.0 |
 | quick-xml | 0.42.0 | MIT |
 | quote | 1.0.47 | MIT OR Apache-2.0 |
+| rand | 0.9.5 | MIT OR Apache-2.0 |
+| rand_chacha | 0.9.0 | MIT OR Apache-2.0 |
+| rand_core | 0.9.5 | MIT OR Apache-2.0 |
 | raw-window-handle | 0.6.2 | MIT OR Apache-2.0 OR Zlib |
 | ref-cast | 1.0.27 | MIT OR Apache-2.0 |
 | ref-cast-impl | 1.0.27 | MIT OR Apache-2.0 |
@@ -322,11 +328,14 @@ available from crates.io at the versions listed.
 | tauri-build | 2.7.0 | Apache-2.0 OR MIT |
 | tauri-codegen | 2.7.0 | Apache-2.0 OR MIT |
 | tauri-macros | 2.7.0 | Apache-2.0 OR MIT |
+| tauri-plugin | 2.7.0 | Apache-2.0 OR MIT |
+| tauri-plugin-notification | 2.5.0 | Apache-2.0 OR MIT |
 | tauri-plugin-single-instance | 2.4.5 | Apache-2.0 OR MIT |
 | tauri-runtime | 2.12.0 | Apache-2.0 OR MIT |
 | tauri-runtime-wry | 2.12.0 | Apache-2.0 OR MIT |
 | tauri-utils | 2.10.0 | Apache-2.0 OR MIT |
 | tauri-winres | 0.3.6 | MIT |
+| tauri-winrt-notification | 0.8.1 | MIT OR Apache-2.0 |
 | tendril | 0.5.1 | MIT OR Apache-2.0 |
 | thiserror | 1.0.69 | MIT OR Apache-2.0 |
 | thiserror | 2.0.21 | MIT OR Apache-2.0 |
@@ -394,6 +403,7 @@ available from crates.io at the versions listed.
 | wry | 0.57.0 | Apache-2.0 OR MIT |
 | yoke | 0.8.3 | Unicode-3.0 |
 | yoke-derive | 0.8.3 | Unicode-3.0 |
+| zerocopy | 0.8.59 | BSD-2-Clause OR Apache-2.0 OR MIT |
 | zerofrom | 0.1.8 | Unicode-3.0 |
 | zerofrom-derive | 0.1.8 | Unicode-3.0 |
 | zerotrie | 0.2.5 | Unicode-3.0 |
