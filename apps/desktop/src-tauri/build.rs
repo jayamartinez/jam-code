@@ -50,6 +50,7 @@ fn main() {
             "snapshot_toast_request",
             "pick_directory",
             "open_emoji_picker",
+            "open_feedback",
         ]),
     ))
     .expect("could not build the desktop application metadata");

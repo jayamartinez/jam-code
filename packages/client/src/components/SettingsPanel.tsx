@@ -157,6 +157,7 @@ export function SettingsPanel({
           onNavigate={setPage}
           transport={transport}
           snapshots={desktop.snapshots}
+          openFeedback={desktop.openFeedback}
         />
       </Suspense>
     </div>

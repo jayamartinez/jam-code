@@ -80,6 +80,7 @@ import { ProjectEditor } from './components/ProjectEditor';
 import { FirstRun } from './components/FirstRun';
 import { AgentSetup } from './components/AgentSetup';
 import { isAgentReady } from './components/agent-setup-model';
+import { buildFacts, diagnosticsText } from './components/settings/system-info';
 import { withSharedDefault } from './components/settings/general-model';
 import { BrowserResource, describeAnnotation } from './components/BrowserResource';
 
@@ -1513,6 +1514,15 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                 onSettings={openSettings}
                 onCollapse={() => dispatch({ type: 'collapse' })}
                 {...(desktop.pickDirectory ? { onAddProject: () => void addProject() } : {})}
+                {...(desktop.openFeedback
+                  ? {
+                      onFeedback: (kind: 'bug' | 'feature' | 'docs') =>
+                        void desktop.openFeedback?.(kind).catch(client.reportError),
+                    }
+                  : {})}
+                onCopyDiagnostics={() =>
+                  navigator.clipboard.writeText(diagnosticsText(desktop.platform, buildFacts()))
+                }
                 onProjectMenu={(id, event) =>
                   setContextMenu({
                     ...menuPoint(event),

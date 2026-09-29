@@ -3,6 +3,7 @@
 mod bridge;
 mod browser;
 mod emoji;
+mod feedback;
 mod folders;
 mod lifecycle;
 mod snapshots;
@@ -37,7 +38,8 @@ fn main() {
             snapshots::snapshot_host,
             snapshots::snapshot_toast_request,
             folders::pick_directory,
-            emoji::open_emoji_picker
+            emoji::open_emoji_picker,
+            feedback::open_feedback
         ])
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;

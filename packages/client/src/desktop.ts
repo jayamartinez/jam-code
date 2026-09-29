@@ -16,6 +16,11 @@ export interface DesktopServices {
    * field. Absent where the host has none.
    */
   openEmojiPicker?(): Promise<void>;
+  /**
+   * Opens JAM Code's GitHub page for a bug report (prefilled with version,
+   * OS and WebView only), a feature idea, or the documentation.
+   */
+  openFeedback?(kind: 'bug' | 'feature' | 'docs'): Promise<void>;
   /** Native Browser views. Absent where the host cannot embed one. */
   browser?: BrowserHost;
   snapshots?: SnapshotHost;

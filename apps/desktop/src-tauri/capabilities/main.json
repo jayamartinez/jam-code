@@ -23,6 +23,7 @@
     "allow-snapshot-host",
     "allow-pick-directory",
     "allow-open-emoji-picker",
+    "allow-open-feedback",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

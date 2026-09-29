@@ -45,6 +45,28 @@ pub(crate) fn open_local_url(url: &str) -> Result<(), JamError> {
             "Only http addresses on this computer open in the browser.",
         ));
     }
+    open_in_browser(url)
+}
+
+/// JAM Code's own pages on GitHub (issues, documentation).
+pub const PROJECT_PAGES: &str = "https://github.com/jayamartinez/jam-code/";
+
+/// Opens one of JAM Code's own GitHub pages in the default browser: the
+/// only external address the app opens by itself. The query must already be
+/// percent-encoded, so nothing in it can read as an option.
+pub fn open_project_page(url: &str) -> Result<(), JamError> {
+    let valid = url.starts_with(PROJECT_PAGES)
+        && url.len() <= 4096
+        && url
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"-._~:/?#[]@!$&'()*+,;=%".contains(&b));
+    if !valid {
+        return Err(JamError::invalid("Only JAM Code's own pages open here."));
+    }
+    open_in_browser(url)
+}
+
+fn open_in_browser(url: &str) -> Result<(), JamError> {
     #[cfg(target_os = "macos")]
     let command = {
         let mut command = Command::new("open");
