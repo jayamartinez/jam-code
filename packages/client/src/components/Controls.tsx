@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Maximize2, Minus, X } from 'lucide-react';
 import type { DesktopServices } from '../desktop';
+import { BrandMark } from './BrandMark';
 import { useOccludesNativeViews } from '../state/native-occlusion';
 
 export function IconButton({
@@ -100,8 +101,20 @@ export function TrafficLightInset() {
   return <span className="traffic-light-inset" aria-hidden="true" />;
 }
 
-export function Brand({ className = '' }: { className?: string }) {
-  return <span className={`wordmark ${className}`}>jam</span>;
+/** The mark with the `jam` wordmark; `compact` is the mark alone for the rail. */
+export function Brand({ compact = false }: { compact?: boolean }) {
+  if (compact)
+    return (
+      <span className="brand compact" role="img" aria-label="jam">
+        <BrandMark size={20} />
+      </span>
+    );
+  return (
+    <span className="brand">
+      <BrandMark size={18} />
+      <span className="wordmark">jam</span>
+    </span>
+  );
 }
 
 export function Shortcut({ children }: { children: ReactNode }) {

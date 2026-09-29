@@ -50,8 +50,8 @@ export interface SidebarProps {
 
 export function Sidebar(props: SidebarProps) {
   const { workspace, collapsed, projectId, activeResourceId, shortcut } = props;
-  // On macOS the native traffic lights occupy the sidebar header's left inset,
-  // so the wordmark yields to them there instead of being pushed sideways.
+  // On macOS the native traffic lights occupy the sidebar header's left inset;
+  // the brand follows them there, and yields to them on the narrow rail.
   const mac = props.platform === 'macos';
   const conversations = workspace.resources.filter((resource) => resource.kind === 'conversation');
   const sessionFor = (resource: Resource) =>
@@ -68,7 +68,7 @@ export function Sidebar(props: SidebarProps) {
   if (collapsed)
     return (
       <aside className="sidebar rail" aria-label="Workspace navigation">
-        {mac ? <TrafficLightInset /> : <Brand />}
+        {mac ? <TrafficLightInset /> : <Brand compact />}
         <IconButton label="Expand sidebar" onClick={props.onCollapse}>
           <PanelLeftOpen size={16} />
         </IconButton>
@@ -101,7 +101,8 @@ export function Sidebar(props: SidebarProps) {
   return (
     <aside className="sidebar" aria-label="Workspace navigation">
       <div className="sidebar-header">
-        {mac ? <TrafficLightInset /> : <Brand />}
+        {mac && <TrafficLightInset />}
+        <Brand />
         <IconButton label="New chat" onClick={props.onNew}>
           <Plus size={15} />
         </IconButton>

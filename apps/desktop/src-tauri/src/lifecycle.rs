@@ -40,7 +40,7 @@ pub fn install_tray(app: &App) -> tauri::Result<()> {
     let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/icon.png"))?;
     TrayIconBuilder::with_id("jam")
         .icon(icon)
-        .tooltip("jam — local workspace")
+        .tooltip("JAM Code")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {

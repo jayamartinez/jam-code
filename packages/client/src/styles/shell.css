@@ -81,13 +81,24 @@
   align-items: center;
   gap: 2px;
 }
-.wordmark {
-  font-size: calc(17px * var(--ui-scale));
-  font-weight: 650;
-  letter-spacing: -0.035em;
-  color: var(--color-text-strong);
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
-.sidebar-header .wordmark {
+.brand-mark {
+  display: block;
+  flex-shrink: 0;
+}
+.wordmark {
+  font-size: calc(13px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.01em;
+  color: var(--color-text-primary);
+}
+.sidebar-header .brand {
   flex: 1;
 }
 .sidebar-search {
@@ -497,8 +508,7 @@
   padding: 8px 0;
   gap: 6px;
 }
-.rail .wordmark {
-  font-size: calc(14px * var(--ui-scale));
+.rail .brand {
   margin: 2px 0 6px;
 }
 .rail .icon-button {
@@ -704,13 +714,17 @@
  */
 .traffic-light-inset {
   display: block;
-  flex: 1;
-  min-width: 52px;
+  flex: none;
+  width: 52px;
   height: 12px;
 }
 .platform-macos .sidebar-header,
 .platform-macos .settings-nav-header {
   padding-left: 18px;
+}
+/* The brand sits 16px past the lights (the header's 2px gap plus 14px). */
+.platform-macos .sidebar-header .brand {
+  margin-left: 14px;
 }
 /* A collapsed rail is narrower than the buttons, so they move below it. */
 .platform-macos .sidebar.rail {

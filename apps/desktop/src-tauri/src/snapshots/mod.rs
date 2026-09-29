@@ -268,7 +268,7 @@ fn show_toast(app: &AppHandle) {
         "snapshot-toast",
         WebviewUrl::App("index.html#snapshot-toast".into()),
     )
-    .title("jam — Snapshot staged")
+    .title("JAM Code — Snapshot staged")
     .inner_size(400.0, 322.0)
     .resizable(false)
     .decorations(false)
