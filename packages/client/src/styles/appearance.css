@@ -890,7 +890,7 @@
 .settings-nav-footer.error {
   color: var(--color-danger);
 }
-.font-select select {
+.font-select .menu-select-root {
   width: 188px;
 }
 @media (max-width: 1100px) {

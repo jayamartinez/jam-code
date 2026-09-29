@@ -1954,3 +1954,36 @@ button.project-menu-new:not(:disabled) {
 button.project-menu-new:not(:disabled) strong {
   color: var(--color-text-secondary);
 }
+/* MenuSelect: a picker whose trigger reads as a form field. */
+.menu-select-root {
+  min-width: 0;
+}
+.choice-pill.menu-select {
+  width: 100%;
+  height: calc(28px * var(--ui-scale));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-size: calc(12px * var(--ui-scale));
+  text-align: left;
+}
+.choice-pill.menu-select:hover:not(:disabled),
+.choice-pill.menu-select[aria-expanded='true'] {
+  border-color: var(--color-border-strong);
+  background: var(--color-fill-subtle);
+}
+.choice-pill.menu-select .choice-pill-value {
+  flex: 1;
+  max-width: none;
+}
+.menu-select-root .choice-menu {
+  width: auto;
+  min-width: calc(200px * var(--ui-scale));
+  max-width: calc(360px * var(--ui-scale));
+}

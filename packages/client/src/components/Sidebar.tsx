@@ -14,6 +14,7 @@ import type { Project, Resource, Session, WorkspaceSnapshot } from '@jam/protoco
 import { Brand, IconButton, Shortcut, TrafficLightInset } from './Controls';
 import { ProviderIcon } from './icons';
 import { ProjectBadge } from './ProjectBadge';
+import { MenuSelect } from './MenuSelect';
 import { compactAge, daysSince, orderProjects, suggestsClosing, threadsOf } from '../state/threads';
 
 export { ProjectBadge };
@@ -209,30 +210,28 @@ export function Sidebar(props: SidebarProps) {
           History<span className="count">{conversations.length} chats</span>
         </div>
         <div className="history-filters">
-          <select
-            aria-label="Filter history by project"
+          <MenuSelect
+            label="Filter history by project"
             value={props.projectFilter}
-            onChange={(event) => props.onProjectFilter(event.target.value)}
-          >
-            <option value="">Any project</option>
-            {workspace.projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Filter history by provider"
+            options={[
+              { value: '', label: 'Any project' },
+              ...workspace.projects.map((project) => ({ value: project.id, label: project.name })),
+            ]}
+            onChange={props.onProjectFilter}
+          />
+          <MenuSelect
+            label="Filter history by provider"
             value={props.providerFilter}
-            onChange={(event) => props.onProviderFilter(event.target.value)}
-          >
-            <option value="">Any provider</option>
-            {workspace.providers.some((provider) => provider.id === 'mock') && (
-              <option value="mock">Demo</option>
-            )}
-            <option value="claude">Claude Code</option>
-            <option value="codex">Codex</option>
-          </select>
+            options={[
+              { value: '', label: 'Any provider' },
+              ...(workspace.providers.some((provider) => provider.id === 'mock')
+                ? [{ value: 'mock', label: 'Demo' }]
+                : []),
+              { value: 'claude', label: 'Claude Code' },
+              { value: 'codex', label: 'Codex' },
+            ]}
+            onChange={props.onProviderFilter}
+          />
         </div>
         <div className="history-scroll">
           <div className="history-group">Recent</div>
