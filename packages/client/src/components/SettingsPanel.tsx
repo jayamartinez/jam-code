@@ -21,7 +21,6 @@ const groups: { title: string; items: [SettingsPageId, SettingsIconName][] }[] =
     title: 'General',
     items: [
       ['General', 'general'],
-      ['Notifications', 'notifications'],
       ['Appearance', 'appearance'],
       ['Projects', 'projects'],
     ],
@@ -56,7 +55,6 @@ const groups: { title: string; items: [SettingsPageId, SettingsIconName][] }[] =
 /** Each page is its own chunk, fetched the first time it is opened. */
 const PAGES: Record<SettingsPageId, ComponentType<SettingsPageProps>> = {
   General: lazy(() => import('./settings/pages/GeneralPage')),
-  Notifications: lazy(() => import('./settings/pages/NotificationsPage')),
   Appearance: lazy(() => import('./AppearanceSettings')),
   Projects: lazy(() => import('./settings/pages/ProjectsPage')),
   Providers: lazy(() => import('./settings/pages/ProvidersPage')),
