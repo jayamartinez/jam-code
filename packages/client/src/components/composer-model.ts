@@ -249,3 +249,18 @@ export function folderName(path?: string): string {
       .pop() ?? ''
   );
 }
+
+/** The parts of a key press the message box reads. */
+export interface ComposerKey {
+  key: string;
+  shiftKey: boolean;
+  /** True while an input method (IME) is composing; its Enter confirms a candidate. */
+  isComposing: boolean;
+  /** 229 is what some webviews report for a key an IME is handling. */
+  keyCode: number;
+}
+
+/** Enter sends; Shift+Enter keeps the textarea's own new line. Never mid-composition. */
+export function sendsMessage(event: ComposerKey): boolean {
+  return event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229;
+}

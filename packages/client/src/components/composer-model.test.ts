@@ -9,6 +9,7 @@ import {
   modelMenu,
   policyLabel,
   reportedModel,
+  sendsMessage,
   toggledFavorite,
   withoutStaleChoices,
 } from './composer-model';
@@ -210,5 +211,26 @@ describe('new chat provider', () => {
       /signed out/,
     );
     expect(unavailableReason({ ...codex, enabled: false })).toMatch(/turned off/);
+  });
+});
+
+describe('composer keys', () => {
+  const key = (overrides: Partial<Parameters<typeof sendsMessage>[0]> = {}) => ({
+    key: 'Enter',
+    shiftKey: false,
+    isComposing: false,
+    keyCode: 13,
+    ...overrides,
+  });
+
+  it('sends on Enter and leaves Shift+Enter to add a line', () => {
+    expect(sendsMessage(key())).toBe(true);
+    expect(sendsMessage(key({ shiftKey: true }))).toBe(false);
+    expect(sendsMessage(key({ key: 'a', keyCode: 65 }))).toBe(false);
+  });
+
+  it('never sends while an input method is composing', () => {
+    expect(sendsMessage(key({ isComposing: true }))).toBe(false);
+    expect(sendsMessage(key({ keyCode: 229 }))).toBe(false);
   });
 });

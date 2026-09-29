@@ -35,7 +35,7 @@ import {
   type SplitDirection,
 } from './state/layout';
 import { RuntimeClient } from './state/runtime-client';
-import { useIdleThreadDays, useStreamReplies } from './state/preferences';
+import { useIdleThreadDays, useStreamReplies, useTimeFormat } from './state/preferences';
 import { AppearanceContext, AppearanceStore } from './appearance/store';
 import { Brand, Dialog, IconButton } from './components/Controls';
 import { Sidebar } from './components/Sidebar';
@@ -149,6 +149,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   const [editingProject, setEditingProject] = useState<string | null>(null);
   const [idleThreadDays, setIdleThreadDays] = useIdleThreadDays();
   const [streamReplies, setStreamReplies] = useStreamReplies();
+  const [timeFormat, setTimeFormat] = useTimeFormat();
   /**
    * Projects whose threads the sidebar lists. Any number can be open at once;
    * until the reader toggles one, the current project is shown open.
@@ -747,6 +748,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     providers: workspace?.providers ?? [],
     options: optionsFor(resourceId, sessionId),
     streamReplies,
+    timeFormat,
     onCompact: async () => {
       try {
         await transport.request('session.compact', {
@@ -866,6 +868,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       onIdleThreadDays={setIdleThreadDays}
       streamReplies={streamReplies}
       onStreamReplies={setStreamReplies}
+      timeFormat={timeFormat}
+      onTimeFormat={setTimeFormat}
       onClose={() => setSettingsMode(null)}
       onMode={() => {
         if (dedicated) {

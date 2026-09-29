@@ -1,6 +1,6 @@
 import type { Project } from '@jam/protocol';
 import { ProviderIcon } from '../../icons';
-import { IDLE_THREAD_OPTIONS } from '../../../state/preferences';
+import { IDLE_THREAD_OPTIONS, TIME_FORMAT_OPTIONS } from '../../../state/preferences';
 import { ProjectBadge } from '../../ProjectBadge';
 import {
   Card,
@@ -18,8 +18,9 @@ import { NOTIFICATION_EVENTS, defaultProvider } from '../general-model';
 
 /**
  * General: how new chats and threads start. The idle-thread suggestion, the
- * default provider and streamed replies are real today; every other control
- * shows its intended shape, disabled, beside a Planned mark.
+ * default provider, streamed replies and the time format are real today;
+ * every other control shows its intended shape, disabled, beside a Planned
+ * mark.
  */
 export default function GeneralPage({
   providers,
@@ -28,6 +29,8 @@ export default function GeneralPage({
   onIdleThreadDays,
   streamReplies,
   onStreamReplies,
+  timeFormat,
+  onTimeFormat,
   onNavigate,
 }: SettingsPageProps) {
   const provider = defaultProvider(providers);
@@ -100,6 +103,19 @@ export default function GeneralPage({
                 { value: 'edits', label: 'Auto-accept edits' },
                 { value: 'full', label: 'Full access' },
               ]}
+            />
+          </Row>
+        </Card>
+      </Section>
+
+      <Section label="Messages">
+        <Card>
+          <Row title="Time format" sub="Message times and dividers: 2:14 PM or 14:14.">
+            <Segmented
+              label="Time format"
+              value={timeFormat}
+              options={TIME_FORMAT_OPTIONS}
+              onChange={onTimeFormat}
             />
           </Row>
         </Card>

@@ -23,6 +23,7 @@ import type { FileChange, Interaction, Message, MessageBlock } from '@jam/protoc
 import { InteractionCard, type InteractionAnswer } from './InteractionCard';
 import { FileLink, type FileLinkActions } from './FileLink';
 import { localUrls } from './local-urls';
+import { lastActionIndex } from './message-model';
 
 const AgentMarkdown = lazy(() => import('./AgentMarkdown'));
 
@@ -81,11 +82,7 @@ export function AgentBlocks({
       approvals.set(block.interaction.toolId, block.interaction);
 
   // Everything up to the last action is the log; the prose after it is the answer.
-  let lastAction = -1;
-  blocks.forEach((block, index) => {
-    if (block.type === 'tool' || (block.type === 'reasoning' && block.text.trim()))
-      lastAction = index;
-  });
+  const lastAction = lastActionIndex(blocks);
   const logged = blocks.slice(0, lastAction + 1);
   const tools = logged.filter((block): block is ToolBlock => block.type === 'tool');
   const lastText = blocks.map((block) => block.type).lastIndexOf('text');
@@ -189,8 +186,6 @@ export function AgentBlocks({
           live={live}
           waiting={[...approvals.values()].some((approval) => approval.status === 'pending')}
           open={expanded}
-          startedAt={message.createdAt}
-          completedAt={message.completedAt}
           onToggle={() => setOpen(!expanded)}
         >
           {log}
@@ -213,8 +208,6 @@ function TurnLog({
   live,
   waiting,
   open,
-  startedAt,
-  completedAt,
   onToggle,
   children,
 }: {
@@ -222,8 +215,6 @@ function TurnLog({
   live: boolean;
   waiting: boolean;
   open: boolean;
-  startedAt: string;
-  completedAt?: string;
   onToggle(): void;
   children: ReactNode;
 }) {
@@ -249,16 +240,8 @@ function TurnLog({
             <span className="turn-log-counts">{counts.short}</span>
           </>
         ) : (
-          <>
-            <span className="turn-log-done">
-              {completedAt ? `Worked for ${duration(startedAt, completedAt)}` : 'Worked'}
-            </span>
-            {open ? (
-              <span className="turn-log-counts">{counts.short}</span>
-            ) : (
-              counts.long && <span className="turn-log-faint">· {counts.long}</span>
-            )}
-          </>
+          // The reply's heading says how long the turn took; the log says what it did.
+          <span className="turn-log-done">{counts.long || 'Worked'}</span>
         )}
       </button>
       {open && <div className="turn-log-body">{children}</div>}
@@ -283,17 +266,6 @@ function countActions(tools: ToolBlock[]) {
     .filter(Boolean)
     .join(', ');
   return { short, long: long && long[0]!.toUpperCase() + long.slice(1) };
-}
-
-function duration(from: string, to: string): string {
-  const seconds = Math.max(0, Math.round((Date.parse(to) - Date.parse(from)) / 1000));
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  return hours
-    ? `${hours}h ${minutes % 60}m`
-    : minutes
-      ? `${minutes}m ${seconds % 60}s`
-      : `${seconds}s`;
 }
 
 /** "Edited" / "Editing", "Ran" / "Running": what a step did or is doing. */

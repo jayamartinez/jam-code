@@ -6,6 +6,7 @@ import type {
   RequestMap,
 } from '@jam/protocol';
 import type { DesktopServices, SnapshotHost } from '../../desktop';
+import type { TimeFormat } from '../../state/preferences';
 
 export type SettingsPageId =
   | 'General'
@@ -49,6 +50,9 @@ export interface SettingsPageProps {
   /** Reveal agent replies as they stream. */
   streamReplies: boolean;
   onStreamReplies(next: boolean): void;
+  /** How message times and dividers read. */
+  timeFormat: TimeFormat;
+  onTimeFormat(next: TimeFormat): void;
   onUpdateProject(projectId: string, changes: ProjectChanges): Promise<void>;
   /** Moves to another Settings page, e.g. from a "Providers ›" link. */
   onNavigate(page: SettingsPageId): void;

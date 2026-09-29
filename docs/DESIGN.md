@@ -333,10 +333,19 @@ window popover", "9 · Approvals & access", "10 · Live activity",
 (44U-0) for the transcript's geometry.
 
 - **Turn log.** A turn's reads, searches, edits and commands are one log,
-  open while the agent works and folded to "Worked for …" with its edits and
-  commands when it ends. The agent's words between actions sit in the log;
+  open while the agent works and folded to what it did ("Edited 2 files, ran
+  2 commands") when it ends. The agent's words between actions sit in the log;
   the answer after the last action, the files it changed and any local server
   stay outside.
+- **Messages** ("13 · Messages: copy, times & gaps"). At rest a message is
+  only its words. Hover or focus shows a user message's time and Copy, and an
+  agent reply's Copy under its answer (the answer as Markdown); the row keeps
+  its space so the thread never moves. A finished reply's heading says
+  "Worked for …" from the times its turn recorded; a stopped turn, or one
+  saved before JAM recorded turn ends, shows no duration. After 30 minutes or
+  on a new day a hairline divider names when the chat picked up again. Times
+  follow General → Time format (System, 12-hour or 24-hour). Enter sends and
+  Shift+Enter adds a line; nothing sends while an input method is composing.
 - **Approvals.** Waiting for the reader uses the accent, never the warning
   colour. A pending approval always shows outside the fold, in the card of the
   action it gates, with the change's lines and exactly the provider's choices;

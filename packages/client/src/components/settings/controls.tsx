@@ -1,3 +1,4 @@
+import { ArrowBigUp, CornerDownLeft } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 /**
@@ -169,12 +170,23 @@ export function Chip({ children, tone }: { children: ReactNode; tone?: 'success'
   return <span className={`sv-chip ${tone ?? ''}`}>{children}</span>;
 }
 
+/** Mac keys drawn as icons: the font's arrows sit small and off-centre in a cap. */
+const KEY_ICONS: Record<string, { Icon: typeof ArrowBigUp; name: string }> = {
+  '⇧': { Icon: ArrowBigUp, name: 'Shift' },
+  '↵': { Icon: CornerDownLeft, name: 'Return' },
+};
+
 export function Keys({ keys }: { keys: readonly string[] }) {
   return (
     <span className="sv-keys">
-      {keys.map((key, index) => (
-        <kbd key={`${key}-${index}`}>{key}</kbd>
-      ))}
+      {keys.map((key, index) => {
+        const icon = KEY_ICONS[key];
+        return (
+          <kbd key={`${key}-${index}`} className={icon ? 'icon' : undefined}>
+            {icon ? <icon.Icon size={11} strokeWidth={1.6} aria-label={icon.name} /> : key}
+          </kbd>
+        );
+      })}
     </span>
   );
 }

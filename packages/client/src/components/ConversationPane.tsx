@@ -1,5 +1,7 @@
 import {
+  ArrowBigUp,
   ArrowUp,
+  CornerDownLeft,
   File,
   FolderOpen,
   GitBranch,
@@ -9,7 +11,7 @@ import {
   TriangleAlert,
   Zap,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import type {
   ContextItem,
   JamTransport,
@@ -35,6 +37,16 @@ import { ContextMeter } from './ContextMeter';
 import { unavailableReason } from '../state/chat-draft';
 import { ChoicePill } from './ChoicePill';
 import { ModelPicker } from './ModelPicker';
+import { CopyButton } from './CopyButton';
+import type { TimeFormat } from '../state/preferences';
+import {
+  copyText,
+  dividerLabel,
+  formatClock,
+  formatDuration,
+  startsAfterGap,
+  turnDuration,
+} from './message-model';
 import {
   composerChoices,
   effortSummary,
@@ -42,6 +54,7 @@ import {
   modelLabel,
   modelMenu,
   reportedModel,
+  sendsMessage,
   withoutStaleChoices,
   type ComposerChoices,
 } from './composer-model';
@@ -64,6 +77,8 @@ interface ConversationProps extends Pick<
   options: Record<string, string>;
   /** Reveal agent replies as they stream (General settings). */
   streamReplies: boolean;
+  /** How message times and dividers read (General settings). */
+  timeFormat: TimeFormat;
   onOptions(options: Record<string, string>): void;
   onDraft(text: string): void;
   onSend(): void;
@@ -149,18 +164,23 @@ export function ConversationPane(props: ConversationProps) {
           {conversation ? (
             messages.length ? (
               messages.map((message, index) => (
-                <MessageView
-                  key={message.id}
-                  message={message}
-                  session={session}
-                  live={
-                    session?.status === 'running' &&
-                    message.role === 'assistant' &&
-                    index === messages.length - 1
-                  }
-                  streamReplies={props.streamReplies}
-                  actions={props}
-                />
+                <Fragment key={message.id}>
+                  {index > 0 && startsAfterGap(messages[index - 1]!, message) && (
+                    <TimeDivider value={message.createdAt} format={props.timeFormat} />
+                  )}
+                  <MessageView
+                    message={message}
+                    session={session}
+                    live={
+                      session?.status === 'running' &&
+                      message.role === 'assistant' &&
+                      index === messages.length - 1
+                    }
+                    streamReplies={props.streamReplies}
+                    timeFormat={props.timeFormat}
+                    actions={props}
+                  />
+                </Fragment>
               ))
             ) : (
               <div className="empty-conversation">
@@ -239,7 +259,8 @@ export function Composer(props: ComposerProps) {
     if (!value) delete next.model;
     props.onOptions(withoutStaleChoices(descriptor, next));
   };
-  const altKey = props.shortcut === '⌘' ? '⌥' : 'Alt';
+  const mac = props.shortcut === '⌘';
+  const altKey = mac ? '⌥' : 'Alt';
   const switchable = props.isNew
     ? props.providers.filter((provider) => provider.enabled || provider.id === providerId)
     : [];
@@ -298,7 +319,8 @@ export function Composer(props: ComposerProps) {
           disabled={props.busy}
           maxLength={20000}
           onKeyDown={(event) => {
-            if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+            const { key, shiftKey, keyCode, nativeEvent } = event;
+            if (sendsMessage({ key, shiftKey, keyCode, isComposing: nativeEvent.isComposing })) {
               event.preventDefault();
               if (!running && !props.busy && !blocked) props.onSend();
             }
@@ -411,7 +433,7 @@ export function Composer(props: ComposerProps) {
               className="send-button"
               disabled={props.busy || !!blocked || (!props.draft.trim() && !props.context.length)}
               aria-label="Send message"
-              title={blocked ?? `${props.shortcut}+Enter to send`}
+              title={blocked ?? `${mac ? 'Return' : 'Enter'} to send`}
             >
               <ArrowUp size={16} />
             </button>
@@ -445,7 +467,7 @@ export function Composer(props: ComposerProps) {
                 ))}
               </span>
             )}
-            <Shortcut>{props.shortcut} ↵ send</Shortcut>
+            <SendHint mac={mac} />
           </div>
         )}
       </form>
@@ -508,12 +530,14 @@ function MessageView({
   session,
   live,
   streamReplies,
+  timeFormat,
   actions,
 }: {
   message: Message;
   session?: Session;
   live: boolean;
   streamReplies: boolean;
+  timeFormat: TimeFormat;
   actions: BlockActions;
 }) {
   if (message.role === 'user')
@@ -535,10 +559,15 @@ function MessageView({
             ) : null,
           )}
         </div>
-        <time>{formatTime(message.createdAt)}</time>
+        {/* Shown on hover or focus; the row keeps its space so the thread never moves. */}
+        <div className="message-actions">
+          <time dateTime={message.createdAt}>{formatClock(message.createdAt, timeFormat)}</time>
+          <CopyButton text={copyText(message)} label="Copy message" />
+        </div>
       </article>
     );
   const demo = session?.providerId === 'mock';
+  const worked = live ? undefined : turnDuration(message);
   return (
     <article className="agent-message">
       <header className="agent-heading">
@@ -547,10 +576,13 @@ function MessageView({
         <span>
           {live ? (
             <Working since={message.createdAt} waiting={!!session?.needsInput} />
-          ) : demo ? (
-            'Demonstration'
           ) : (
-            modelLabel(reportedModel(session?.model) ?? '')
+            [
+              demo ? 'Demonstration' : modelLabel(reportedModel(session?.model) ?? ''),
+              worked && `Worked for ${worked}`,
+            ]
+              .filter(Boolean)
+              .join(' · ')
           )}
         </span>
         <span className="agent-rule" />
@@ -558,6 +590,11 @@ function MessageView({
       <div className="agent-content">
         <AgentBlocks message={message} live={live} stream={streamReplies} actions={actions} />
       </div>
+      {!live && (
+        <div className="message-actions">
+          <CopyButton text={copyText(message)} label="Copy reply" />
+        </div>
+      )}
     </article>
   );
 }
@@ -569,24 +606,37 @@ function Working({ since, waiting }: { since: string; waiting: boolean }) {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-  const seconds = Math.max(0, Math.floor((now - Date.parse(since)) / 1000));
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
   return (
     <>
       {waiting ? 'Waiting for you · ' : 'Working for '}
-      {hours
-        ? `${hours}h ${minutes % 60}m`
-        : minutes
-          ? `${minutes}m ${seconds % 60}s`
-          : `${seconds}s`}
+      {formatDuration(now - Date.parse(since))}
     </>
   );
 }
 
-function formatTime(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? ''
-    : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+/** A hairline with the time a chat picked up again after a pause or on a new day. */
+function TimeDivider({ value, format }: { value: string; format: TimeFormat }) {
+  const label = dividerLabel(value, format);
+  return label ? (
+    <div className="time-divider" role="separator" aria-label={label}>
+      <time dateTime={value}>{label}</time>
+    </div>
+  ) : null;
+}
+
+/** The new-chat footer's keys: drawn Return and Shift on a Mac, words elsewhere. */
+function SendHint({ mac }: { mac: boolean }) {
+  return mac ? (
+    <Shortcut>
+      <span className="key-glyphs">
+        <CornerDownLeft size={10} aria-label="Return" />
+        send ·
+        <ArrowBigUp size={10} aria-label="Shift" />
+        <CornerDownLeft size={10} aria-label="Return" />
+        new line
+      </span>
+    </Shortcut>
+  ) : (
+    <Shortcut>Enter send · Shift+Enter new line</Shortcut>
+  );
 }
