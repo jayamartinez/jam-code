@@ -67,6 +67,25 @@ pub struct Resource {
     /// When the reader last answered "Keep open" to an idle suggestion.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub close_suggestion_dismissed_at: Option<String>,
+    /// The JAM worktree this resource works in; absent means the project's
+    /// own folder. Set by the runtime, never a path.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub worktree_id: Option<String>,
+}
+
+/// A worktree JAM created for a chat: its own branch and folder beside the
+/// repository. JAM records it and never deletes it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Worktree {
+    pub id: String,
+    pub project_id: String,
+    pub branch: String,
+    /// The branch it started from.
+    pub base_branch: String,
+    /// Its folder, for display; requests address it by ID.
+    pub path: String,
+    pub created_at: String,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -337,6 +356,8 @@ pub struct WorkspaceSnapshot {
     pub resources: Vec<Resource>,
     pub sessions: Vec<Session>,
     pub providers: Vec<ProviderDescriptor>,
+    #[serde(default)]
+    pub worktrees: Vec<Worktree>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

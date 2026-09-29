@@ -35,6 +35,8 @@ pub struct FileStatus {
 #[serde(rename_all = "camelCase")]
 pub struct GitStatus {
     pub project_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub worktree_id: Option<String>,
     pub state: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repository_root: Option<String>,
@@ -48,9 +50,10 @@ pub struct GitStatus {
     pub truncated: bool,
 }
 impl GitStatus {
-    pub fn empty(project_id: &str, state: &str) -> Self {
+    pub fn empty(target: &super::GitTarget, state: &str) -> Self {
         Self {
-            project_id: project_id.into(),
+            project_id: target.project_id.into(),
+            worktree_id: target.worktree_id.map(Into::into),
             state: state.into(),
             repository_root: None,
             branch: None,

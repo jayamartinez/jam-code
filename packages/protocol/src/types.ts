@@ -73,7 +73,39 @@ export interface Resource {
   closedAt?: string;
   /** When the reader last answered "Keep open" to an idle suggestion. */
   closeSuggestionDismissedAt?: string;
+  /**
+   * The JAM worktree this resource works in; absent means the project's own
+   * folder. Set by the runtime: a chat started in a new worktree, and the
+   * Review, files and terminals opened from it.
+   */
+  worktreeId?: string;
 }
+
+/**
+ * A worktree JAM created for a chat: its own branch and folder beside the
+ * repository, so chats working in parallel never edit the same files. JAM
+ * records it and never deletes it.
+ */
+export interface Worktree {
+  id: string;
+  projectId: string;
+  branch: string;
+  /** The branch it started from. */
+  baseBranch: string;
+  /** Its folder, for display. Requests address a worktree by ID. */
+  path: string;
+  createdAt: string;
+}
+
+/** Where a new chat works, applied on its first Send and never before. */
+export type NewWorkspace =
+  /** The project's checkout, switched to `branch` first when it differs and nothing would be lost. */
+  | { kind: 'checkout'; branch?: string }
+  /**
+   * A new `jam/<name>` branch and folder from `baseBranch` (absent: the
+   * checkout's current branch); the runtime chooses the name and folder.
+   */
+  | { kind: 'worktree'; baseBranch?: string; nameHint: string };
 
 /** Resource kinds a client may ask the runtime to open by target. */
 export const OPENABLE_KINDS = [
@@ -394,6 +426,7 @@ export interface WorkspaceSnapshot extends Cursor {
   resources: Resource[];
   sessions: Session[];
   providers: ProviderDescriptor[];
+  worktrees: Worktree[];
 }
 
 export interface SearchResult {
@@ -418,8 +451,18 @@ export interface RequestMap
       /** The adapter that runs it. Absent means the demo provider. */
       providerId?: ProviderId;
       options?: Record<string, string>;
+      /** Absent works in the current checkout as it is. */
+      workspace?: NewWorkspace;
+      /** A retried first Send returns the chat it already created. */
+      requestId?: string;
     };
-    result: { resource: Resource; session: Session; conversation: Conversation };
+    result: {
+      resource: Resource;
+      session: Session;
+      conversation: Conversation;
+      /** The worktree the chat created, when it asked for one. */
+      worktree?: Worktree;
+    };
   };
   'turn.start': {
     params: {
@@ -478,9 +521,15 @@ export interface RequestMap
     params: { projectId: string; path: string };
     result: DirectoryListing;
   };
-  'file.read': { params: { projectId: string; path: string }; result: FileContents };
+  'file.read': {
+    params: { projectId: string; path: string; worktreeId?: string };
+    result: FileContents;
+  };
   /** Shows a project file in Finder or Explorer. */
-  'file.reveal': { params: { projectId: string; path: string }; result: { revealed: true } };
+  'file.reveal': {
+    params: { projectId: string; path: string; worktreeId?: string };
+    result: { revealed: true };
+  };
   /** Opens a local address (localhost, 127.0.0.1) in the default browser. */
   'url.openExternal': { params: { url: string }; result: { opened: true } };
   'file.write': {
@@ -503,7 +552,8 @@ export interface RequestMap
   };
   'thread.keepOpen': { params: { resourceId: string }; result: { resource: Resource } };
   'resource.open': {
-    params: { projectId: string; kind: OpenableKind; path?: string };
+    /** `worktreeId` opens it in that JAM worktree (not for a browser). */
+    params: { projectId: string; kind: OpenableKind; path?: string; worktreeId?: string };
     result: { resource: Resource };
   };
   'search.query': {

@@ -52,6 +52,53 @@ pub struct CreateConversation {
     pub provider_id: Option<String>,
     #[serde(default)]
     pub options: BTreeMap<String, String>,
+    /// Where the chat works. Absent is the current checkout as it is.
+    pub workspace: Option<NewWorkspace>,
+    /// Makes a retried first Send return the chat it already created.
+    pub request_id: Option<String>,
+}
+
+/// A new chat's workspace, applied on its first Send.
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "lowercase", deny_unknown_fields)]
+pub enum NewWorkspace {
+    /// The project's checkout, switched to `branch` first when it differs.
+    Checkout { branch: Option<String> },
+    /// A new branch and folder from `baseBranch` (absent: the checkout's
+    /// current branch), named from `nameHint`.
+    Worktree {
+        #[serde(rename = "baseBranch")]
+        base_branch: Option<String>,
+        #[serde(rename = "nameHint")]
+        name_hint: String,
+    },
+}
+
+impl CreateConversation {
+    pub fn validate(&self) -> Result<(), JamError> {
+        validate_id(&self.project_id)?;
+        validate_options(&self.options)?;
+        if let Some(request_id) = &self.request_id {
+            validate_id(request_id)?;
+        }
+        match &self.workspace {
+            None | Some(NewWorkspace::Checkout { branch: None }) => Ok(()),
+            Some(NewWorkspace::Checkout {
+                branch: Some(branch),
+            }) => crate::git::validate_branch_name(branch),
+            Some(NewWorkspace::Worktree {
+                base_branch,
+                name_hint,
+            }) => {
+                if name_hint.encode_utf16().count() > 20_000 {
+                    return Err(JamError::invalid("A worktree name hint is too long."));
+                }
+                base_branch
+                    .as_deref()
+                    .map_or(Ok(()), crate::git::validate_branch_name)
+            }
+        }
+    }
 }
 
 pub const PROVIDER_IDS: [&str; 3] = ["mock", "claude", "codex"];
@@ -239,6 +286,7 @@ pub struct ListDirectory {
 pub struct RevealFile {
     pub project_id: String,
     pub path: String,
+    pub worktree_id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -252,6 +300,7 @@ pub struct OpenUrl {
 pub struct ReadFile {
     pub project_id: String,
     pub path: String,
+    pub worktree_id: Option<String>,
 }
 
 /// Opens (or re-finds) a non-conversation resource. Reopening the same target
@@ -262,6 +311,8 @@ pub struct OpenResource {
     pub project_id: String,
     pub kind: String,
     pub path: Option<String>,
+    /// Opens it in a JAM worktree instead of the project's folder.
+    pub worktree_id: Option<String>,
 }
 
 impl OpenResource {
@@ -271,6 +322,12 @@ impl OpenResource {
         validate_id(&self.project_id)?;
         if !Self::KINDS.contains(&self.kind.as_str()) {
             return Err(JamError::invalid("That resource kind cannot be opened."));
+        }
+        if let Some(worktree_id) = &self.worktree_id {
+            validate_id(worktree_id)?;
+            if self.kind == "browser" {
+                return Err(JamError::invalid("A browser does not open in a worktree."));
+            }
         }
         match (&self.kind[..], self.path.as_deref()) {
             ("file", None) => Err(JamError::invalid("A file resource needs a path.")),

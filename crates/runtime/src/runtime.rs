@@ -162,67 +162,7 @@ impl Runtime {
                         .conversation(&input.resource_id, self.cursor(&state))?,
                 )?)
             }
-            "conversation.create" => {
-                let input: CreateConversation = parse(request.params)?;
-                validate_id(&input.project_id)?;
-                // Options are checked against what the provider reports, so
-                // it is asked first, before the database lock is taken.
-                if let Some(provider) = input.provider_id.as_deref() {
-                    validate_provider(provider)?;
-                    if provider != "mock" {
-                        self.check_providers(false)?;
-                    }
-                }
-                let mut state = self.lock()?;
-                if self.shutting_down.load(Ordering::Acquire) {
-                    return Err(JamError::new("unavailable", "JAM is shutting down."));
-                }
-                let workspace = state.store.workspace(self.cursor(&state))?;
-                if !workspace.projects.iter().any(|p| p.id == input.project_id) {
-                    return Err(JamError::new("not_found", "Project not found."));
-                }
-                let (provider_id, presentation, model, options) = self.session_choice(
-                    &state,
-                    input.provider_id.as_deref(),
-                    input.presentation,
-                    input.options,
-                )?;
-                let resource = Resource {
-                    id: new_id("conversation"),
-                    kind: "conversation".into(),
-                    title: "New conversation".into(),
-                    project_id: Some(input.project_id),
-                    session_id: Some(new_id("session")),
-                    path: None,
-                    pinned: false,
-                    updated_at: now(),
-                    closed_at: None,
-                    close_suggestion_dismissed_at: None,
-                };
-                let session = Session {
-                    id: resource.session_id.clone().expect("new session ID"),
-                    resource_id: resource.id.clone(),
-                    provider_id,
-                    presentation,
-                    status: SessionStatus::Idle,
-                    model,
-                    options,
-                    needs_input: false,
-                    usage: None,
-                };
-                state.store.create_conversation(&resource, &session)?;
-                self.publish(
-                    &mut state,
-                    &resource.id,
-                    EventPayload::SessionUpdated {
-                        session: session.clone(),
-                    },
-                );
-                let conversation = state
-                    .store
-                    .conversation(&resource.id, self.cursor(&state))?;
-                Ok(json!({"resource":resource,"session":session,"conversation":conversation}))
-            }
+            "conversation.create" => self.create_conversation(request.params),
             "turn.start" => {
                 let fingerprint = serde_json::to_string(&request.params)?;
                 let input: StartTurn = parse(request.params)?;
@@ -269,9 +209,10 @@ impl Runtime {
             "file.read" => {
                 let input: ReadFile = parse(request.params)?;
                 validate_id(&input.project_id)?;
-                if let Some(root) =
-                    crate::native_files::project_folder(&self.project(&input.project_id)?)?
-                {
+                if let Some(root) = self.work_folder(
+                    &self.project(&input.project_id)?,
+                    input.worktree_id.as_deref(),
+                )? {
                     return Ok(serde_json::to_value(crate::native_files::read_native(
                         &input.project_id,
                         &root,
@@ -291,7 +232,11 @@ impl Runtime {
             "file.reveal" => {
                 let input: RevealFile = parse(request.params)?;
                 validate_id(&input.project_id)?;
-                let root = crate::native_files::project_folder(&self.project(&input.project_id)?)?
+                let root = self
+                    .work_folder(
+                        &self.project(&input.project_id)?,
+                        input.worktree_id.as_deref(),
+                    )?
                     .ok_or_else(|| {
                         JamError::new("unavailable", "This project has no folder to show.")
                     })?;
@@ -486,6 +431,11 @@ impl Runtime {
     /// A browser is the exception: each is its own page and history, so every
     /// open creates one.
     fn open_resource(&self, input: OpenResource) -> Result<Resource, JamError> {
+        // A worktree target is verified before anything is recorded for it.
+        let worktree_folder = match input.worktree_id.as_deref() {
+            Some(id) => self.work_folder(&self.project(&input.project_id)?, Some(id))?,
+            None => None,
+        };
         let state = self.lock()?;
         let workspace = state.store.workspace(self.cursor(&state))?;
         if !workspace.projects.iter().any(|p| p.id == input.project_id) {
@@ -499,7 +449,11 @@ impl Runtime {
                 .find(|p| p.id == input.project_id)
                 .expect("checked project");
             let path = input.path.as_deref().unwrap_or_default();
-            if let Some(root) = crate::native_files::project_folder(project)? {
+            let root = match worktree_folder {
+                Some(folder) => Some(folder),
+                None => crate::native_files::project_folder(project)?,
+            };
+            if let Some(root) = root {
                 crate::native_files::read_native(&input.project_id, &root, path)?;
             } else {
                 crate::files::read(&input.project_id, path)?;
@@ -510,6 +464,7 @@ impl Runtime {
                 && resource.kind == input.kind
                 && resource.project_id.as_deref() == Some(input.project_id.as_str())
                 && resource.path == input.path
+                && resource.worktree_id == input.worktree_id
         });
         if let Some(resource) = existing {
             return Ok(resource.clone());
@@ -539,6 +494,7 @@ impl Runtime {
             updated_at: now(),
             closed_at: None,
             close_suggestion_dismissed_at: None,
+            worktree_id: input.worktree_id,
         };
         state.store.save_resource(&resource)?;
         Ok(resource)

@@ -22,6 +22,8 @@ export interface GitFileStatus {
 }
 export interface GitStatus {
   projectId: string;
+  /** Present when the status is of one of the project's JAM worktrees. */
+  worktreeId?: string;
   state: 'repository' | 'not-repository' | 'no-folder' | 'unavailable';
   repositoryRoot?: string;
   branch?: string;
@@ -57,14 +59,45 @@ export interface GitFileDiff {
   hunks: GitDiffHunk[];
   metadata: string[];
 }
+export interface GitBranch {
+  /** Short name: `main`, or `origin/main` for a remote-tracking branch. */
+  name: string;
+  remote: boolean;
+  current: boolean;
+  /** The folder of another worktree that has this branch checked out. */
+  worktree?: string;
+}
+/**
+ * A checkout's local and remote-tracking branches as Git last knew them.
+ * JAM does not fetch.
+ */
+export interface GitBranches {
+  projectId: string;
+  worktreeId?: string;
+  state: 'repository' | 'not-repository' | 'no-folder';
+  current?: string;
+  detached: boolean;
+  /** Tracked files with uncommitted changes; a branch switch waits for none. */
+  changed: number;
+  /** A merge, rebase, cherry-pick, revert or bisect is under way. */
+  busy: boolean;
+  branches: GitBranch[];
+  truncated: boolean;
+}
+/** Every Git request may name one of the project's JAM worktrees instead of its folder. */
+interface GitTarget {
+  projectId: string;
+  worktreeId?: string;
+}
 export interface GitRequestMap {
-  'git.status': { params: { projectId: string }; result: GitStatus };
+  'git.status': { params: GitTarget; result: GitStatus };
+  'git.branches': { params: GitTarget; result: GitBranches };
   'git.diff': {
-    params: { projectId: string; path: string; side: GitDiffSide };
+    params: GitTarget & { path: string; side: GitDiffSide };
     result: GitFileDiff;
   };
   'git.setStaged': {
-    params: { projectId: string; path: string; staged: boolean };
+    params: GitTarget & { path: string; staged: boolean };
     result: GitStatus;
   };
 }

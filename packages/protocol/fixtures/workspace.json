@@ -446,7 +446,8 @@
         },
         "runningCount": 0
       }
-    ]
+    ],
+    "worktrees": []
   },
   "conversations": [
     {
