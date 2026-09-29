@@ -222,3 +222,49 @@ describe('panes within a tab', () => {
     expect(findLeaf(activeTree(state), 'pane:missing')).toBeUndefined();
   });
 });
+
+describe('reopening closed tabs', () => {
+  it('restores the last closed tab where it was, with its panes', () => {
+    const tiled = run(workspace(), split('row', 'x'), {
+      type: 'assignPane',
+      resourceId: 'terminal-1',
+      paneId: 'pane:x',
+    });
+    const closed = run(tiled, { type: 'closeTab', tabId: 'tab:chat-a' });
+    expect(closed.tabs.map((tab) => tab.resourceId)).toEqual(['chat-b']);
+    const reopened = run(closed, { type: 'reopenTab' });
+    expect(reopened.tabs.map((tab) => tab.resourceId)).toEqual(['chat-a', 'chat-b']);
+    expect(reopened.activeTabId).toBe('tab:chat-a');
+    // Its focus comes back too: the terminal pane was focused.
+    expect(activeResourceId(reopened)).toBe('terminal-1');
+    expect(leaves(activeTree(reopened)).map((pane) => pane.resourceId)).toEqual([
+      'chat-a',
+      'terminal-1',
+    ]);
+    expect(reopened.closed).toEqual([]);
+  });
+
+  it('shows a tab that is already open again instead of duplicating it', () => {
+    const state = run(
+      workspace(),
+      { type: 'closeTab', tabId: 'tab:chat-b' },
+      openTab('chat-b'),
+      openTab('chat-a'),
+      { type: 'reopenTab' },
+    );
+    expect(state.tabs.map((tab) => tab.resourceId)).toEqual(['chat-a', 'chat-b']);
+    expect(activeResourceId(state)).toBe('chat-b');
+  });
+
+  it('remembers a bounded number of tabs', () => {
+    let state = initialLayout;
+    for (let index = 0; index < 30; index++) {
+      state = run(state, openTab(`chat-${index}`), {
+        type: 'closeTab',
+        tabId: `tab:chat-${index}`,
+      });
+    }
+    expect(state.closed).toHaveLength(20);
+    expect(run(state, { type: 'reopenTab' }).tabs[0]?.resourceId).toBe('chat-29');
+  });
+});

@@ -56,6 +56,18 @@ const ExpandGlyph = () => (
   </svg>
 );
 
+const CloseGlyph = () => (
+  <svg {...CONTROL}>
+    <path
+      d="M4.5 4.5l7 7M11.5 4.5l-7 7"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
 const MoreGlyph = () => (
   <svg {...CONTROL}>
     <circle cx="3.5" cy="8" r="1.1" fill="currentColor" />
@@ -70,6 +82,12 @@ export interface PaneMenuItem {
   /** Why the command is unavailable here. Present means disabled. */
   unavailable?: string;
   danger?: boolean;
+  /** A line under the label saying what the command affects. */
+  description?: string;
+  /** Its keyboard shortcut, shown at the right. */
+  shortcut?: string;
+  /** Set apart from the items above by a divider. */
+  separated?: boolean;
 }
 
 export interface PaneChromeProps {
@@ -85,6 +103,8 @@ export interface PaneChromeProps {
   onSplitDown?(): void;
   onExpand?(): void;
   expandLabel?: string;
+  /** Closes this pane (presentation only). Absent when it is the only one. */
+  onClose?(): void;
   menu?: PaneMenuItem[];
   children: ReactNode;
 }
@@ -100,6 +120,7 @@ export function PaneChrome({
   onSplitDown,
   onExpand,
   expandLabel = 'Focus this pane',
+  onClose,
   menu,
   children,
 }: PaneChromeProps) {
@@ -129,6 +150,14 @@ export function PaneChrome({
             </PaneButton>
           )}
           {menu?.length ? <PaneMenu items={menu} /> : null}
+          {onClose && (
+            <>
+              <span className="pane-actions-divider" aria-hidden="true" />
+              <PaneButton label="Close pane" onClick={onClose} className="pane-button close">
+                <CloseGlyph />
+              </PaneButton>
+            </>
+          )}
         </div>
       </header>
       {children}
@@ -150,10 +179,10 @@ function PaneButton({
     <button
       type="button"
       className="pane-button"
+      {...rest}
       aria-label={label}
       title={label}
       onClick={onClick}
-      {...rest}
     >
       {children}
     </button>
@@ -211,20 +240,26 @@ function PaneMenu({ items }: { items: PaneMenuItem[] }) {
           }}
         >
           {items.map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              role="menuitem"
-              className={item.danger ? 'danger' : ''}
-              disabled={!item.onSelect}
-              title={item.unavailable}
-              onClick={() => {
-                item.onSelect?.();
-                setOpen(false);
-              }}
-            >
-              {item.label}
-            </button>
+            <div key={item.label} className="pane-menu-group">
+              {item.separated && <div className="pane-menu-divider" role="separator" />}
+              <button
+                type="button"
+                role="menuitem"
+                className={`${item.danger ? 'danger' : ''} ${item.description ? 'described' : ''}`}
+                disabled={!item.onSelect}
+                title={item.unavailable}
+                onClick={() => {
+                  item.onSelect?.();
+                  setOpen(false);
+                }}
+              >
+                <span className="pane-menu-label">
+                  {item.label}
+                  {item.shortcut && <kbd>{item.shortcut}</kbd>}
+                </span>
+                {item.description && <small>{item.description}</small>}
+              </button>
+            </div>
           ))}
         </div>
       )}
