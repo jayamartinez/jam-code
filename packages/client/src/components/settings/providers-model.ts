@@ -42,13 +42,13 @@ export function authenticationCell(provider: ProviderDescriptor): StatusCell {
   switch (provider.authentication) {
     case 'not-required':
       return { label: 'Not required', detail: 'no sign-in', tone: 'success' };
-    case 'authenticated': {
-      // A plan appears only when the provider itself reported one.
-      const account = [provider.account?.method, provider.account?.plan]
-        .filter(Boolean)
-        .join(' · ');
-      return { label: 'Signed in', detail: account || 'by its own CLI', tone: 'success' };
-    }
+    case 'authenticated':
+      // The plan and account have their own row; this says how it signed in.
+      return {
+        label: 'Signed in',
+        detail: provider.account?.method ?? 'by its own CLI',
+        tone: 'success',
+      };
     case 'unauthenticated':
       return { label: 'Signed out', detail: 'sign in with its own CLI', tone: 'warning' };
     default:
@@ -89,7 +89,9 @@ export function providerSummary(provider: ProviderDescriptor): string {
   if (provider.installation === 'missing') return installationCell(provider).label;
   const parts: string[] = [];
   if (provider.installation === 'unknown') parts.push('Not checked');
-  else if (provider.authentication === 'authenticated') parts.push('Signed in');
+  // The plan only when the provider reported one. Never the account identity.
+  else if (provider.authentication === 'authenticated')
+    parts.push(provider.account?.plan ?? 'Signed in');
   else if (provider.authentication === 'unauthenticated') parts.push('Signed out');
   else parts.push(installationCell(provider).label);
   if (provider.isDefault) parts.push('Default');

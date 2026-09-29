@@ -17,6 +17,7 @@ import {
 } from '../providers-model';
 import type { ProviderControl, SettingsPageProps } from '../types';
 import { effortLabel } from '../../composer-model';
+import { ProviderAccount } from './ProviderAccount';
 import { ProviderModels } from './ProviderModels';
 
 /**
@@ -201,6 +202,8 @@ function ProviderDetail({
       {provider.status && (
         <p className={`sv-provider-status ${provider.status.tone}`}>{provider.status.message}</p>
       )}
+
+      <ProviderAccount provider={provider} />
 
       <div className="sv-detail-group">
         <h3>Agent defaults</h3>
