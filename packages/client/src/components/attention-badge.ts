@@ -6,9 +6,9 @@ import type { BadgeTone } from '../state/chat-activity';
  * outside any theme, and has to read at 16 points.
  */
 const TONES: Record<BadgeTone, { fill: string; text: string }> = {
-  input: { fill: '#FFD27A', text: '#2A1C00' },
-  error: { fill: '#FF9B94', text: '#2B0906' },
-  finished: { fill: '#8EE6AE', text: '#062512' },
+  input: { fill: '#F5A524', text: '#FFFFFF' },
+  error: { fill: '#F2555A', text: '#FFFFFF' },
+  finished: { fill: '#3DCB84', text: '#FFFFFF' },
 };
 
 /** The icon's size in device pixels: a 16-point taskbar or tray icon at this display's scale. */
