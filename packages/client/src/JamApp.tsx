@@ -44,10 +44,13 @@ import {
   type SplitDirection,
 } from './state/layout';
 import { RuntimeClient } from './state/runtime-client';
+import { useFinishedChats } from './state/chat-activity';
+import { playFinishChime } from './components/finish-chime';
 import {
   type NewThreadWorkspace,
   useIdleThreadDays,
   useNewThreadWorkspace,
+  useFinishSound,
   useStreamReplies,
   useTimeFormat,
 } from './state/preferences';
@@ -211,6 +214,15 @@ export function JamApp({ transport, desktop }: JamAppProps) {
 
   const activeTabId = layout.activeTabId;
   const activeId = activeResourceId(layout);
+  // A chat counts as seen while any pane of the current tab shows it.
+  const visibleSessionIds = leaves(activeTree(layout)).flatMap((pane) => {
+    const sessionId = workspace?.resources.find((item) => item.id === pane.resourceId)?.sessionId;
+    return sessionId ? [sessionId] : [];
+  });
+  const [finishSound] = useFinishSound();
+  const finishedSessions = useFinishedChats(workspace?.sessions, visibleSessionIds, () => {
+    if (finishSound) playFinishChime();
+  });
   const activeResource = workspace?.resources.find((resource) => resource.id === activeId);
   const project = workspace?.projects.find(
     (item) => item.id === (activeResource?.projectId ?? newChats[activeId]?.projectId ?? projectId),
@@ -1391,6 +1403,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             {!layout.focus && (
               <Sidebar
                 workspace={workspace}
+                finishedSessions={finishedSessions}
                 collapsed={layout.collapsed}
                 platform={desktop.platform}
                 projectId={projectId}
@@ -1460,6 +1473,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                 layout={layout}
                 workspace={workspace}
                 drafts={newChats}
+                finishedSessions={finishedSessions}
                 project={project}
                 activeResource={activeResource}
                 shortcut={shortcut}

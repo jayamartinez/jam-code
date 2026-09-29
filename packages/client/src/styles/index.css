@@ -190,8 +190,34 @@ h2 {
   background: var(--color-text-subtle);
 }
 .status-dot.running {
+  background: var(--color-success);
+  box-shadow: 0 0 0 0 var(--color-success);
+  animation: status-pulse 1.6s ease-out infinite;
+}
+.status-dot.finished {
   background: var(--color-accent);
   box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+@keyframes status-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-success) 55%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-success) 0%, transparent);
+  }
+}
+/* Without motion, working still reads as alive: the dot fades rather than grows. */
+@media (prefers-reduced-motion: reduce) {
+  .status-dot.running {
+    animation: status-breathe 2s ease-in-out infinite;
+    box-shadow: 0 0 0 3px var(--color-success-soft);
+  }
+}
+@keyframes status-breathe {
+  50% {
+    opacity: 0.4;
+  }
 }
 .status-dot.failed {
   background: var(--color-danger);

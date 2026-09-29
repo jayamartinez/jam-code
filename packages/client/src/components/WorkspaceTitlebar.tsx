@@ -6,6 +6,7 @@ import type { DesktopServices } from '../desktop';
 import type { LayoutState } from '../state/layout';
 import { Brand, IconButton, Shortcut, WindowControls } from './Controls';
 import { ProjectBadge } from './ProjectBadge';
+import { SessionDot } from './SessionDot';
 import { ResourceIcon } from './icons';
 
 interface WorkspaceTitlebarProps {
@@ -13,6 +14,8 @@ interface WorkspaceTitlebarProps {
   layout: Pick<LayoutState, 'tabs' | 'activeTabId' | 'mode' | 'focus'>;
   workspace: Pick<WorkspaceSnapshot, 'resources' | 'sessions' | 'projects' | 'providers'>;
   drafts: Record<string, ChatDraft>;
+  /** Chats that finished out of sight. */
+  finishedSessions: ReadonlySet<string>;
   project?: Project;
   activeResource?: Resource;
   shortcut: string;
@@ -30,6 +33,7 @@ export function WorkspaceTitlebar({
   layout,
   workspace,
   drafts,
+  finishedSessions,
   project,
   activeResource,
   shortcut,
@@ -217,7 +221,10 @@ export function WorkspaceTitlebar({
                 />
                 <span className="tab-title truncate">{title}</span>
                 {showProject && project && <ProjectBadge project={project} size={13} />}
-                {session?.status === 'running' && <span className="status-dot running" />}
+                <SessionDot
+                  session={session}
+                  finished={!!session && finishedSessions.has(session.id)}
+                />
                 <button
                   className="tab-close"
                   aria-label={`Close ${title} tab`}

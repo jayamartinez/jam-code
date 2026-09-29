@@ -14,12 +14,15 @@ import type { Project, Resource, Session, WorkspaceSnapshot } from '@jam/protoco
 import { Brand, IconButton, Shortcut, TrafficLightInset } from './Controls';
 import { ProviderIcon } from './icons';
 import { ProjectBadge } from './ProjectBadge';
+import { SessionDot } from './SessionDot';
 import { compactAge, daysSince, orderProjects, suggestsClosing, threadsOf } from '../state/threads';
 
 export { ProjectBadge };
 
 export interface SidebarProps {
   workspace: WorkspaceSnapshot;
+  /** Chats that finished out of sight, shown with a blue dot until seen. */
+  finishedSessions: ReadonlySet<string>;
   collapsed: boolean;
   /** Only the chrome knows about platform window geometry. */
   platform: 'windows' | 'macos' | 'web';
@@ -170,6 +173,7 @@ export function Sidebar(props: SidebarProps) {
                 <ProjectThreads
                   resources={workspace.resources}
                   sessionFor={sessionFor}
+                  finishedSessions={props.finishedSessions}
                   projectId={project.id}
                   activeResourceId={activeResourceId}
                   idleThreadDays={props.idleThreadDays}
@@ -199,6 +203,7 @@ export function Sidebar(props: SidebarProps) {
               session={sessionFor(resource)}
               project={workspace.projects.find((project) => project.id === resource.projectId)}
               active={resource.id === activeResourceId}
+              finished={props.finishedSessions.has(resource.sessionId ?? '')}
               pinned
               onOpen={props.onOpen}
             />
@@ -243,6 +248,7 @@ export function Sidebar(props: SidebarProps) {
               session={sessionFor(resource)}
               project={workspace.projects.find((project) => project.id === resource.projectId)}
               active={resource.id === activeResourceId}
+              finished={props.finishedSessions.has(resource.sessionId ?? '')}
               onOpen={props.onOpen}
             />
           ))}
@@ -265,6 +271,7 @@ function ChatRow({
   session,
   project,
   active,
+  finished,
   pinned,
   onOpen,
 }: {
@@ -272,6 +279,7 @@ function ChatRow({
   session?: Session;
   project?: Project;
   active: boolean;
+  finished: boolean;
   pinned?: boolean;
   onOpen(id: string): void;
 }) {
@@ -297,12 +305,11 @@ function ChatRow({
         )}
       </span>
       <span className="row-status">
-        {session?.needsInput ? (
-          <span className="status-dot needs-input" aria-label="Needs input" />
-        ) : session?.status === 'running' ? (
-          <span className="status-dot running" />
-        ) : session?.status === 'failed' ? (
-          <span className="status-dot failed" />
+        {session?.needsInput ||
+        session?.status === 'running' ||
+        session?.status === 'failed' ||
+        finished ? (
+          <SessionDot session={session} finished={finished} />
         ) : pinned ? (
           <span className="mono subtle" style={{ fontSize: 9 }}>
             {project?.initials}
@@ -321,6 +328,7 @@ const CLOSED_PREVIEW = 3;
 function ProjectThreads({
   resources,
   sessionFor,
+  finishedSessions,
   projectId,
   activeResourceId,
   idleThreadDays,
@@ -331,6 +339,7 @@ function ProjectThreads({
 }: {
   resources: Resource[];
   sessionFor(resource: Resource): Session | undefined;
+  finishedSessions: ReadonlySet<string>;
   projectId: string;
   activeResourceId: string | null;
   idleThreadDays: number | null;
@@ -372,6 +381,12 @@ function ProjectThreads({
             providerId={sessionFor(thread)?.providerId}
           />
           <span className="thread-title truncate">{thread.title}</span>
+          {!isClosed && (
+            <SessionDot
+              session={sessionFor(thread)}
+              finished={finishedSessions.has(thread.sessionId ?? '')}
+            />
+          )}
           <span className={`thread-age mono ${idle ? 'idle' : ''}`}>
             {isClosed
               ? `closed ${compactAge(thread.closedAt!, now)}`

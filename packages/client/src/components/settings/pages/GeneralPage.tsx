@@ -1,7 +1,12 @@
 import { useEffect, useRef } from 'react';
 import type { Project, ProviderId } from '@jam/protocol';
 import { ProviderIcon } from '../../icons';
-import { IDLE_THREAD_OPTIONS, TIME_FORMAT_OPTIONS } from '../../../state/preferences';
+import {
+  IDLE_THREAD_OPTIONS,
+  TIME_FORMAT_OPTIONS,
+  useFinishSound,
+} from '../../../state/preferences';
+import { playFinishChime } from '../../finish-chime';
 import { ProjectBadge } from '../../ProjectBadge';
 import {
   Card,
@@ -47,6 +52,7 @@ export default function GeneralPage({
   providerControl,
 }: SettingsPageProps) {
   const provider = defaultProvider(providers);
+  const [finishSound, setFinishSound] = useFinishSound();
   const agents = liveProviders(providers);
   // Effort levels come from the agents' models, which a check reports.
   useEffect(() => void providerControl.ensure(), [providerControl]);
@@ -110,6 +116,19 @@ export default function GeneralPage({
             sub="Show agent replies as they are written. Off shows each part once it is complete."
           >
             <Toggle label="Stream replies" on={streamReplies} onChange={onStreamReplies} />
+          </Row>
+          <Row
+            title="Sound when an agent finishes"
+            sub="A short chime when a chat's agent is done, wherever the chat is."
+          >
+            <Toggle
+              label="Sound when an agent finishes"
+              on={finishSound}
+              onChange={(next) => {
+                setFinishSound(next);
+                if (next) playFinishChime();
+              }}
+            />
           </Row>
           <Row
             title="Effort"
