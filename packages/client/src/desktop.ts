@@ -10,7 +10,12 @@ export interface DesktopServices {
    * has no local folders, such as the browser preview or a future remote
    * client.
    */
-  pickDirectory?(): Promise<string | null>;
+  pickDirectory?(start?: string): Promise<string | null>;
+  /**
+   * Opens the operating system's emoji picker, which types into the focused
+   * field. Absent where the host has none.
+   */
+  openEmojiPicker?(): Promise<void>;
   /** Native Browser views. Absent where the host cannot embed one. */
   browser?: BrowserHost;
   snapshots?: SnapshotHost;

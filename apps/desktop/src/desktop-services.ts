@@ -30,7 +30,9 @@ export function createDesktopServices(): DesktopServices {
     toggleMaximize: () => nativeWindow.toggleMaximize(),
     close: () => nativeWindow.close(),
     startDragging: () => nativeWindow.startDragging(),
-    pickDirectory: () => invoke<string | null>('pick_directory'),
+    pickDirectory: (start?: string) =>
+      invoke<string | null>('pick_directory', start ? { start } : {}),
+    openEmojiPicker: () => invoke<void>('open_emoji_picker'),
     browser: createBrowserHost(),
     snapshots: createSnapshotHost(),
   };

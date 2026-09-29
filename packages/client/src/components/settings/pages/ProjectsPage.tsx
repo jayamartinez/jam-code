@@ -1,6 +1,6 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { PROJECT_ICONS, type Project } from '@jam/protocol';
-import { QUICK_EMOJI } from '../../ProjectEditor';
+import { EmojiButton } from '../../EmojiButton';
 import { PRESET_GLYPHS, ProjectBadge, TONE_LABELS, squareProjectImage } from '../../ProjectBadge';
 import { Planned, Row, Segmented, Select, Toggle } from '../controls';
 import {
@@ -176,12 +176,6 @@ function ProjectDetail({
     if (event.key === 'Enter') event.currentTarget.blur();
   };
 
-  const emojiShortcut =
-    platform === 'windows'
-      ? 'Win + .'
-      : platform === 'macos'
-        ? 'Ctrl + ⌘ + Space'
-        : 'your emoji picker';
   const preview: Project = { ...project, icon: buildIcon(draft) ?? project.icon };
 
   return (
@@ -292,35 +286,14 @@ function ProjectDetail({
               </div>
             )}
             {draft.kind === 'emoji' && (
-              <>
-                <div className="sv-glyph-grid emoji" role="listbox" aria-label="Emoji">
-                  {QUICK_EMOJI.map((emoji) => (
-                    <button
-                      key={emoji}
-                      type="button"
-                      role="option"
-                      aria-selected={draft.emoji === emoji}
-                      className={`icon-choice ${draft.emoji === emoji ? 'selected' : ''}`}
-                      onClick={() => changeIcon({ ...draft, emoji })}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-                <div className="sv-icon-line">
-                  <input
-                    className="sv-input emoji"
-                    aria-label="Emoji"
-                    placeholder="🙂"
-                    value={draft.emoji}
-                    maxLength={limits.emojiUtf16}
-                    onChange={(event) => setDraft({ ...draft, emoji: event.target.value })}
-                    onBlur={() => changeIcon(draft)}
-                    onKeyDown={onEnter}
-                  />
-                  <span className="sv-hint">Or open the system picker with {emojiShortcut}.</span>
-                </div>
-              </>
+              <div className="sv-icon-line">
+                <EmojiButton
+                  value={draft.emoji}
+                  platform={platform}
+                  onChange={(emoji) => changeIcon({ ...draft, emoji })}
+                  {...(control.openEmojiPicker ? { onOpenPicker: control.openEmojiPicker } : {})}
+                />
+              </div>
             )}
             {draft.kind === 'image' && (
               <div className="sv-icon-line">

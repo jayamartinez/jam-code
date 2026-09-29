@@ -544,8 +544,12 @@ export function JamApp({ transport, desktop }: JamAppProps) {
 
   const projectControl = {
     ...(desktop.pickDirectory
-      ? { add: addProject, pickFolder: () => desktop.pickDirectory!() }
+      ? {
+          add: addProject,
+          pickFolder: (start?: string) => desktop.pickDirectory!(start),
+        }
       : {}),
+    ...(desktop.openEmojiPicker ? { openEmojiPicker: desktop.openEmojiPicker } : {}),
     remove: removeProject,
   };
 
@@ -1639,6 +1643,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
           <ProjectEditor
             platform={desktop.platform}
             {...(desktop.pickDirectory ? { onPickFolder: desktop.pickDirectory } : {})}
+            {...(desktop.openEmojiPicker ? { onOpenEmojiPicker: desktop.openEmojiPicker } : {})}
             onSave={createProject}
             onClose={() => closeNewProject(null)}
           />
@@ -1651,6 +1656,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                 project={target}
                 platform={desktop.platform}
                 {...(desktop.pickDirectory ? { onPickFolder: desktop.pickDirectory } : {})}
+                {...(desktop.openEmojiPicker ? { onOpenEmojiPicker: desktop.openEmojiPicker } : {})}
                 onSave={(changes) => updateProject(target.id, changes)}
                 onClose={() => setEditingProject(null)}
               />
