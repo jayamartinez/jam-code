@@ -213,3 +213,26 @@ export function ResourceIcon({
     </IconSlot>
   );
 }
+
+/** A folder with a second behind it: a checkout of its own. */
+export function WorktreeIcon({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true">
+      <path
+        d="M1.5 5a1 1 0 011-1h3l1.3 1.3h3.7a1 1 0 011 1v5.2a1 1 0 01-1 1h-8a1 1 0 01-1-1z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M13 7.5h1.5v5.8a1 1 0 01-1 1h-8"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}

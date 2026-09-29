@@ -74,3 +74,26 @@ it('keeps a Review selection across pane remounts without making it a File resou
   expect(client.selection('review-resource')).toEqual({ path: 'file.txt', side: 'staged' });
   expect(client.selection('file-resource')).toBeUndefined();
 });
+it('keeps a worktree review apart from its project checkout', async () => {
+  const request = vi.fn((_method: string, params: { worktreeId?: string }) =>
+    Promise.resolve({
+      ...status,
+      branch: params.worktreeId ? 'jam/fix' : 'main',
+      ...(params.worktreeId ? { worktreeId: params.worktreeId } : {}),
+    }),
+  );
+  const client = new GitClient({ request } as unknown as JamTransport);
+  await Promise.all([client.refresh('p'), client.refresh('p', 'worktree-1')]);
+  expect(request).toHaveBeenCalledTimes(2);
+  expect(request).toHaveBeenCalledWith('git.status', { projectId: 'p', worktreeId: 'worktree-1' });
+  expect(client.get('p').status?.branch).toBe('main');
+  expect(client.get('p', 'worktree-1').status?.branch).toBe('jam/fix');
+  await client.setStaged('p', 'a.txt', true, 'worktree-1');
+  expect(request).toHaveBeenLastCalledWith('git.setStaged', {
+    projectId: 'p',
+    path: 'a.txt',
+    staged: true,
+    worktreeId: 'worktree-1',
+  });
+  expect(client.get('p').status?.branch).toBe('main');
+});

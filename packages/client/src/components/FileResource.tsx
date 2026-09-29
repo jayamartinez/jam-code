@@ -58,13 +58,14 @@ export function FileResource({
   draftRef.current = draft;
   const path = resource.path ?? '';
   const projectId = resource.projectId ?? '';
+  const worktreeId = resource.worktreeId;
 
   useEffect(() => {
     let cancelled = false;
     setLoad({ state: 'loading' });
     setDraft(null);
     setSaveError(null);
-    transport.request('file.read', { projectId, path }).then(
+    transport.request('file.read', { projectId, path, ...(worktreeId ? { worktreeId } : {}) }).then(
       (file) => {
         if (!cancelled) setLoad({ state: 'ready', file });
       },
@@ -79,7 +80,7 @@ export function FileResource({
     return () => {
       cancelled = true;
     };
-  }, [projectId, path, transport]);
+  }, [projectId, worktreeId, path, transport]);
 
   const file = load.state === 'ready' ? load.file : undefined;
   const dirty = draft !== null && file !== undefined && draft !== file.text;

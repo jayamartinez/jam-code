@@ -29,11 +29,15 @@ export class GitClient {
     };
   };
   getSnapshot = () => this.revision;
-  get(projectId: string) {
-    return this.states.get(projectId) ?? EMPTY;
+  /**
+   * One projection per checkout: the project's folder, or one of its JAM
+   * worktrees. Review in a worktree chat never shares the checkout's state.
+   */
+  get(projectId: string, worktreeId?: string) {
+    return this.states.get(key(projectId, worktreeId)) ?? EMPTY;
   }
-  private set(projectId: string, state: GitProjection) {
-    this.states.set(projectId, state);
+  private set(target: string, state: GitProjection) {
+    this.states.set(target, state);
     this.revision++;
     this.listeners.forEach((listener) => listener());
   }
@@ -42,59 +46,78 @@ export class GitClient {
     this.pending.delete(projectId);
     this.set(projectId, { loading: false, revision: this.get(projectId).revision + 1 });
   }
-  refresh(projectId: string): Promise<void> {
-    const pending = this.pending.get(projectId);
+  refresh(projectId: string, worktreeId?: string): Promise<void> {
+    const target = key(projectId, worktreeId);
+    const pending = this.pending.get(target);
     if (pending) return pending;
-    const generation = this.generations.get(projectId);
-    this.set(projectId, { ...this.get(projectId), loading: true });
+    const generation = this.generations.get(target);
+    this.set(target, {
+      ...this.states.get(target),
+      loading: true,
+      revision: this.revisionOf(target),
+    });
     const request = this.transport
-      .request('git.status', { projectId })
+      .request('git.status', { projectId, ...(worktreeId ? { worktreeId } : {}) })
       .then(
         (status) =>
-          generation === this.generations.get(projectId) &&
-          this.set(projectId, {
+          generation === this.generations.get(target) &&
+          this.set(target, {
             status,
             loading: false,
-            revision: this.get(projectId).revision + 1,
+            revision: this.revisionOf(target) + 1,
           }),
         (error: unknown) =>
-          generation === this.generations.get(projectId) &&
-          this.set(projectId, {
+          generation === this.generations.get(target) &&
+          this.set(target, {
             loading: false,
-            revision: this.get(projectId).revision + 1,
+            revision: this.revisionOf(target) + 1,
             error: error instanceof Error ? error.message : 'Git is unavailable.',
           }),
       )
       .then(() => undefined)
       .finally(() => {
-        if (this.pending.get(projectId) === request) this.pending.delete(projectId);
+        if (this.pending.get(target) === request) this.pending.delete(target);
       });
-    this.pending.set(projectId, request);
+    this.pending.set(target, request);
     return request;
   }
-  async setStaged(projectId: string, path: string, staged: boolean) {
-    await this.pending.get(projectId);
-    const generation = this.generations.get(projectId);
+  async setStaged(projectId: string, path: string, staged: boolean, worktreeId?: string) {
+    const target = key(projectId, worktreeId);
+    await this.pending.get(target);
+    const generation = this.generations.get(target);
     const operation = this.transport
-      .request('git.setStaged', { projectId, path, staged })
+      .request('git.setStaged', {
+        projectId,
+        path,
+        staged,
+        ...(worktreeId ? { worktreeId } : {}),
+      })
       .then((status) => {
-        if (generation === this.generations.get(projectId))
-          this.set(projectId, {
+        if (generation === this.generations.get(target))
+          this.set(target, {
             status,
             loading: false,
-            revision: this.get(projectId).revision + 1,
+            revision: this.revisionOf(target) + 1,
           });
       });
     const pending = operation.catch(() => undefined);
-    this.pending.set(projectId, pending);
+    this.pending.set(target, pending);
     try {
       await operation;
     } catch (error) {
-      if (this.pending.get(projectId) === pending) this.pending.delete(projectId);
-      await this.refresh(projectId);
+      if (this.pending.get(target) === pending) this.pending.delete(target);
+      await this.refresh(projectId, worktreeId);
       throw error;
     } finally {
-      if (this.pending.get(projectId) === pending) this.pending.delete(projectId);
+      if (this.pending.get(target) === pending) this.pending.delete(target);
     }
   }
+  private revisionOf(target: string) {
+    return this.states.get(target)?.revision ?? 0;
+  }
+}
+
+/** Projects and worktrees have separate IDs; NUL never appears in either. */
+function key(projectId: string, worktreeId?: string) {
+  return worktreeId ? `${projectId}\u0000${worktreeId}` : projectId;
 }
