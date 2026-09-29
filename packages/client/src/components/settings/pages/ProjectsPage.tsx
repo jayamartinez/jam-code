@@ -289,7 +289,6 @@ function ProjectDetail({
               <div className="sv-icon-line">
                 <EmojiButton
                   value={draft.emoji}
-                  platform={platform}
                   onChange={(emoji) => changeIcon({ ...draft, emoji })}
                   {...(control.openEmojiPicker ? { onOpenPicker: control.openEmojiPicker } : {})}
                 />

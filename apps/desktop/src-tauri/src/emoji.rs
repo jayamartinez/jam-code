@@ -2,10 +2,11 @@
 //! the macOS Character Viewer. The client focuses a field first; the picker
 //! types the chosen emoji into it, so JAM never ships its own emoji list.
 
+/// Called from a click on the emoji field, so JAM's window and the field
+/// already have focus. Focusing the native window again would move keyboard
+/// focus off the page's field, and the picker would have nowhere to type.
 #[tauri::command]
-pub fn open_emoji_picker(window: tauri::WebviewWindow) {
-    // The picker types into the focused window.
-    let _ = window.set_focus();
+pub fn open_emoji_picker() {
     platform::open();
 }
 
