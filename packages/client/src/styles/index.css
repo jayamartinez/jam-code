@@ -333,6 +333,7 @@ h2 {
 .context-switch.on:hover:not(:disabled),
 .toggle.on:hover:not(:disabled) {
   background-color: var(--color-accent);
+}
 /* No agent ready (Paper, Core flows "19 · No agent ready"). */
 .agent-setup {
   flex: 1;
