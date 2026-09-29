@@ -1641,7 +1641,6 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         {contextMenu && <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} />}
         {creatingProject && (
           <ProjectEditor
-            platform={desktop.platform}
             {...(desktop.pickDirectory ? { onPickFolder: desktop.pickDirectory } : {})}
             {...(desktop.openEmojiPicker ? { onOpenEmojiPicker: desktop.openEmojiPicker } : {})}
             onSave={createProject}
@@ -1654,7 +1653,6 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             return target ? (
               <ProjectEditor
                 project={target}
-                platform={desktop.platform}
                 {...(desktop.pickDirectory ? { onPickFolder: desktop.pickDirectory } : {})}
                 {...(desktop.openEmojiPicker ? { onOpenEmojiPicker: desktop.openEmojiPicker } : {})}
                 onSave={(changes) => updateProject(target.id, changes)}

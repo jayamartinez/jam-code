@@ -20,7 +20,6 @@ type IconKind = ProjectIcon['kind'];
 
 export function ProjectEditor({
   project,
-  platform,
   onPickFolder,
   onOpenEmojiPicker,
   onSave,
@@ -28,7 +27,6 @@ export function ProjectEditor({
 }: {
   /** Absent for a new project. */
   project?: Project;
-  platform: 'macos' | 'windows' | 'web';
   /** The system folder chooser, opened in `start` when given. */
   onPickFolder?(start?: string): Promise<string | null>;
   /** The system emoji picker. */
@@ -163,7 +161,6 @@ export function ProjectEditor({
                     preset={preset}
                     emoji={emoji}
                     image={image}
-                    platform={platform}
                     {...(onOpenEmojiPicker ? { onOpenEmojiPicker } : {})}
                     onKind={setKind}
                     onTone={setTone}
@@ -255,7 +252,6 @@ function IconPopover({
   preset,
   emoji,
   image,
-  platform,
   onOpenEmojiPicker,
   onKind,
   onTone,
@@ -270,7 +266,6 @@ function IconPopover({
   preset: string;
   emoji: string;
   image: string | undefined;
-  platform: 'macos' | 'windows' | 'web';
   onOpenEmojiPicker?(): Promise<void>;
   onKind(kind: IconKind): void;
   onTone(tone: string): void;
@@ -344,7 +339,6 @@ function IconPopover({
         <EmojiButton
           value={emoji}
           onChange={onEmoji}
-          platform={platform}
           {...(onOpenEmojiPicker ? { onOpenPicker: onOpenEmojiPicker } : {})}
         />
       )}
