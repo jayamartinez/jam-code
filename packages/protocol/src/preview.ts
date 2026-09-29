@@ -312,7 +312,12 @@ export class BrowserPreviewTransport implements JamTransport {
   ): RequestMap['provider.configure']['result'] {
     const provider = this.workspace.providers.find((item) => item.id === params.providerId);
     if (!provider) throw new JamError('invalid_request', 'Unknown provider.');
-    if (params.executable !== undefined || (params.defaults && provider.id !== 'mock'))
+    if (
+      params.executable !== undefined ||
+      params.favoriteModels ||
+      params.hiddenModels ||
+      (params.defaults && provider.id !== 'mock')
+    )
       throw new JamError('unavailable', 'Provider settings are saved by the jam desktop app.');
     if (params.enabled !== undefined) provider.enabled = params.enabled;
     if (params.isDefault)

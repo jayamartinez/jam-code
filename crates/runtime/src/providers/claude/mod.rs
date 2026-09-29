@@ -11,7 +11,7 @@ mod tools;
 
 use super::{
     Answer, ProbeFuture, ProviderAdapter, ProviderConfig, ProviderFuture, ProviderTurn,
-    ProviderUpdate, Transcript, TurnIo, access, descriptor, discovery,
+    ProviderUpdate, SPEED, Transcript, TurnIo, access, descriptor, discovery,
     process::{LaunchSpec, Output, StdioChild},
     set_capability,
     transcript::until,
@@ -50,6 +50,7 @@ struct Process {
     native_id: String,
     effort: Option<String>,
     auto_compact: bool,
+    fast: bool,
     model: Mutex<Option<String>>,
     mode: Mutex<String>,
     next_request: AtomicU64,
@@ -125,6 +126,11 @@ fn permission_mode(options: &std::collections::BTreeMap<String, String>) -> Stri
         _ => "default",
     }
     .into()
+}
+
+/// Whether the chat chose fast mode; a new speed needs a new process.
+fn is_fast(options: &std::collections::BTreeMap<String, String>) -> bool {
+    options.get(SPEED).map(String::as_str) == Some(FAST)
 }
 
 fn auto_compact(options: &std::collections::BTreeMap<String, String>) -> bool {
@@ -274,14 +280,79 @@ async fn auth_status(executable: &Path) -> Option<(bool, Value)> {
     Some((logged_in && output.status.success(), kept))
 }
 
+/// Records the effort Claude Code applies by default on each model that
+/// offers it. Claude Code reports one applied effort, not one per model.
+fn apply_default_effort(models: &mut [ProviderModel], effort: Option<&str>) {
+    let Some(effort) = effort else { return };
+    for model in models {
+        if model.efforts.iter().any(|e| e == effort) {
+            model.default_effort = Some(effort.to_owned());
+        }
+    }
+}
+
+/// Marks older versions within a model family ("Opus 4.8" beside "Opus 5.5")
+/// as legacy. Claude Code does not mark them, so the family and version come
+/// from its display names; a name without a version is never legacy.
+fn mark_legacy(models: &mut [ProviderModel]) {
+    fn family_version(label: &str) -> Option<(&str, Vec<u32>)> {
+        let (family, version) = label.rsplit_once(' ')?;
+        let parts = version
+            .split('.')
+            .map(str::parse)
+            .collect::<Result<Vec<u32>, _>>()
+            .ok()?;
+        Some((family, parts))
+    }
+    let newest = |family: &str| {
+        models
+            .iter()
+            .filter_map(|m| family_version(&m.label))
+            .filter(|(f, _)| *f == family)
+            .map(|(_, v)| v)
+            .max()
+    };
+    let legacy: Vec<bool> = models
+        .iter()
+        .map(|m| {
+            family_version(&m.label)
+                .is_some_and(|(family, version)| newest(family).is_some_and(|n| version < n))
+        })
+        .collect();
+    for (model, legacy) in models.iter_mut().zip(legacy) {
+        model.legacy = legacy;
+    }
+}
+
+/// Claude Code's value for the `speed` option.
+const FAST: &str = "fast";
+
 fn models_from(response: &Value) -> Vec<ProviderModel> {
-    response
-        .get("models")
-        .and_then(Value::as_array)
+    // The probe opts in to fast mode, so any reason left is the account's
+    // or the organization's (no paid plan, turned off, rate limited).
+    let fast_available = response
+        .get("fast_mode_disabled_reason")
+        .is_none_or(Value::is_null);
+    let listed = response.get("models").and_then(Value::as_array);
+    // Claude Code lists its recommended default as a model of its own
+    // ("default"). JAM's default choice already means "Claude Code decides",
+    // so that entry is left out and the model it resolves to is the default.
+    fn resolved(model: &Value) -> Option<&str> {
+        model.get("resolvedModel").and_then(Value::as_str)
+    }
+    let recommended = listed
+        .into_iter()
+        .flatten()
+        .find(|model| model.get("value").and_then(Value::as_str) == Some("default"))
+        .and_then(resolved);
+    let mut models = listed
         .into_iter()
         .flatten()
         .filter_map(|model| {
             let id = model.get("value").and_then(Value::as_str)?;
+            if id == "default" {
+                return None;
+            }
             Some(ProviderModel {
                 id: id.into(),
                 label: model
@@ -293,7 +364,7 @@ fn models_from(response: &Value) -> Vec<ProviderModel> {
                     .get("description")
                     .and_then(Value::as_str)
                     .map(str::to_owned),
-                is_default: id == "default",
+                is_default: recommended.is_some() && resolved(model) == recommended,
                 efforts: if model.get("supportsEffort").and_then(Value::as_bool) == Some(true) {
                     model
                         .get("supportedEffortLevels")
@@ -310,11 +381,25 @@ fn models_from(response: &Value) -> Vec<ProviderModel> {
                     Vec::new()
                 },
                 default_effort: None,
+                speeds: if fast_available
+                    && model.get("supportsFastMode").and_then(Value::as_bool) == Some(true)
+                {
+                    vec![OptionValue {
+                        value: FAST.into(),
+                        label: "Fast".into(),
+                        description: Some("Faster output, increased usage".into()),
+                    }]
+                } else {
+                    Vec::new()
+                },
+                legacy: false,
                 // Claude Code accepts image blocks for every model it lists.
                 images: Some("supported".into()),
             })
         })
-        .collect()
+        .collect::<Vec<_>>();
+    mark_legacy(&mut models);
+    models
 }
 
 async fn probe(mut d: ProviderDescriptor, config: ProviderConfig) -> ProviderDescriptor {
@@ -394,7 +479,7 @@ async fn probe(mut d: ProviderDescriptor, config: ProviderConfig) -> ProviderDes
         [
             "--strict-mcp-config",
             "--settings",
-            r#"{"disableAllHooks":true}"#,
+            r#"{"disableAllHooks":true,"fastMode":true}"#,
         ]
         .into_iter()
         .map(str::to_owned),
@@ -405,29 +490,54 @@ async fn probe(mut d: ProviderDescriptor, config: ProviderConfig) -> ProviderDes
         .env("PATH", discovery::search_path());
     let mut models = Vec::new();
     if let Ok((child, mut lines)) = StdioChild::spawn(&spec) {
-        let sent = child
+        let mut sent = child
             .send(&json!({"type": "control_request", "request_id": "jam-probe", "request": {"subtype": "initialize"}}))
             .await;
         if sent.is_ok() {
+            // The effort Claude Code applies when none is chosen. Its answer
+            // also carries every settings source, which can hold secrets, so
+            // only `applied.effort` is read and the rest is dropped at once.
+            sent = child
+                .send(&json!({"type": "control_request", "request_id": "jam-effort", "request": {"subtype": "get_settings"}}))
+                .await;
+        }
+        if sent.is_ok() {
             let wait = async {
+                let (mut initialized, mut effort) = (None, None);
                 while let Some(output) = lines.recv().await {
                     let Output::Line(line) = output else { continue };
                     let Ok(message) = serde_json::from_str::<Value>(&line) else {
                         continue;
                     };
-                    if message.get("type").and_then(Value::as_str) == Some("control_response")
-                        && message
-                            .pointer("/response/request_id")
-                            .and_then(Value::as_str)
-                            == Some("jam-probe")
+                    if message.get("type").and_then(Value::as_str) != Some("control_response") {
+                        continue;
+                    }
+                    match message
+                        .pointer("/response/request_id")
+                        .and_then(Value::as_str)
                     {
-                        return message.pointer("/response/response").cloned();
+                        Some("jam-probe") => {
+                            initialized = message.pointer("/response/response").cloned();
+                        }
+                        Some("jam-effort") => {
+                            effort = Some(
+                                message
+                                    .pointer("/response/response/applied/effort")
+                                    .and_then(Value::as_str)
+                                    .map(str::to_owned),
+                            );
+                        }
+                        _ => continue,
+                    }
+                    if initialized.is_some() && effort.is_some() {
+                        break;
                     }
                 }
-                None
+                initialized.map(|response| (response, effort.flatten()))
             };
-            if let Ok(Some(response)) = tokio::time::timeout(START_DEADLINE, wait).await {
+            if let Ok(Some((response, effort))) = tokio::time::timeout(START_DEADLINE, wait).await {
                 models = models_from(&response);
+                apply_default_effort(&mut models, effort.as_deref());
             }
         }
         child.kill();
@@ -502,12 +612,18 @@ async fn spawn(
     let mode = permission_mode(&turn.options);
     let mut args = base_args(&mode);
     let compacts = auto_compact(&turn.options);
+    let fast = is_fast(&turn.options);
+    // Per-session settings; the user's own settings files are untouched.
+    let mut settings = serde_json::Map::new();
     if !compacts {
-        // A per-session setting; the user's own settings files are untouched.
-        args.extend([
-            "--settings".into(),
-            r#"{"autoCompactEnabled":false}"#.into(),
-        ]);
+        settings.insert("autoCompactEnabled".into(), json!(false));
+    }
+    if fast {
+        // Claude Code serves fast mode to a client only when it opts in.
+        settings.insert("fastMode".into(), json!(true));
+    }
+    if !settings.is_empty() {
+        args.extend(["--settings".into(), Value::Object(settings).to_string()]);
     }
     let native = match native_id {
         Some(id) => {
@@ -577,6 +693,7 @@ async fn spawn(
         native_id: native,
         effort,
         auto_compact: compacts,
+        fast,
         model: Mutex::new(model),
         mode: Mutex::new(mode),
         next_request: AtomicU64::new(1),
@@ -611,6 +728,7 @@ async fn run(adapter: &ClaudeAdapter, turn: ProviderTurn, io: TurnIo) -> Result<
             && Some(&p.native_id) == turn.native_id.as_ref()
             && p.effort == turn.options.get("effort").cloned()
             && p.auto_compact == auto_compact(&turn.options)
+            && p.fast == is_fast(&turn.options)
     });
     if existing.is_none()
         && let Some(stale) = adapter.take(&turn.session_id)
@@ -1058,12 +1176,51 @@ fn update_tool_input(
 
 #[cfg(test)]
 mod tests {
-    use super::is_model_id;
+    use super::{apply_default_effort, is_model_id, models_from};
+    use serde_json::json;
 
     #[test]
     fn a_placeholder_model_never_names_the_session() {
         assert!(is_model_id("claude-opus-5-5"));
         assert!(!is_model_id("<synthetic>"));
         assert!(!is_model_id(""));
+    }
+
+    #[test]
+    fn fast_is_offered_only_where_the_account_and_model_allow_it() {
+        let models = json!([
+            {"value": "opus", "displayName": "Opus 5.5", "supportsFastMode": true},
+            {"value": "haiku", "displayName": "Haiku 4.5"},
+        ]);
+        let offered = models_from(&json!({"models": models, "fast_mode_state": "on"}));
+        assert_eq!(offered[0].speeds[0].value, "fast");
+        assert!(offered[1].speeds.is_empty());
+        let unpaid = models_from(&json!({"models": models, "fast_mode_disabled_reason": "free"}));
+        assert!(unpaid.iter().all(|model| model.speeds.is_empty()));
+    }
+
+    #[test]
+    fn older_versions_in_a_family_are_legacy() {
+        let models = json!([
+            {"value": "default", "displayName": "Default (recommended)", "resolvedModel": "claude-opus-5-5"},
+            {"value": "opus", "displayName": "Opus 5.5", "resolvedModel": "claude-opus-5-5", "supportsEffort": true, "supportedEffortLevels": ["low", "medium"]},
+            {"value": "claude-opus-5", "displayName": "Opus 5"},
+            {"value": "claude-opus-4-8", "displayName": "Opus 4.8"},
+            {"value": "haiku", "displayName": "Haiku 4.5"},
+        ]);
+        let mut listed = models_from(&json!({"models": models}));
+        let legacy: Vec<_> = listed
+            .iter()
+            .filter(|m| m.legacy)
+            .map(|m| m.id.as_str())
+            .collect();
+        assert_eq!(legacy, ["claude-opus-5", "claude-opus-4-8"]);
+        // The "default" entry is JAM's own default choice; what it resolves to is the default.
+        assert_eq!(listed.len(), 4);
+        assert!(listed[0].is_default && listed[0].id == "opus");
+        apply_default_effort(&mut listed, Some("medium"));
+        assert_eq!(listed[0].default_effort.as_deref(), Some("medium"));
+        // A model without effort levels names no default effort.
+        assert_eq!(listed[3].default_effort, None);
     }
 }

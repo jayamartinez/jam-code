@@ -23,6 +23,10 @@ pub(crate) use manager::{
 pub use mock::MockProvider;
 pub(crate) use transcript::Transcript;
 
+/// The session option naming a faster speed a model offers (`ProviderModel::speeds`).
+/// Absent means the provider's standard speed.
+pub(crate) const SPEED: &str = "speed";
+
 use crate::{
     error::JamError,
     protocol::{CAPABILITIES, CapabilitySupport, ProviderDescriptor, SessionStatus, SessionUsage},
@@ -126,6 +130,8 @@ pub(crate) fn descriptor(id: &str, name: &str, status: &str, reason: &str) -> Pr
         models: None,
         options: None,
         defaults: None,
+        favorite_models: Vec::new(),
+        hidden_models: Vec::new(),
         checked_at: None,
     }
 }

@@ -217,6 +217,7 @@ const support: Check = (value) =>
     { reason: text(2048) },
   );
 const tristate = oneOf('supported', 'unsupported', 'unknown');
+const modelIds: Check = (value) => array(text(256), 200)(value);
 const providerModel: Check = (value) =>
   shape(
     value,
@@ -226,6 +227,12 @@ const providerModel: Check = (value) =>
       isDefault: boolean,
       efforts: array(text(64), 16),
       defaultEffort: text(64),
+      speeds: array(
+        (speed) =>
+          shape(speed, { value: text(64), label: text(256) }, { description: text(2048, true) }),
+        8,
+      ),
+      legacy: boolean,
       images: tristate,
     },
   );
@@ -272,6 +279,8 @@ const provider: Check = (value) =>
       models: array(providerModel, 200),
       options: array(providerOption, 16),
       defaults: optionMap,
+      favoriteModels: modelIds,
+      hiddenModels: modelIds,
       checkedAt: timestamp,
     },
   );
@@ -665,7 +674,14 @@ const params: Record<RequestMethod, Check> = {
     shape(
       value,
       { providerId },
-      { enabled: boolean, isDefault: boolean, executable: text(4096, true), defaults: optionMap },
+      {
+        enabled: boolean,
+        isDefault: boolean,
+        executable: text(4096, true),
+        defaults: optionMap,
+        favoriteModels: modelIds,
+        hiddenModels: modelIds,
+      },
     ),
   'interaction.respond': (value) => {
     shape(
