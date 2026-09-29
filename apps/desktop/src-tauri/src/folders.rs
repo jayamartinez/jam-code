@@ -15,7 +15,10 @@ pub async fn pick_directory(
     let mut dialog = rfd::AsyncFileDialog::new()
         .set_title("Open a project folder")
         .set_parent(&window);
-    if let Some(start) = start.map(std::path::PathBuf::from).filter(|path| path.is_dir()) {
+    if let Some(start) = start
+        .map(std::path::PathBuf::from)
+        .filter(|path| path.is_dir())
+    {
         dialog = dialog.set_directory(start);
     }
     let Some(folder) = dialog.pick_folder().await else {
