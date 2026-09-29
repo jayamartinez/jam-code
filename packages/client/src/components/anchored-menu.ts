@@ -3,7 +3,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 /**
  * A menu fixed to the pill that opens it, so a toolbar that clips its
  * overflow cannot hide it. It opens above the pill (or below, `compact`),
- * stays inside the window, and closes on an outside press or a resize.
+ * stays inside the window (flipping up when there is more room above), and
+ * closes on an outside press or a resize.
  */
 export function useAnchoredMenu({
   compact,
@@ -56,9 +57,12 @@ export function useAnchoredMenu({
     toggle() {
       const box = trigger.current?.getBoundingClientRect();
       if (!box) return;
+      // A downward menu flips up when the window has more room above it.
+      const below = window.innerHeight - box.bottom - 16;
+      const down = compact && (below >= 200 || below >= box.top - 16);
       setPlace(
-        compact
-          ? { left: box.left, top: box.bottom + 6, maxHeight: window.innerHeight - box.bottom - 16 }
+        down
+          ? { left: box.left, top: box.bottom + 6, maxHeight: below }
           : { left: box.left, bottom: window.innerHeight - box.top + 8, maxHeight: box.top - 16 },
       );
       setOpen((shown) => !shown);
