@@ -82,6 +82,25 @@ pub fn validate_options(options: &BTreeMap<String, String>) -> Result<(), JamErr
     Ok(())
 }
 
+/// Model IDs a reader starred or hid: short, distinct and bounded. They are
+/// kept even when a provider stops listing them, so a model that returns
+/// keeps its place.
+pub fn model_ids(ids: Vec<String>) -> Result<Vec<String>, JamError> {
+    if ids.len() > 200 {
+        return Err(JamError::invalid("Too many models."));
+    }
+    let mut kept: Vec<String> = Vec::with_capacity(ids.len());
+    for id in ids {
+        if id.trim().is_empty() || id.encode_utf16().count() > 256 {
+            return Err(JamError::invalid("A model ID is invalid."));
+        }
+        if !kept.contains(&id) {
+            kept.push(id);
+        }
+    }
+    Ok(kept)
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StartTurn {
@@ -89,8 +108,9 @@ pub struct StartTurn {
     pub text: String,
     pub context: Vec<ContextItem>,
     pub request_id: String,
+    /// The chat's complete options from this turn on; absent keeps them.
     #[serde(default)]
-    pub options: BTreeMap<String, String>,
+    pub options: Option<BTreeMap<String, String>>,
 }
 
 #[derive(Deserialize)]
@@ -115,6 +135,8 @@ pub struct ConfigureProvider {
     pub is_default: Option<bool>,
     pub executable: Option<String>,
     pub defaults: Option<BTreeMap<String, String>>,
+    pub favorite_models: Option<Vec<String>>,
+    pub hidden_models: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -151,7 +173,9 @@ impl StartTurn {
     pub fn validate(&self) -> Result<(), JamError> {
         validate_id(&self.resource_id)?;
         validate_id(&self.request_id)?;
-        validate_options(&self.options)?;
+        if let Some(options) = &self.options {
+            validate_options(options)?;
+        }
         if (self.text.trim().is_empty() && self.context.is_empty())
             || self.text.encode_utf16().count() > 20_000
             || self.context.len() > 16

@@ -2,7 +2,7 @@
 //! of the last explicit check. Installation, authentication, enablement,
 //! default choice and running sessions are kept apart; nothing here turns
 //! one into another.
-use super::ProviderAdapter;
+use super::{ProviderAdapter, SPEED};
 use crate::{
     error::JamError,
     protocol::{ProviderDescriptor, Session, SessionStatus},
@@ -26,6 +26,12 @@ pub struct ProviderConfig {
     /// Defaults for new chats, keyed like `Session.options`.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub defaults: BTreeMap<String, String>,
+    /// Starred model IDs, first in the model picker.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub favorite_models: Vec<String>,
+    /// Model IDs left out of the model picker.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hidden_models: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -154,6 +160,8 @@ impl ProviderManager {
                 descriptor.executable_override = config.executable.clone();
                 descriptor.defaults =
                     (!config.defaults.is_empty()).then(|| config.defaults.clone());
+                descriptor.favorite_models = config.favorite_models.clone();
+                descriptor.hidden_models = config.hidden_models.clone();
                 descriptor
             })
             .collect();
@@ -209,6 +217,22 @@ pub(crate) fn validate_options(
                         "{} did not report the model {value:?}.",
                         descriptor.name
                     )));
+                }
+            }
+            SPEED => {
+                let model = options.get("model");
+                if let Some(models) = &descriptor.models {
+                    let chosen = model
+                        .and_then(|id| models.iter().find(|m| &m.id == id))
+                        .or_else(|| models.iter().find(|m| m.is_default));
+                    if let Some(chosen) = chosen
+                        && !chosen.speeds.iter().any(|s| &s.value == value)
+                    {
+                        return Err(JamError::invalid(format!(
+                            "{} does not offer {value:?} speed for {}.",
+                            descriptor.name, chosen.label
+                        )));
+                    }
                 }
             }
             "effort" => {

@@ -1,8 +1,8 @@
 //! Provider settings, checks and interaction answers.
 use crate::{
     commands::{
-        ConfigureProvider, ListProviders, RespondInteraction, parse, validate_id, validate_options,
-        validate_provider,
+        ConfigureProvider, ListProviders, RespondInteraction, model_ids, parse, validate_id,
+        validate_options, validate_provider,
     },
     error::JamError,
     protocol::{Presentation, ProviderDescriptor},
@@ -199,6 +199,12 @@ impl Runtime {
                             crate::providers::validate_option(&descriptor, &defaults)?;
                         }
                         config.defaults = defaults;
+                    }
+                    if let Some(models) = input.favorite_models {
+                        config.favorite_models = model_ids(models)?;
+                    }
+                    if let Some(models) = input.hidden_models {
+                        config.hidden_models = model_ids(models)?;
                     }
                     let changed = previous != config.executable;
                     settings.providers.insert(id.to_string(), config);

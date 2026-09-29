@@ -89,15 +89,22 @@ impl Runtime {
             let known = |key: &str| {
                 key == "model"
                     || key == "effort"
+                    || key == crate::providers::SPEED
                     || descriptor
                         .options
                         .as_ref()
                         .is_some_and(|o| o.iter().any(|option| option.id == key))
             };
-            options.retain(|key, _| known(key));
-            options.extend(input.options.clone());
+            // Chosen options replace the saved ones, so a choice returned to
+            // its default (no speed, no model) is cleared rather than kept.
+            // Saved options the provider no longer offers are dropped; chosen
+            // ones are validated as sent.
+            match &input.options {
+                Some(chosen) => options = chosen.clone(),
+                None => options.retain(|key, _| known(key)),
+            }
             crate::providers::validate_option(descriptor, &options)?;
-        } else if !input.options.is_empty() {
+        } else if input.options.as_ref().is_some_and(|o| !o.is_empty()) {
             return Err(JamError::invalid("The demo provider has no options."));
         }
         if compact

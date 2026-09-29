@@ -9,14 +9,14 @@ mod rpc;
 
 use super::{
     Answer, ProbeFuture, ProviderAdapter, ProviderConfig, ProviderFuture, ProviderTurn,
-    ProviderUpdate, Transcript, TurnIo, access, descriptor, discovery, process::LaunchSpec,
+    ProviderUpdate, SPEED, Transcript, TurnIo, access, descriptor, discovery, process::LaunchSpec,
     set_capability, transcript::until,
 };
 use crate::{
     error::JamError,
     protocol::{
-        InteractionStatus, ProviderAccount, ProviderDescriptor, ProviderModel, ProviderOption,
-        ProviderStatus, SessionStatus, SessionUsage,
+        InteractionStatus, OptionValue, ProviderAccount, ProviderDescriptor, ProviderModel,
+        ProviderOption, ProviderStatus, SessionStatus, SessionUsage,
     },
     runtime::new_id,
 };
@@ -43,8 +43,38 @@ const INTERRUPT_GRACE: Duration = Duration::from_secs(8);
 
 struct Server {
     connection: Arc<Connection>,
-    /// Threads resumed or started on this process, with the sandbox applied.
-    loaded: Mutex<HashMap<String, String>>,
+    /// Threads resumed or started on this process, with what was applied.
+    loaded: Mutex<HashMap<String, Applied>>,
+}
+
+/// A loaded thread's settings that persist across its turns.
+#[derive(Clone)]
+struct Applied {
+    sandbox: String,
+    /// A service tier other than standard, which later turns keep until reset.
+    tier: Option<String>,
+}
+
+/// Codex's standard service tier, sent to leave a faster one.
+const STANDARD_TIER: &str = "default";
+
+/// A faster tier a thread reports, if any.
+fn reported_tier(result: &Value) -> Option<String> {
+    result
+        .get("serviceTier")
+        .and_then(Value::as_str)
+        .filter(|tier| *tier != STANDARD_TIER)
+        .map(str::to_owned)
+}
+
+/// The `serviceTier` a turn must send: the chosen faster tier, standard to
+/// leave one the thread still has, or nothing to keep Codex's own choice.
+fn tier_to_send(chosen: Option<&str>, applied: Option<&str>) -> Option<String> {
+    match (chosen, applied) {
+        (Some(chosen), applied) if applied != Some(chosen) => Some(chosen.into()),
+        (None, Some(_)) => Some(STANDARD_TIER.into()),
+        _ => None,
+    }
 }
 
 #[derive(Default)]
@@ -324,6 +354,31 @@ async fn probe(mut d: ProviderDescriptor, config: ProviderConfig) -> ProviderDes
                     .get("defaultReasoningEffort")
                     .and_then(Value::as_str)
                     .map(str::to_owned),
+                speeds: model
+                    .get("serviceTiers")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|tier| {
+                        let id = tier.get("id").and_then(Value::as_str)?;
+                        (id != STANDARD_TIER).then(|| OptionValue {
+                            value: id.into(),
+                            label: tier
+                                .get("name")
+                                .and_then(Value::as_str)
+                                .unwrap_or(id)
+                                .into(),
+                            description: tier
+                                .get("description")
+                                .and_then(Value::as_str)
+                                .map(str::to_owned),
+                        })
+                    })
+                    .collect(),
+                // Codex names the model that supersedes this one.
+                legacy: model
+                    .get("upgrade")
+                    .is_some_and(|upgrade| !upgrade.is_null()),
                 images: model
                     .get("inputModalities")
                     .and_then(Value::as_array)
@@ -435,6 +490,9 @@ async fn run(adapter: &CodexAdapter, turn: ProviderTurn, io: TurnIo) -> Result<(
     let (approval, sandbox) = (approval.to_string(), sandbox.to_string());
     let model = turn.options.get("model").cloned();
     let effort = turn.options.get("effort").cloned();
+    let speed = turn.options.get(SPEED).cloned();
+    // What a thread resumed or started below reported for itself.
+    let mut fresh_tier = None;
 
     // Resume the provider's thread, or start one.
     let already = turn
@@ -459,6 +517,7 @@ async fn run(adapter: &CodexAdapter, turn: ProviderTurn, io: TurnIo) -> Result<(
             match connection.request("thread/resume", params).await {
                 Ok(result) => {
                     thread_id = Some(native.clone());
+                    fresh_tier = reported_tier(&result);
                     report_model(&transcript, &result).await;
                 }
                 Err(error) if error.message.contains("not found") => {
@@ -482,6 +541,7 @@ async fn run(adapter: &CodexAdapter, turn: ProviderTurn, io: TurnIo) -> Result<(
                     JamError::new("provider_error", "Codex started a thread without an ID.")
                 })?
                 .to_string();
+            fresh_tier = reported_tier(&result);
             report_model(&transcript, &result).await;
             thread_id = Some(id);
         }
@@ -524,15 +584,36 @@ async fn run(adapter: &CodexAdapter, turn: ProviderTurn, io: TurnIo) -> Result<(
         if let Some(effort) = &effort {
             start["effort"] = json!(effort);
         }
-        if already.as_deref().is_some_and(|applied| applied != sandbox) {
+        if already
+            .as_ref()
+            .is_some_and(|applied| applied.sandbox != sandbox)
+        {
             start["sandboxPolicy"] = sandbox_policy(&sandbox);
+        }
+        let applied_tier = match &already {
+            Some(applied) => applied.tier.clone(),
+            None => fresh_tier,
+        };
+        let send_tier = tier_to_send(speed.as_deref(), applied_tier.as_deref());
+        if let Some(tier) = &send_tier {
+            start["serviceTier"] = json!(tier);
         }
         let started = connection
             .request("turn/start", start)
             .await
             .map_err(|e| e.into_jam("Codex did not start the turn"))?;
         if let Ok(mut loaded) = server.loaded.lock() {
-            loaded.insert(thread_id.clone(), sandbox.clone());
+            let tier = match send_tier {
+                Some(sent) => Some(sent).filter(|tier| tier != STANDARD_TIER),
+                None => applied_tier,
+            };
+            loaded.insert(
+                thread_id.clone(),
+                Applied {
+                    sandbox: sandbox.clone(),
+                    tier,
+                },
+            );
         }
         started
     };
@@ -764,5 +845,39 @@ struct Unroute(Arc<Connection>, String, mpsc::Sender<Incoming>);
 impl Drop for Unroute {
     fn drop(&mut self) {
         self.0.unroute(&self.1, &self.2);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{STANDARD_TIER, reported_tier, tier_to_send};
+    use serde_json::json;
+
+    #[test]
+    fn a_faster_tier_is_sent_once_and_left_explicitly() {
+        // Chosen and not yet applied: send it.
+        assert_eq!(
+            tier_to_send(Some("priority"), None).as_deref(),
+            Some("priority")
+        );
+        // Already applied to the loaded thread: later turns keep it.
+        assert_eq!(tier_to_send(Some("priority"), Some("priority")), None);
+        // Back to standard: Codex keeps an override until it is reset.
+        assert_eq!(
+            tier_to_send(None, Some("priority")).as_deref(),
+            Some(STANDARD_TIER)
+        );
+        // Nothing chosen and nothing applied: Codex's own configuration decides.
+        assert_eq!(tier_to_send(None, None), None);
+    }
+
+    #[test]
+    fn a_thread_on_the_standard_tier_reports_none() {
+        assert_eq!(reported_tier(&json!({"serviceTier": "default"})), None);
+        assert_eq!(reported_tier(&json!({"serviceTier": null})), None);
+        assert_eq!(
+            reported_tier(&json!({"serviceTier": "priority"})).as_deref(),
+            Some("priority")
+        );
     }
 }

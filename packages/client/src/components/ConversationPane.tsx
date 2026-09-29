@@ -1,6 +1,5 @@
 import {
   ArrowUp,
-  ChevronDown,
   File,
   FolderOpen,
   GitBranch,
@@ -8,6 +7,7 @@ import {
   Shield,
   Square,
   TriangleAlert,
+  Zap,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type {
@@ -33,7 +33,18 @@ import { AccessPill } from './AccessPill';
 import type { FileReference } from '../markdown/file-refs';
 import { ContextMeter } from './ContextMeter';
 import { unavailableReason } from '../state/chat-draft';
-import { composerChoices } from './composer-model';
+import { ChoicePill } from './ChoicePill';
+import { ModelPicker } from './ModelPicker';
+import {
+  composerChoices,
+  effortSummary,
+  folderName,
+  modelLabel,
+  modelMenu,
+  reportedModel,
+  withoutStaleChoices,
+  type ComposerChoices,
+} from './composer-model';
 
 interface ConversationProps extends Pick<
   PaneChromeProps,
@@ -67,6 +78,8 @@ interface ConversationProps extends Pick<
   onOpenFile?(path: string, line?: number): void;
   onFileMenu?(file: FileReference, event: React.MouseEvent): void;
   onOpenExternal?(url: string): void;
+  /** Stars or unstars a model in the picker (saved with the provider's settings). */
+  onFavoriteModel?(providerId: ProviderId, model: string): void;
 }
 
 export function ConversationPane(props: ConversationProps) {
@@ -181,6 +194,7 @@ type ComposerProps = Pick<
   | 'providers'
   | 'options'
   | 'onOptions'
+  | 'onFavoriteModel'
   | 'onDraft'
   | 'onSend'
   | 'onStop'
@@ -209,10 +223,7 @@ export function Composer(props: ComposerProps) {
   const descriptor = props.providers.find((provider) => provider.id === providerId);
   const demo = providerId === 'mock';
   const name = descriptor?.name ?? sessionProviderName(props.session);
-  const reported =
-    props.session?.model && props.session.model !== 'Default model'
-      ? props.session.model
-      : undefined;
+  const reported = reportedModel(props.session?.model);
   const choices = composerChoices(descriptor, props.options, reported);
   const pills = choices.options.filter((option) => PILL_OPTIONS.has(option.id));
   const blocked = demo
@@ -223,6 +234,12 @@ export function Composer(props: ComposerProps) {
         ? unavailableReason(descriptor)
         : null;
   const set = (key: string, value: string) => props.onOptions({ ...props.options, [key]: value });
+  const chooseModel = (value: string) => {
+    const next: Record<string, string> = { ...props.options, model: value };
+    if (!value) delete next.model;
+    props.onOptions(withoutStaleChoices(descriptor, next));
+  };
+  const altKey = props.shortcut === '⌘' ? '⌥' : 'Alt';
   const switchable = props.isNew
     ? props.providers.filter((provider) => provider.enabled || provider.id === providerId)
     : [];
@@ -235,6 +252,16 @@ export function Composer(props: ComposerProps) {
   return (
     <div className="composer-area">
       <form
+        onKeyDown={(event) => {
+          // Alt+1–9 picks a numbered model from anywhere in the composer.
+          const digit = /^Digit([1-9])$/.exec(event.code)?.[1];
+          if (!digit || !event.altKey || event.ctrlKey || event.metaKey || demo || props.busy)
+            return;
+          const model = modelMenu(descriptor, choices).shortcuts[Number(digit) - 1];
+          if (model === undefined) return;
+          event.preventDefault();
+          if (model !== choices.model) chooseModel(model);
+        }}
         className="composer"
         onSubmit={(event) => {
           event.preventDefault();
@@ -311,46 +338,31 @@ export function Composer(props: ComposerProps) {
                 Demo model
               </span>
             ) : choices.models.length ? (
-              <OptionSelect
-                label="Model"
-                className="composer-pill strong"
+              <ModelPicker
+                descriptor={descriptor}
+                choices={choices}
                 icon={switchable.length > 1 ? undefined : glyph}
-                value={choices.model}
-                values={choices.models}
+                altKey={altKey}
                 disabled={props.busy}
-                onChange={(value) => {
-                  const next: Record<string, string> = { ...props.options, model: value };
-                  if (!value) delete next.model;
-                  // An effort the new model does not offer is dropped.
-                  if (
-                    next.effort &&
-                    !composerChoices(descriptor, next).efforts.some((e) => e.value === next.effort)
-                  )
-                    delete next.effort;
-                  props.onOptions(next);
-                }}
+                onChange={chooseModel}
+                {...(props.onFavoriteModel && providerId
+                  ? { onFavorite: (model: string) => props.onFavoriteModel?.(providerId, model) }
+                  : {})}
               />
             ) : (
               switchable.length <= 1 && (
                 <span className="composer-pill static strong">
                   {glyph}
-                  {props.session?.model ?? name}
+                  {reported ? modelLabel(reported, descriptor) : name}
                 </span>
               )
             )}
-            {!demo && choices.efforts.length > 0 && (
-              <OptionSelect
-                label="Effort"
-                className="composer-pill"
-                value={choices.effort}
-                values={choices.efforts}
-                disabled={props.busy}
-                onChange={(value) => {
-                  const next = { ...props.options };
-                  if (value) next.effort = value;
-                  else delete next.effort;
-                  props.onOptions(next);
-                }}
+            {!demo && (choices.efforts.length > 0 || choices.speeds.length > 0) && (
+              <EffortPill
+                choices={choices}
+                options={props.options}
+                busy={props.busy}
+                onOptions={props.onOptions}
               />
             )}
             {demo ? (
@@ -418,7 +430,9 @@ export function Composer(props: ComposerProps) {
             ) : (
               <span className="new-run-choices">
                 <FolderOpen size={11} />
-                <span className="mono truncate">{props.project?.paths?.[0]}</span>
+                <span className="truncate" title={props.project?.paths?.[0]}>
+                  {folderName(props.project?.paths?.[0]) || props.project?.name}
+                </span>
                 {pills.map((option) => (
                   <AccessPill
                     key={option.id}
@@ -439,42 +453,53 @@ export function Composer(props: ComposerProps) {
   );
 }
 
-function OptionSelect({
-  label,
-  value,
-  values,
-  onChange,
-  disabled,
-  className,
-  icon,
+/** Effort, with a Speed section when the model offers a faster one. */
+function EffortPill({
+  choices,
+  options,
+  busy,
+  onOptions,
 }: {
-  label: string;
-  value: string;
-  values: { value: string; label: string; description?: string }[];
-  onChange(value: string): void;
-  disabled?: boolean;
-  className: string;
-  icon?: React.ReactNode;
+  choices: ComposerChoices;
+  options: Record<string, string>;
+  busy: boolean;
+  onOptions(options: Record<string, string>): void;
 }) {
-  const current = values.find((item) => item.value === value);
+  const setter = (key: string) => (value: string) => {
+    const next = { ...options };
+    if (value) next[key] = value;
+    else delete next[key];
+    onOptions(next);
+  };
+  const bolt = <Zap size={11} className="speed-mark" fill="currentColor" strokeWidth={0} />;
+  const speed = {
+    label: 'Speed',
+    value: choices.speed,
+    values: choices.speeds.map((item) => (item.value ? { ...item, mark: bolt } : item)),
+    onChange: setter('speed'),
+  };
+  // A model with speeds but no effort levels offers speed alone.
+  const main = choices.efforts.length
+    ? {
+        label: 'Effort',
+        value: choices.effort,
+        values: choices.efforts,
+        onChange: setter('effort'),
+      }
+    : speed;
   return (
-    <label className={`${className} composer-select`} title={current?.description ?? label}>
-      {icon}
-      <span className="composer-select-value">{current?.label ?? label}</span>
-      <ChevronDown size={10} className="composer-chevron" />
-      <select
-        aria-label={label}
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-      >
-        {values.map((item) => (
-          <option key={item.value} value={item.value}>
-            {item.label}
-          </option>
-        ))}
-      </select>
-    </label>
+    <ChoicePill
+      label={main.label}
+      rootClassName="effort"
+      className={`composer-pill ${choices.speed ? 'fast' : ''}`}
+      icon={choices.speed ? bolt : undefined}
+      summary={effortSummary(choices)}
+      value={main.value}
+      values={main.values}
+      onChange={main.onChange}
+      sections={main === speed || !choices.speeds.length ? undefined : [speed]}
+      disabled={busy}
+    />
   );
 }
 
@@ -525,7 +550,7 @@ function MessageView({
           ) : demo ? (
             'Demonstration'
           ) : (
-            session?.model
+            modelLabel(reportedModel(session?.model) ?? '')
           )}
         </span>
         <span className="agent-rule" />

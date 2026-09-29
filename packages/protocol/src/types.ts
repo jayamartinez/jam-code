@@ -200,6 +200,13 @@ export interface ProviderModel {
   /** Reasoning effort values this model accepts, as the provider names them. */
   efforts?: string[];
   defaultEffort?: string;
+  /**
+   * Faster speeds this model offers besides standard, as the provider names
+   * them; chosen through the `speed` option.
+   */
+  speeds?: { value: string; label: string; description?: string }[];
+  /** An older version the provider has superseded; shown under Legacy. */
+  legacy?: boolean;
   /** Whether the provider says this model accepts image input. */
   images?: 'supported' | 'unsupported' | 'unknown';
 }
@@ -245,6 +252,10 @@ export interface ProviderDescriptor {
   options?: ProviderOption[];
   /** Saved defaults for new chats, keyed like `Session.options`. */
   defaults?: Record<string, string>;
+  /** Model IDs the reader starred, first in the model picker. */
+  favoriteModels?: string[];
+  /** Model IDs the reader hid from the model picker. */
+  hiddenModels?: string[];
   /** When JAM last asked the provider. Absent means not checked yet. */
   checkedAt?: string;
 }
@@ -401,7 +412,10 @@ export interface RequestMap
       text: string;
       context: ContextItem[];
       requestId: string;
-      /** Changes model/effort/provider options from this turn on. */
+      /**
+       * The chat's complete model/effort/speed/provider options from this
+       * turn on, replacing the saved ones; absent keeps them.
+       */
       options?: Record<string, string>;
     };
     result: { accepted: true; sessionId: string; requestId: string };
@@ -424,6 +438,10 @@ export interface RequestMap
       /** An executable path; the empty string returns to automatic detection. */
       executable?: string;
       defaults?: Record<string, string>;
+      /** Replaces the starred model IDs. */
+      favoriteModels?: string[];
+      /** Replaces the hidden model IDs. */
+      hiddenModels?: string[];
     };
     result: { providers: ProviderDescriptor[] };
   };

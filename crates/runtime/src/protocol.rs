@@ -375,6 +375,13 @@ pub struct ProviderModel {
     pub efforts: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_effort: Option<String>,
+    /// Faster speeds this model offers besides standard, as the provider
+    /// names them; chosen through the `speed` option.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub speeds: Vec<OptionValue>,
+    /// An older version the provider has superseded; shown under Legacy.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub legacy: bool,
     /// `supported`, `unsupported` or `unknown`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub images: Option<String>,
@@ -450,6 +457,12 @@ pub struct ProviderDescriptor {
     pub options: Option<Vec<ProviderOption>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub defaults: Option<BTreeMap<String, String>>,
+    /// Model IDs the reader starred, in the order they were starred.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub favorite_models: Vec<String>,
+    /// Model IDs the reader hid from the model picker.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hidden_models: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub checked_at: Option<String>,
 }

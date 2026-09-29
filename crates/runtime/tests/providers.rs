@@ -100,10 +100,14 @@ impl ProviderAdapter for Scripted {
                 is_default: true,
                 efforts: vec!["low".into(), "high".into()],
                 default_effort: None,
+                speeds: Vec::new(),
+                legacy: false,
                 images: Some("unsupported".into()),
             }]),
             options: None,
             defaults: None,
+            favorite_models: Vec::new(),
+            hidden_models: Vec::new(),
             checked_at: None,
         }
     }
@@ -460,6 +464,7 @@ async fn real_providers_bind_native_ids_and_resume_with_them() {
         .unwrap();
     let (status, _, _) = settled(&mut events.receiver).await;
     assert_eq!(status, SessionStatus::Idle);
+    let recorded = Arc::clone(&seen);
     let seen = seen.lock().unwrap().clone();
     assert_eq!(seen.len(), 2);
     assert_eq!(seen[0].0, None, "a new session has no provider ID yet");
@@ -487,6 +492,23 @@ async fn real_providers_bind_native_ids_and_resume_with_them() {
         "the model the provider reported"
     );
     assert_eq!(session["options"]["effort"], "low");
+    // Options sent with a turn replace the saved ones: returning effort to
+    // the default clears it instead of keeping "low".
+    call(&runtime, "turn.start", json!({"resourceId": resource, "text": "default effort", "context": [], "requestId": "t3", "options": {}}))
+        .await
+        .unwrap();
+    let (status, _, _) = settled(&mut events.receiver).await;
+    assert_eq!(status, SessionStatus::Idle);
+    assert_eq!(recorded.lock().unwrap().last().unwrap().3, vec![]);
+    let cleared = call(&runtime, "workspace.get", json!({})).await.unwrap();
+    let cleared = cleared["sessions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["resourceId"] == resource.as_str())
+        .unwrap()
+        .clone();
+    assert!(cleared["options"].get("effort").is_none(), "{cleared}");
     assert!(
         !workspace.to_string().contains("native-thread-1"),
         "provider IDs stay in the runtime"
@@ -559,6 +581,35 @@ async fn provider_settings_persist_and_stay_independent() {
         );
         assert_eq!(claude["authentication"], "authenticated");
         assert_eq!(claude["defaults"]["model"], "fast");
+        // Starred and hidden models are the reader's, kept distinct and in order.
+        let starred = call(
+            &runtime,
+            "provider.configure",
+            json!({"providerId":"claude","favoriteModels":["fast","slow","fast"],"hiddenModels":["slow"]}),
+        )
+        .await
+        .unwrap();
+        let claude = starred["providers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["id"] == "claude")
+            .unwrap()
+            .clone();
+        assert_eq!(claude["favoriteModels"], json!(["fast", "slow"]));
+        assert_eq!(
+            claude["defaults"]["model"], "fast",
+            "other settings are untouched"
+        );
+        assert!(
+            call(
+                &runtime,
+                "provider.configure",
+                json!({"providerId":"claude","hiddenModels":[" "]})
+            )
+            .await
+            .is_err()
+        );
         runtime.shutdown().await.unwrap();
     }
     let runtime = Runtime::open_with(
@@ -575,4 +626,9 @@ async fn provider_settings_persist_and_stay_independent() {
         (Some(true), Some(true))
     );
     assert_eq!(claude["enabled"], false);
+    assert_eq!(
+        claude["hiddenModels"],
+        json!(["slow"]),
+        "saved across restarts"
+    );
 }
