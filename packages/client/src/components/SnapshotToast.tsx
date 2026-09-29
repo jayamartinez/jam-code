@@ -4,6 +4,7 @@ import type { JamTransport, Resource, Snapshot } from '@jam/protocol';
 import type { SnapshotHost } from '../desktop';
 import { useSnapshots } from '../state/snapshots';
 import { SnapshotImage } from './SnapshotImage';
+import { MenuSelect } from './MenuSelect';
 
 type Transport = Pick<JamTransport, 'request'>;
 export function SnapshotToast({ transport, host }: { transport: Transport; host: SnapshotHost }) {
@@ -146,22 +147,19 @@ export function SnapshotCard({
       <div className="snapshot-thumbnail">
         <SnapshotImage id={snapshot.id} transport={transport} />
       </div>
-      <label className="snapshot-destination">
+      <div className="snapshot-destination">
         Staged in
-        <select
-          aria-label="Snapshot destination"
+        <MenuSelect
+          label="Snapshot destination"
           disabled={busy}
           value={snapshot.resourceId ?? ''}
-          onChange={(e) => void stage(e.target.value || null)}
-        >
-          <option value="">Snapshot inbox</option>
-          {conversations.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.title}
-            </option>
-          ))}
-        </select>
-      </label>
+          options={[
+            { value: '', label: 'Snapshot inbox' },
+            ...conversations.map((r) => ({ value: r.id, label: r.title })),
+          ]}
+          onChange={(value) => void stage(value || null)}
+        />
+      </div>
       <input
         className="snapshot-note"
         aria-label="Snapshot note"
