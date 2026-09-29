@@ -40,6 +40,7 @@ import { AppearanceContext, AppearanceStore } from './appearance/store';
 import { Brand, Dialog, IconButton } from './components/Controls';
 import { Sidebar } from './components/Sidebar';
 import { Composer } from './components/ConversationPane';
+import { toggledFavorite, withoutStaleChoices } from './components/composer-model';
 import { ConversationResource } from './components/ConversationResource';
 import { SearchDialog } from './components/SearchDialog';
 import { SnapshotPreview } from './components/SnapshotPreview';
@@ -280,14 +281,14 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       const id = `draft:${crypto.randomUUID()}`;
       const providers = client.getSnapshot().workspace?.providers ?? [];
       const providerId = draftProvider(providers, requested);
-      const defaults = providers.find((provider) => provider.id === providerId)?.defaults;
+      const provider = providers.find((item) => item.id === providerId);
       setNewChats((current) => ({
         ...current,
         [id]: {
           projectId,
           providerId,
           presentation: presentationFor(providerId, requested === 'codex' ? 'codex' : 'claude'),
-          options: { ...defaults },
+          options: withoutStaleChoices(provider, { ...provider?.defaults }),
         },
       }));
       // The agent picker needs real installation and sign-in state.
@@ -695,7 +696,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         text,
         context: staged,
         requestId,
-        ...(options && Object.keys(options).length ? { options } : {}),
+        // Complete options, so a choice returned to its default is cleared.
+        ...(options ? { options } : {}),
       });
       snapshots.refresh();
       requests.current.delete(resourceId);
@@ -755,7 +757,32 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         client.reportError(cause);
       }
     },
+    onFavoriteModel: (providerId: ProviderId, model: string) => {
+      const provider = workspace?.providers.find((item) => item.id === providerId);
+      if (provider)
+        void providerControl.configure({
+          providerId,
+          favoriteModels: toggledFavorite(provider.favoriteModels, model),
+        });
+    },
     onOptions: (options: Record<string, string>) => {
+      // The access level a person picks becomes their agent's default for new chats.
+      const providerId =
+        newChats[resourceId]?.providerId ??
+        workspace?.sessions.find((item) => item.id === sessionId)?.providerId;
+      const provider = workspace?.providers.find((item) => item.id === providerId);
+      const access = options.access;
+      if (
+        provider &&
+        provider.id !== 'mock' &&
+        access &&
+        access !== optionsFor(resourceId, sessionId).access &&
+        access !== provider.defaults?.access
+      )
+        void providerControl.configure({
+          providerId: provider.id,
+          defaults: { ...provider.defaults, access },
+        });
       if (newChats[resourceId])
         setNewChats((current) => {
           const draft = current[resourceId];
@@ -956,9 +983,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                   setNewChats((current) => {
                     const previous = current[resourceId];
                     if (!previous) return current;
-                    const defaults = workspace.providers.find(
-                      (provider) => provider.id === providerId,
-                    )?.defaults;
+                    const provider = workspace.providers.find((item) => item.id === providerId);
                     return {
                       ...current,
                       [resourceId]: {
@@ -966,7 +991,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                         providerId,
                         presentation: presentationFor(providerId, previous.presentation),
                         // Options belong to one provider; switching starts from its defaults.
-                        options: { ...defaults },
+                        options: withoutStaleChoices(provider, { ...provider?.defaults }),
                       },
                     };
                   })

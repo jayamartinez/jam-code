@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown } from 'lucide-react';
+import { ChoicePill, type PillChoice } from './ChoicePill';
 
 /**
  * The access level as one pill (Paper, "9 · Approvals & access"): muted for
@@ -15,84 +14,31 @@ export function AccessPill({
   compact,
 }: {
   value: string;
-  values: { value: string; label: string; description?: string }[];
+  values: PillChoice[];
   onChange(value: string): void;
   disabled?: boolean;
   /** The quieter form in a new chat's footer. */
   compact?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
-  // Fixed to the pill, so a toolbar that clips its overflow cannot hide it.
-  const [place, setPlace] = useState<React.CSSProperties>({});
-  const root = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const escape = (event: KeyboardEvent) => event.key === 'Escape' && setOpen(false);
-    window.addEventListener('pointerdown', close);
-    window.addEventListener('keydown', escape);
-    return () => {
-      window.removeEventListener('pointerdown', close);
-      window.removeEventListener('keydown', escape);
-    };
-  }, [open]);
   const current = values.find((item) => item.value === value) ?? values[0];
   if (!current) return null;
   return (
-    <div className={`access ${compact ? 'compact' : ''}`} ref={root}>
-      <button
-        type="button"
-        className={`access-pill access-${current.value}`}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={`Access: ${current.label}`}
-        title={current.description}
-        disabled={disabled}
-        onClick={(event) => {
-          const box = event.currentTarget.getBoundingClientRect();
-          setPlace(
-            compact
-              ? { left: box.left, top: box.bottom + 6 }
-              : { left: box.left, bottom: window.innerHeight - box.top + 8 },
-          );
-          setOpen((shown) => !shown);
-        }}
-      >
-        <AccessIcon level={current.value} />
-        <span>{current.label}</span>
-        <ChevronDown size={10} className="composer-chevron" />
-      </button>
-      {open && (
-        <div className="access-menu" role="menu" aria-label="Access" style={place}>
-          {values.map((item) => (
-            <button
-              key={item.value}
-              type="button"
-              role="menuitemradio"
-              aria-checked={item.value === current.value}
-              className={`access-option ${item.value === current.value ? 'selected' : ''}`}
-              onClick={() => {
-                setOpen(false);
-                if (item.value !== current.value) onChange(item.value);
-              }}
-            >
-              <span className={`access-option-icon access-${item.value}`}>
-                <AccessIcon level={item.value} size={14} />
-              </span>
-              <span className="access-option-copy">
-                <strong>{item.label}</strong>
-                {item.description && <small>{item.description}</small>}
-              </span>
-              <span className="access-option-check">
-                {item.value === current.value && <Check size={12} strokeWidth={2} />}
-              </span>
-            </button>
-          ))}
-        </div>
+    <ChoicePill
+      label="Access"
+      rootClassName="access"
+      className={`access-pill access-${current.value}`}
+      icon={<AccessIcon level={current.value} />}
+      optionIcon={(level) => (
+        <span className={`access-option-icon access-${level}`}>
+          <AccessIcon level={level} size={14} />
+        </span>
       )}
-    </div>
+      value={current.value}
+      values={values}
+      onChange={onChange}
+      disabled={disabled}
+      compact={compact}
+    />
   );
 }
 

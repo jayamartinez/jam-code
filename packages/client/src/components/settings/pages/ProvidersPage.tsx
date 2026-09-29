@@ -17,6 +17,7 @@ import {
 } from '../providers-model';
 import type { ProviderControl, SettingsPageProps } from '../types';
 import { effortLabel } from '../../composer-model';
+import { ProviderModels } from './ProviderModels';
 
 /**
  * Providers as a list and a detail, from the Settings v2 frame. Everything
@@ -144,6 +145,8 @@ function ProviderDetail({
   const [executable, setExecutable] = useState(provider.executableOverride ?? '');
   const saveDefault = (key: string, value: string | undefined) => {
     const next = { ...defaults };
+    // A saved model the agent no longer lists would fail the save.
+    if (next.model && !chosenModel) delete next.model;
     if (value) next[key] = value;
     else delete next[key];
     // A model change keeps effort only if the new model offers it.
@@ -248,7 +251,12 @@ function ProviderDetail({
                     label="Effort"
                     value={defaults.effort ?? ''}
                     options={[
-                      { value: '', label: 'Default' },
+                      {
+                        value: '',
+                        label: model?.defaultEffort
+                          ? `Default (${effortLabel(model.defaultEffort)})`
+                          : 'Default',
+                      },
                       ...efforts.map((effort) => ({
                         value: effort,
                         label: effortLabel(effort),
@@ -281,6 +289,8 @@ function ProviderDetail({
           )}
         </div>
       </div>
+
+      {live && models.length > 0 && <ProviderModels provider={provider} control={control} />}
 
       <div className="sv-detail-group">
         <h3>Capabilities</h3>

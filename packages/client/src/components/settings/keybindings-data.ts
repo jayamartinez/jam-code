@@ -141,6 +141,15 @@ export const BINDING_GROUPS: BindingGroup[] = [
         evidence: "event.key === 'Enter'",
       },
       {
+        id: 'pick-model',
+        command: 'Choose a numbered model',
+        sub: 'Favorites first, then current models, as numbered in the model picker.',
+        context: 'Composer',
+        keys: same(['alt', '1–9']),
+        source: 'components/ConversationPane.tsx',
+        evidence: '/^Digit([1-9])$/',
+      },
+      {
         id: 'save-file',
         command: 'Save file',
         context: 'Editor',
