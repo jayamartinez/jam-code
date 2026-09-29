@@ -20,6 +20,14 @@ describe('keybindings table', () => {
     expect(keyLabels(find, false)).toEqual(['Ctrl', 'Shift', 'F']);
   });
 
+  it('sends on Enter and adds a line with Shift+Enter', () => {
+    const send = all.find((binding) => binding.id === 'send')!;
+    const newLine = all.find((binding) => binding.id === 'new-line')!;
+    expect(keyLabels(send, false)).toEqual(['Enter']);
+    expect(keyLabels(newLine, false)).toEqual(['Shift', 'Enter']);
+    expect(keyLabels(newLine, true)).toEqual(['⇧', '↵']);
+  });
+
   it('follows the OS rather than the host', () => {
     expect(usesCommand('macos', '')).toBe(true);
     expect(usesCommand('windows', 'MacIntel')).toBe(false);

@@ -16,6 +16,10 @@
   align-self: flex-end;
   max-width: 500px;
   margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
 }
 .user-bubble {
   border-radius: 14px 14px 4px 14px;
@@ -30,12 +34,68 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.user-message time {
-  display: block;
-  text-align: right;
+/* A message's time and Copy show on hover or focus; the row keeps its space. */
+.message-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 24px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.user-message:hover .message-actions,
+.user-message:focus-within .message-actions,
+.agent-message:hover .message-actions,
+.agent-message:focus-within .message-actions,
+.message-actions:has(.copied) {
+  opacity: 1;
+}
+.agent-message .message-actions {
+  margin: 8px 0 0 -6px;
+}
+.message-actions time {
   color: var(--color-text-faint);
   font-size: calc(10.5px * var(--ui-scale));
-  padding-top: 4px;
+  padding-right: 4px;
+}
+.message-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-subtle);
+  font-size: calc(11.5px * var(--ui-scale));
+}
+.message-copy:hover:not(:disabled),
+.message-copy:focus-visible,
+.message-copy.copied {
+  background: var(--color-fill);
+  color: var(--color-text-secondary);
+}
+.message-copy-check {
+  color: var(--color-success);
+}
+/* After a pause or on a new day, the time the chat picked up again. */
+.time-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  color: var(--color-text-faint);
+  font-size: calc(11px * var(--ui-scale));
+}
+.time-divider::before,
+.time-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--color-border-subtle);
 }
 .agent-message {
   margin-top: 0;
@@ -221,6 +281,11 @@
   display: flex;
   gap: 6px;
   align-items: center;
+}
+.key-glyphs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 .new-chat-suggestions {
   display: grid;
@@ -454,20 +519,16 @@
   font-size: calc(12px * var(--ui-scale));
 }
 .turn-log-done {
-  flex-shrink: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .turn-log-counts {
   margin-left: auto;
   flex-shrink: 0;
   color: var(--color-text-subtle);
   font-size: calc(11.5px * var(--ui-scale));
-}
-.turn-log-faint {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--color-text-faint);
 }
 .turn-log-body {
   display: flex;

@@ -53,6 +53,39 @@ export function useStreamReplies(): [boolean, (next: boolean) => void] {
   return [stream, update];
 }
 
+/** How message times and dividers read; `system` follows the computer's locale. */
+export type TimeFormat = 'system' | '12h' | '24h';
+export const TIME_FORMAT_OPTIONS: { value: TimeFormat; label: string }[] = [
+  { value: 'system', label: 'System' },
+  { value: '12h', label: '12-hour' },
+  { value: '24h', label: '24-hour' },
+];
+const TIME_FORMAT_KEY = 'jam.timeFormat';
+
+export function readTimeFormat(stored: string | null): TimeFormat {
+  return TIME_FORMAT_OPTIONS.find((option) => option.value === stored)?.value ?? 'system';
+}
+
+export function useTimeFormat(): [TimeFormat, (next: TimeFormat) => void] {
+  const [format, setFormat] = useState<TimeFormat>('system');
+  useEffect(() => {
+    try {
+      setFormat(readTimeFormat(localStorage.getItem(TIME_FORMAT_KEY)));
+    } catch {
+      // Unreadable storage keeps the default.
+    }
+  }, []);
+  const update = useCallback((next: TimeFormat) => {
+    setFormat(next);
+    try {
+      localStorage.setItem(TIME_FORMAT_KEY, next);
+    } catch {
+      // Losing the preference only restores the default.
+    }
+  }, []);
+  return [format, update];
+}
+
 export function useIdleThreadDays(): [number | null, (next: number | null) => void] {
   const [days, setDays] = useState<number | null>(DEFAULT_IDLE_THREAD_DAYS);
   useEffect(() => setDays(readIdleDays()), []);

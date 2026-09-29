@@ -301,6 +301,10 @@
   font-family: var(--font-mono-stack);
   font-size: calc(11px * var(--ui-scale));
 }
+.sv-keys kbd.icon {
+  width: 22px;
+  padding: 0;
+}
 
 /* The dedicated window's titlebar breadcrumb. */
 .sv-breadcrumb {

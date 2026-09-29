@@ -2,6 +2,7 @@ import { AppWindow, Check, ChevronRight, Expand, Search, X } from 'lucide-react'
 import type { JamTransport, Project, ProviderDescriptor } from '@jam/protocol';
 import { Suspense, lazy, useState, type ComponentType } from 'react';
 import type { DesktopServices } from '../desktop';
+import type { TimeFormat } from '../state/preferences';
 import { useAppearance } from '../appearance/store';
 import { Brand, IconButton, TrafficLightInset, WindowControls } from './Controls';
 import { SettingsIcon, type SettingsIconName } from './settings-icons';
@@ -79,6 +80,8 @@ export function SettingsPanel({
   onIdleThreadDays,
   streamReplies,
   onStreamReplies,
+  timeFormat,
+  onTimeFormat,
   onClose,
   onMode,
 }: {
@@ -94,6 +97,8 @@ export function SettingsPanel({
   onIdleThreadDays(next: number | null): void;
   streamReplies: boolean;
   onStreamReplies(next: boolean): void;
+  timeFormat: TimeFormat;
+  onTimeFormat(next: TimeFormat): void;
   onClose(): void;
   onMode(): void;
 }) {
@@ -136,6 +141,8 @@ export function SettingsPanel({
           onIdleThreadDays={onIdleThreadDays}
           streamReplies={streamReplies}
           onStreamReplies={onStreamReplies}
+          timeFormat={timeFormat}
+          onTimeFormat={onTimeFormat}
           onUpdateProject={onUpdateProject}
           onNavigate={setPage}
           transport={transport}
