@@ -434,7 +434,29 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     },
     [client, openResource],
   );
-  const closeTab = useCallback((tabId: string) => dispatch({ type: 'closeTab', tabId }), []);
+  /** The tab just closed, offered back for a few seconds. */
+  const [closedNotice, setClosedNotice] = useState<{ title: string; key: number } | null>(null);
+  const closeTab = useCallback(
+    (tabId: string) => {
+      const tab = layoutRef.current.tabs.find((item) => item.id === tabId);
+      const resource = client
+        .getSnapshot()
+        .workspace?.resources.find((item) => item.id === tab?.resourceId);
+      dispatch({ type: 'closeTab', tabId });
+      if (tab) setClosedNotice({ title: resource?.title ?? 'New chat', key: Date.now() });
+    },
+    [client],
+  );
+  const reopenTab = useCallback(() => {
+    dispatch({ type: 'reopenTab' });
+    setClosedNotice(null);
+    setSettingsMode(null);
+  }, []);
+  useEffect(() => {
+    if (!closedNotice) return;
+    const timer = window.setTimeout(() => setClosedNotice(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [closedNotice]);
 
   /** A project row selects the project and shows or hides its threads. */
   const toggleProject = useCallback(
@@ -736,6 +758,9 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       } else if (key === 'n') {
         event.preventDefault();
         if (!overlay && !launcher) newChat(event.shiftKey ? 'codex' : undefined);
+      } else if (key === 't' && event.shiftKey) {
+        event.preventDefault();
+        if (!overlay && !launcher && !settingsMode) reopenTab();
       } else if (key === 't') {
         event.preventDefault();
         // The keyboard path hangs from the tab strip's own new-tab button.
@@ -756,6 +781,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   }, [
     activeTabId,
     closeTab,
+    reopenTab,
     usesCommand,
     launcher,
     layout.focus,
@@ -1086,6 +1112,10 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         label: 'Close tab',
         onSelect: activeTabId ? () => closeTab(activeTabId) : undefined,
         danger: true,
+        separated: true,
+        shortcut: `${shortcut} W`,
+        description:
+          tiled && paneCount > 1 ? `Closes all ${paneCount} panes in this tab` : 'Closes this tab',
       },
     ];
     return {
@@ -1094,6 +1124,9 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       onSplitDown: () => splitPane('column', paneId ?? undefined),
       onExpand: () => dispatch({ type: 'focus' }),
       expandLabel: 'Focus this resource',
+      ...(tiled && paneId && paneCount > 1
+        ? { onClose: () => dispatch({ type: 'closePane', paneId }) }
+        : {}),
       menu,
     };
   };
@@ -1523,6 +1556,15 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                   </section>
                 )}
               </div>
+              {closedNotice && (
+                <div className="closed-tab-toast" role="status" key={closedNotice.key}>
+                  <span className="truncate">Closed “{closedNotice.title}”</span>
+                  <button type="button" onClick={reopenTab}>
+                    Reopen
+                    <kbd>{shortcut} ⇧ T</kbd>
+                  </button>
+                </div>
+              )}
               {launcher && (
                 <NewResourceLauncher
                   projects={workspace.projects}

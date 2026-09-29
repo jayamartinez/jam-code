@@ -57,7 +57,20 @@ export interface LayoutState {
   collapsed: boolean;
   focus: boolean;
   drafts: Record<string, string>;
+  /** Recently closed tabs, newest last, so Reopen closed tab can restore them. */
+  closed: ClosedTab[];
 }
+
+/** A closed tab with its arrangement and where it stood in the tab bar. */
+export interface ClosedTab {
+  tab: ResourceTab;
+  tree?: LayoutNode;
+  focusedPaneId?: string;
+  index: number;
+}
+
+/** How many closed tabs Reopen closed tab remembers. */
+export const CLOSED_TAB_LIMIT = 20;
 
 export const initialLayout: LayoutState = {
   tabs: [],
@@ -68,6 +81,7 @@ export const initialLayout: LayoutState = {
   collapsed: false,
   focus: false,
   drafts: {},
+  closed: [],
 };
 
 export const tabIdFor = (resourceId: string) => `tab:${resourceId}`;
@@ -153,6 +167,8 @@ export type LayoutAction =
   /** Open or select a tab. Never loads a resource into a pane. */
   | { type: 'openTab'; resourceId: string; activate?: boolean }
   | { type: 'closeTab'; tabId: string }
+  /** Restores the most recently closed tab, with its panes. */
+  | { type: 'reopenTab' }
   | { type: 'moveTab'; from: number; to: number }
   | { type: 'replaceDraft'; draftId: string; resourceId: string }
   /** Load a resource into a pane of the active tab. */
@@ -212,6 +228,12 @@ export function layoutReducer(state: LayoutState, action: LayoutAction): LayoutS
       // in history and can be reopened.
       const trees = { ...state.trees };
       const focused = { ...state.focused };
+      const remembered: ClosedTab = {
+        tab: state.tabs[index]!,
+        index,
+        ...(trees[action.tabId] ? { tree: trees[action.tabId] } : {}),
+        ...(focused[action.tabId] ? { focusedPaneId: focused[action.tabId] } : {}),
+      };
       delete trees[action.tabId];
       delete focused[action.tabId];
       return {
@@ -219,10 +241,31 @@ export function layoutReducer(state: LayoutState, action: LayoutAction): LayoutS
         tabs,
         trees,
         focused,
+        closed: [...state.closed, remembered].slice(-CLOSED_TAB_LIMIT),
         activeTabId:
           state.activeTabId === action.tabId
             ? (tabs[Math.min(index, tabs.length - 1)]?.id ?? null)
             : state.activeTabId,
+      };
+    }
+    case 'reopenTab': {
+      const last = state.closed.at(-1);
+      if (!last) return state;
+      const closed = state.closed.slice(0, -1);
+      // Reopening a resource that is already in a tab just shows that tab.
+      const open = state.tabs.find((tab) => tab.resourceId === last.tab.resourceId);
+      if (open) return { ...state, closed, activeTabId: open.id };
+      const tabs = [...state.tabs];
+      tabs.splice(Math.min(last.index, tabs.length), 0, last.tab);
+      return {
+        ...state,
+        tabs,
+        closed,
+        activeTabId: last.tab.id,
+        trees: last.tree ? { ...state.trees, [last.tab.id]: last.tree } : state.trees,
+        focused: last.focusedPaneId
+          ? { ...state.focused, [last.tab.id]: last.focusedPaneId }
+          : state.focused,
       };
     }
     case 'moveTab': {
