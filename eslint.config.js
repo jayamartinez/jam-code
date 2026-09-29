@@ -16,6 +16,13 @@ export default tseslint.config(
     },
   },
   {
+    // Repository scripts run under Node.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: { URL: 'readonly', process: 'readonly', console: 'readonly' },
+    },
+  },
+  {
     files: ['packages/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': [

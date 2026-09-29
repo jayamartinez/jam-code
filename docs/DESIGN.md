@@ -333,14 +333,30 @@ Claude Code and Codex chats are real (PROVIDERS.md). Versions, sign-in, plan lab
 
 Review is lazy-loaded and uses real Git state (ADR 0010). It retains Paper’s changed-files column, unified hunks and semantic diff colors. The shared pane header remains 42px; a compact summary and staged/unstaged controls replace illustrative agent attribution and review/commit actions. Counts load only for the selected file/version. Refresh, Stage file, Unstage file and Open file are explicit actions. Annotations and destructive actions are deferred. Terminal is real (see Terminal above) and Browser is a native-webview prototype (see Browser above). A new chat picks its project from the heading and its workspace and branch in the composer footer (Paper, "14 · New chat: project, workspace & branch"; ADR 0012). Repository picker, native capture and provider configuration are deferred. Disabled controls explain their state. The initial app implements shared provider Settings and reserves navigation for future pages without pretending settings were persisted.
 
-The file browser and File resource are real surfaces over a runtime file
-service, but that service serves an isolated demo tree rather than this
-machine, so both are labelled `Demo tree`. The File resource is read-only and
-says `Read-only`: there is no write path, and a working editor over fictional
-files would be a simulation. The editor is built on an editable compartment so
-enabling writes is a change of capability, not of architecture. Local folders
-found on disk are not listed in the launcher, because detecting them needs
-native folder access; the column says so instead of showing example paths.
+The file browser lists the project's real folder and the File resource opens
+its files; only a folderless demo project shows the isolated demo tree, and
+only then are they labelled `Demo tree`. The File resource is read-only and
+says `Read-only`: there is no write path yet. The editor is built on an
+editable compartment so enabling writes is a change of capability, not of
+architecture. The launcher's "Add a project → New project…" opens the New project
+dialog; local folders found on disk are not suggested, and cloning is
+not offered.
+
+Every Add project entry (sidebar `+`, the new-chat project menu, the launcher,
+Settings → Projects and the first-run button) opens one New project dialog,
+the project editor in its create mode: name (filled from the first folder
+until typed), one or more folders added only through the system chooser, the
+first marked Primary, and the icon. Settings → General holds the default
+agent and the app-wide default effort and permissions; Providers keeps each
+agent's model and executable.
+
+First run (no projects) is a Paper frame ("15 · First run: no projects",
+pending approval); it is derived from the empty
+surface: the jam mark, "Open a project to start", one primary New project…
+button, the detected agents with their state, and a quiet Agent settings
+link. Settings → Projects follows its frame (Add project, Remove from JAM
+with an inline confirmation) and adds a Locate folder… notice for a project
+whose folder is missing.
 
 Live providers follow the Core flows frames designed for them: "8 · Context
 window popover", "9 · Approvals & access", "10 · Live activity",

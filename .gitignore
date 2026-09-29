@@ -35,3 +35,5 @@ apps/desktop/src-tauri/gen/
 .agent-browser/
 playwright-report/
 test-results/
+*.bak
+*.sqlite.importing

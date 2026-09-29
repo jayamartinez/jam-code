@@ -87,8 +87,9 @@ Review opens working files with the existing `resource.open(kind: file)` and
 open only inside the configured folder; a repository-root path outside a nested
 project has no File-resource target. Real files are read-only, capped at 256 KiB,
 and never use the demo save table. Configured native projects do not serve a
-fictional demo directory listing; native directory browsing is deferred explicitly.
-Projects without folders retain their demo tree and demo saves.
+fictional demo directory listing; since the alpha they are listed natively and
+read-only (ADR 0013). Projects without folders, now only in demo data, retain
+their demo tree and demo saves.
 
 Reject absolute/parent paths, Windows prefixes, backslashes and `.git` components
 before native reads or mutations. Native reads reject symlinks and special files.

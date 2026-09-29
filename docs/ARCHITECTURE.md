@@ -27,6 +27,7 @@ The dashed path is a reserved boundary, not implemented software. No server, Web
 | State                                                  | Authority        | Client responsibility                   |
 | ------------------------------------------------------ | ---------------- | --------------------------------------- |
 | Projects, resource identities, conversations, messages | Runtime / SQLite | Cache and render                        |
+| Choosing a project folder (native picker)              | Desktop host     | `DesktopServices.pickDirectory`         |
 | Sessions, in-flight turns, task handles, subscribers   | Runtime          | Render normalized state                 |
 | Provider installation/auth/capabilities                | Runtime adapters | Display unknown faithfully              |
 | Provider processes, pending approvals/questions        | Runtime adapters | Answer by JAM interaction ID            |
@@ -89,11 +90,10 @@ file and `file.write` saves a working copy, all addressed by project ID and a
 project-relative path that the runtime validates and resolves. A client never submits a local path. The wire
 shape is therefore already the lazily expanded tree a large repository needs.
 
-Projects without configured folders serve an isolated demo tree from
+A project's first folder (or a chat's worktree) is listed natively one level at a time, read-only and bounded to 500 entries, without `.git`, symlinks or junctions, and its files open read-only through the same File resource APIs; writes remain deferred (ADR 0010, ADR 0013). Projects without folders exist only in demo data and serve an isolated demo tree from
 `packages/protocol/fixtures/files.json`, shared by the Rust runtime and the
-browser development preview so they cannot drift. Those listings and files are flagged `demo`. Configured projects open bounded, read-only native files from Review through the same File resource APIs; native directory browsing and writes remain deferred (ADR 0010). Saves do not mutate that fixture: a working copy is recorded
-in the `file_edits` table and layered over the fixture on read, so an edit
-survives restart while the shipped tree stays pristine. The scoped native reader uses the same protocol and client; a future folder picker and remote host must establish their own access grants.
+browser development preview so they cannot drift. Those listings and files are flagged `demo`. Saves do not mutate that fixture: a working copy is recorded
+in the `file_edits` table and layered over the fixture on read. Folders enter the runtime only through `project.create`/`project.update`, normally with a path the desktop host's native folder picker returned; a future remote host must establish its own access grants.
 
 Directory listings and expansion state are client-owned and live outside any
 mounted pane, because reshaping the layout remounts panes and a repository tree
@@ -126,13 +126,13 @@ If unattended jobs or remote access require survival beyond application lifetime
 
 ## Storage and search
 
-Runtime modules own numbered transactional migrations, foreign keys and FTS5. Use WAL for the local file database and bounded busy waits. Seed demo data explicitly and idempotently. Keep application data outside the repository. Persist source records and search documents in the same transaction. Tokenize plain user input safely; never interpolate it as SQL or accept unrestricted FTS operators. Results use text snippets, not trusted HTML. Cap search query length and results. Initial search semantics are token/prefix matching, not arbitrary substring matching.
+Runtime modules own numbered transactional migrations, foreign keys and FTS5. Use WAL for the local file database and bounded busy waits. Before migrating an existing database the runtime writes `<name>.before-v<N>.bak` beside it, and it refuses a database from a newer schema without touching it. Seed demo data only in an explicit demo database (ADR 0013). Keep application data outside the repository. Persist source records and search documents in the same transaction. Tokenize plain user input safely; never interpolate it as SQL or accept unrestricted FTS operators. Results use text snippets, not trusted HTML. Cap search query length and results. Initial search semantics are token/prefix matching, not arbitrary substring matching.
 
 Persistent product settings live in the `settings` table, one validated JSON record per key; appearance and its wallpaper copy are separate keys so saving a font size never rewrites image data. Ephemeral view state (layout, Markdown Preview/Source, drafts) stays in the client. Schema evolution must keep stable resource/message IDs, include migration failure reporting and prohibit destructive resets as a migration strategy. Backups and retention policy precede real user data import. Do not log complete transcripts by default.
 
 ### Foundation bounds
 
-The isolated `jam-demo.sqlite` database preserves all recorded messages. A conversation read returns its latest 500 messages; older rows remain searchable, but transcript pagination is not implemented. Search returns at most 50 distinct conversations, ranked before applying that limit; a blank or punctuation-only query returns no results. Native FTS search uses plain token/prefix matching. These constraints must be revisited before importing real provider history.
+The user database, `jam.sqlite` in the platform application-data folder, preserves all recorded messages; it has no demo seed, and `JAM_DEMO=1` opens a separate `demo/demo.sqlite` instead (ADR 0013). A conversation read returns its latest 500 messages; older rows remain searchable, but transcript pagination is not implemented. Search returns at most 50 distinct conversations, ranked before applying that limit; a blank or punctuation-only query returns no results. Native FTS search uses plain token/prefix matching. These constraints must be revisited before importing real provider history.
 
 Each subscription has a 256-event FIFO and one coalesced latest event. When a slow client overflows that FIFO, the latest cursor is still delivered after buffered events: skipped sequences trigger the client's authoritative reread, including when the skipped update was the end of a turn. At most 128 subscriptions can coexist. The host clears old subscriptions at page reload and window destruction. The current shared client uses a workspace subscription; resource-scoped subscriptions are available for later scaling. A gap in a resource-scoped global sequence can also reflect activity in another resource, so a conservative reread is safe rather than evidence of data loss.
 
