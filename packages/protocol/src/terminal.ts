@@ -19,7 +19,7 @@ export interface TerminalSession {
   /** The same directory for display, with the home directory shown as `~`. */
   cwdLabel: string;
   /** `home` means the project records no folder JAM could use. */
-  cwdSource: 'project' | 'requested' | 'home';
+  cwdSource: 'project' | 'worktree' | 'requested' | 'home';
   shell: string;
   title: string;
   status: 'running' | 'exited';

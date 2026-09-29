@@ -27,13 +27,34 @@ impl Runtime {
         compact: bool,
     ) -> Result<Value, JamError> {
         // Provider checks run before the database lock is taken.
-        let provider_id = {
+        let (provider_id, project_id, worktree_id) = {
             let state = self.lock()?;
             let resource = state.store.resource(&input.resource_id)?;
             let session_id = resource
                 .session_id
                 .ok_or_else(|| JamError::invalid("This resource is not a conversation."))?;
-            state.store.session(&session_id)?.provider_id
+            (
+                state.store.session(&session_id)?.provider_id,
+                resource.project_id,
+                resource.worktree_id,
+            )
+        };
+        // So does finding the folder: a worktree is verified with Git, which
+        // must never run under the database lock.
+        let cwd = if provider_id == "mock" {
+            None
+        } else {
+            let project = self.project(
+                project_id
+                    .as_deref()
+                    .ok_or_else(|| JamError::new("not_found", "Project not found."))?,
+            )?;
+            Some(self.work_folder(&project, worktree_id.as_deref())?.ok_or_else(|| {
+                JamError::new(
+                    "project_folder_required",
+                    "Add a folder to this project in its details before starting an agent chat. Agents run in the project's folder.",
+                )
+            })?)
         };
         let descriptor = if provider_id == "mock" {
             None
@@ -118,30 +139,6 @@ impl Runtime {
                 "This provider cannot compact its context from JAM.",
             ));
         }
-        let cwd = if provider_id == "mock" {
-            None
-        } else {
-            let project = resource
-                .project_id
-                .as_deref()
-                .and_then(|id| {
-                    state
-                        .store
-                        .workspace(self.cursor(&state))
-                        .ok()?
-                        .projects
-                        .into_iter()
-                        .find(|p| p.id == id)
-                })
-                .ok_or_else(|| JamError::new("not_found", "Project not found."))?;
-            Some(crate::native_files::project_folder(&project)?.ok_or_else(|| {
-                JamError::new(
-                    "project_folder_required",
-                    "Add a folder to this project in its details before starting an agent chat. Agents run in the project's folder.",
-                )
-            })?)
-        };
-
         state
             .store
             .attach_snapshots(&mut input.context, &resource.id, false)?;

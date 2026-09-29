@@ -8,6 +8,7 @@ import type {
   Resource,
   Session,
   WorkspaceSnapshot,
+  Worktree,
 } from '@jam/protocol';
 
 export interface RuntimeProjection {
@@ -331,9 +332,15 @@ export class RuntimeClient {
     this.update({ workspace: { ...workspace, resources: [...workspace.resources, resource] } });
   }
 
-  addConversation(created: { resource: Resource; session: Session; conversation: Conversation }) {
+  addConversation(created: {
+    resource: Resource;
+    session: Session;
+    conversation: Conversation;
+    worktree?: Worktree;
+  }) {
     const workspace = this.state.workspace;
     if (!workspace) return;
+    const worktree = created.worktree;
     const conversations = new Map(this.state.conversations);
     conversations.set(created.resource.id, created.conversation);
     this.update({
@@ -347,6 +354,9 @@ export class RuntimeClient {
           ...workspace.sessions.filter((session) => session.id !== created.session.id),
           created.session,
         ],
+        worktrees: worktree
+          ? [...workspace.worktrees.filter((item) => item.id !== worktree.id), worktree]
+          : workspace.worktrees,
       },
       conversations,
     });

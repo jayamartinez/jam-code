@@ -19,6 +19,16 @@ pub struct Output {
 /// Direct invocation; no shell, pager, external diff, textconv, or inherited Git routing.
 /// Drain a bounded capture on a reader thread and kill on overflow/deadline.
 pub fn run(root: &Path, args: &[&str], limit: usize) -> Result<Output, JamError> {
+    run_within(root, args, limit, DEADLINE)
+}
+const DEADLINE: Duration = Duration::from_secs(15);
+/// `run` with its own deadline, for the rare command that writes a checkout.
+pub fn run_within(
+    root: &Path,
+    args: &[&str],
+    limit: usize,
+    deadline: Duration,
+) -> Result<Output, JamError> {
     let mut command = Command::new("git");
     command
         .current_dir(root)
@@ -93,7 +103,7 @@ pub fn run(root: &Path, args: &[&str], limit: usize) -> Result<Output, JamError>
         {
             break status;
         }
-        if overflow.load(Ordering::Acquire) || start.elapsed() > Duration::from_secs(15) {
+        if overflow.load(Ordering::Acquire) || start.elapsed() > deadline {
             timed_out = !overflow.load(Ordering::Acquire);
             #[cfg(unix)]
             if let Some(pid) = rustix::process::Pid::from_raw(child.id() as i32) {
@@ -134,7 +144,10 @@ pub fn run(root: &Path, args: &[&str], limit: usize) -> Result<Output, JamError>
     if timed_out {
         return Err(JamError::new(
             "git_timeout",
-            "Git exceeded the 15 second limit. Try Refresh again.",
+            format!(
+                "Git exceeded the {} second limit. Try again.",
+                deadline.as_secs()
+            ),
         ));
     }
     Ok(Output {

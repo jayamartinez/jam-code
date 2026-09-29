@@ -52,6 +52,8 @@ pub enum TerminalStatus {
 #[serde(rename_all = "lowercase")]
 pub enum CwdSource {
     Project,
+    /// A JAM worktree opened from a chat that works in it.
+    Worktree,
     Requested,
     Home,
 }

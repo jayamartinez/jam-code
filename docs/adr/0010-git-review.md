@@ -56,7 +56,8 @@ preview. Git's configured clean filters still apply, as with ordinary `git add`.
 
 Conflicted files and submodules are reviewable summaries but must be staged with
 external Git tools. Stage-all, hunk staging, destructive discard/revert, commit,
-checkout, clone and branch mutation are deliberately deferred. In particular,
+checkout, clone and branch mutation are deliberately deferred (a new chat's
+safe branch switch and worktree creation were later added by ADR 0012). In particular,
 no operation deletes an untracked working file.
 
 ## Refresh and bounds

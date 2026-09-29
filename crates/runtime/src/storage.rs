@@ -4,7 +4,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use std::{path::Path, time::Duration};
 
-pub(crate) const SCHEMA_VERSION: i64 = 5;
+pub(crate) const SCHEMA_VERSION: i64 = 6;
 
 /// A JAM session's link to the provider's own session or thread.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,12 +37,13 @@ impl Store {
         }
         // Numbered, transactional, additive. A failed migration leaves the
         // previous version intact rather than resetting anything.
-        const MIGRATIONS: [&str; 5] = [
+        const MIGRATIONS: [&str; 6] = [
             include_str!("migrations/001-foundation.sql"),
             include_str!("migrations/002-file-edits.sql"),
             include_str!("migrations/003-settings.sql"),
             include_str!("migrations/004-snapshots.sql"),
             include_str!("migrations/005-provider-bindings.sql"),
+            include_str!("migrations/006-worktrees.sql"),
         ];
         for (index, migration) in MIGRATIONS.iter().enumerate() {
             let target = index as i64 + 1;
@@ -161,7 +162,29 @@ impl Store {
             resources: self.all("SELECT data FROM resources ORDER BY rowid")?,
             sessions: self.sessions()?,
             providers: Vec::new(),
+            worktrees: self.all("SELECT data FROM worktrees ORDER BY rowid")?,
         })
+    }
+
+    pub fn worktree(&self, id: &str) -> Result<Worktree, JamError> {
+        self.connection
+            .query_row("SELECT data FROM worktrees WHERE id=?1", [id], |row| {
+                decode(row.get(0)?)
+            })
+            .optional()?
+            .ok_or_else(|| JamError::new("not_found", "Worktree not found."))
+    }
+
+    pub fn save_worktree(&self, worktree: &Worktree) -> Result<(), JamError> {
+        self.connection.execute(
+            "INSERT INTO worktrees(id,project_id,data) VALUES (?1,?2,?3)",
+            params![
+                worktree.id,
+                worktree.project_id,
+                serde_json::to_string(worktree)?
+            ],
+        )?;
+        Ok(())
     }
 
     pub fn binding(&self, session_id: &str) -> Result<Option<Binding>, JamError> {
@@ -310,22 +333,22 @@ impl Store {
         Ok(())
     }
 
-    pub fn create_conversation(
+    /// A conversation's resource, record and session. The caller holds a
+    /// transaction so a worktree and receipt commit with them.
+    pub fn insert_conversation(
         &self,
         resource: &Resource,
         session: &Session,
     ) -> Result<(), JamError> {
-        self.transaction(|| {
-            self.save_resource(resource)?;
-            self.connection.execute(
-                "INSERT INTO conversations(id,resource_id,data) VALUES (?1,?1,?2)",
-                params![
-                    resource.id,
-                    serde_json::to_string(&serde_json::json!({"sessionId":session.id}))?
-                ],
-            )?;
-            self.save_session(session)
-        })
+        self.save_resource(resource)?;
+        self.connection.execute(
+            "INSERT INTO conversations(id,resource_id,data) VALUES (?1,?1,?2)",
+            params![
+                resource.id,
+                serde_json::to_string(&serde_json::json!({"sessionId":session.id}))?
+            ],
+        )?;
+        self.save_session(session)
     }
 
     pub fn save_message(&self, resource: &Resource, message: &Message) -> Result<(), JamError> {

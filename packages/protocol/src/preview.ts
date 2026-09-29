@@ -112,6 +112,7 @@ export class BrowserPreviewTransport implements JamTransport {
           files: [],
           truncated: false,
         };
+      case 'git.branches':
       case 'git.diff':
       case 'git.setStaged':
         throw new JamError('unavailable', 'Git runs in the jam desktop app.');
@@ -272,6 +273,7 @@ export class BrowserPreviewTransport implements JamTransport {
   /** Reopening the same target returns the resource that already exists. */
   private openResource(params: RequestMap['resource.open']['params']): Resource {
     this.requireProject(params.projectId);
+    if (params.worktreeId) throw new JamError('not_found', 'Worktree not found.');
     // Fail before creating a record if the target cannot be read.
     if (params.kind === 'file') readPreviewFile(params.projectId, params.path ?? '');
     // Each browser is its own page with its own history, so opening one never
@@ -281,7 +283,8 @@ export class BrowserPreviewTransport implements JamTransport {
         params.kind !== 'browser' &&
         resource.kind === params.kind &&
         resource.projectId === params.projectId &&
-        resource.path === params.path,
+        resource.path === params.path &&
+        resource.worktreeId === params.worktreeId,
     );
     if (existing) return existing;
     const title =
@@ -367,6 +370,8 @@ export class BrowserPreviewTransport implements JamTransport {
         'unavailable',
         'Claude Code and Codex run in the jam desktop app. The browser preview only has the demo provider.',
       );
+    if (params.workspace && (params.workspace.kind === 'worktree' || params.workspace.branch))
+      throw new JamError('unavailable', 'Branches and worktrees need the jam desktop app.');
     const resource: Resource = {
       id: this.makeId('conversation'),
       kind: 'conversation',

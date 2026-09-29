@@ -24,6 +24,8 @@ struct CreateTerminal {
     project_id: String,
     /// An explicit absolute working directory instead of the project's.
     cwd: Option<String>,
+    /// Starts in a JAM worktree instead of the project's folder.
+    worktree_id: Option<String>,
     cols: Option<u16>,
     rows: Option<u16>,
 }
@@ -111,6 +113,11 @@ fn requested_cwd(path: &str) -> Result<PathBuf, JamError> {
 }
 
 impl Runtime {
+    fn worktree_cwd(&self, project: &Project, worktree_id: &str) -> Result<PathBuf, JamError> {
+        self.work_folder(project, Some(worktree_id))?
+            .ok_or_else(|| JamError::new("not_found", "Worktree not found."))
+    }
+
     fn terminal_resource(&self, resource_id: &str) -> Result<Resource, JamError> {
         let resource = self.lock()?.store.resource(resource_id)?;
         if resource.kind != "terminal" {
@@ -126,9 +133,15 @@ impl Runtime {
                 validate_id(&input.project_id)?;
                 let (cols, rows) = size(input.cols, input.rows)?;
                 let project = self.project(&input.project_id)?;
-                let (cwd, cwd_source) = match input.cwd.as_deref() {
-                    Some(path) => (requested_cwd(path)?, CwdSource::Requested),
-                    None => project_cwd(&project),
+                let (cwd, cwd_source) = match (input.cwd.as_deref(), input.worktree_id.as_deref()) {
+                    (Some(_), Some(_)) => {
+                        return Err(JamError::invalid(
+                            "Start a terminal in a folder or in a worktree, not both.",
+                        ));
+                    }
+                    (Some(path), None) => (requested_cwd(path)?, CwdSource::Requested),
+                    (None, Some(id)) => (self.worktree_cwd(&project, id)?, CwdSource::Worktree),
+                    (None, None) => project_cwd(&project),
                 };
                 let created_at = now();
                 // Every terminal is a new resource: terminals are not keyed by
@@ -155,6 +168,7 @@ impl Runtime {
                     updated_at: created_at,
                     closed_at: None,
                     close_suggestion_dismissed_at: None,
+                    worktree_id: input.worktree_id,
                 };
                 if let Err(error) = self
                     .lock()
@@ -175,14 +189,19 @@ impl Runtime {
                     .project_id
                     .ok_or_else(|| JamError::invalid("This terminal has no project."))?;
                 let project = self.project(&project_id)?;
-                // A restart keeps a requested directory; otherwise the project's.
+                // A restart keeps its worktree or requested directory;
+                // otherwise the project's.
                 let previous = self.terminals.get(&resource.id)?;
-                let (cwd, cwd_source) = match previous {
-                    Some(TerminalSession {
-                        cwd,
-                        cwd_source: CwdSource::Requested,
-                        ..
-                    }) if Path::new(&cwd).is_dir() => (PathBuf::from(cwd), CwdSource::Requested),
+                let (cwd, cwd_source) = match (previous, resource.worktree_id.as_deref()) {
+                    (_, Some(id)) => (self.worktree_cwd(&project, id)?, CwdSource::Worktree),
+                    (
+                        Some(TerminalSession {
+                            cwd,
+                            cwd_source: CwdSource::Requested,
+                            ..
+                        }),
+                        None,
+                    ) if Path::new(&cwd).is_dir() => (PathBuf::from(cwd), CwdSource::Requested),
                     _ => project_cwd(&project),
                 };
                 let terminal = self.terminals.start(Spawn {

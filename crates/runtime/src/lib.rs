@@ -6,6 +6,7 @@ mod events;
 mod files;
 pub mod git;
 mod native_files;
+mod new_chat;
 #[cfg(windows)]
 mod process_tree;
 pub mod protocol;
@@ -17,6 +18,7 @@ mod storage;
 mod system_open;
 pub mod terminal;
 mod turns;
+mod worktrees;
 
 pub use error::JamError;
 pub use events::EventReceiver;

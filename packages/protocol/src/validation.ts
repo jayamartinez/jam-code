@@ -187,8 +187,42 @@ const resource: Check = (value) =>
       path: relativePath,
       closedAt: timestamp,
       closeSuggestionDismissedAt: timestamp,
+      worktreeId: id,
     },
   );
+const worktree: Check = (value) =>
+  shape(value, {
+    id,
+    projectId: id,
+    branch: text(256),
+    baseBranch: text(256),
+    path: text(16384),
+    createdAt: timestamp,
+  });
+/**
+ * JAM's own branch-name rules, the same as the runtime's: nothing that reads
+ * as an option or uses Git's revision syntax. Git applies its own after.
+ */
+const branchName: Check = (value) => {
+  text(200)(value);
+  const name = value as string;
+  if (
+    /^[-/.]|[/.]$|\.lock$|\.\.|\/\/|@\{|\/\.|[\s\\~^:?*[]/.test(name) ||
+    name === 'HEAD' ||
+    [...name].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127)
+  )
+    invalid('That is not a branch name JAM can use.');
+};
+const newWorkspace: Check = (value) => {
+  const kind = object(value).kind;
+  if (kind === 'checkout') shape(value, { kind: oneOf('checkout') }, { branch: branchName });
+  else
+    shape(
+      value,
+      { kind: oneOf('worktree'), nameHint: text(20_000, true) },
+      { baseBranch: branchName },
+    );
+};
 /** Provider option choices: a few short keys and values, never free-form data. */
 const optionKey = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/;
 const optionMap: Check = (value) => {
@@ -424,6 +458,7 @@ const workspace: Check = (value) =>
     resources: array(resource),
     sessions: array(session),
     providers: array(provider, 20),
+    worktrees: array(worktree),
   });
 const searchResult: Check = (value) =>
   shape(value, {
@@ -489,7 +524,7 @@ const terminalSession: Check = (value) =>
       projectId: id,
       cwd: text(4096),
       cwdLabel: text(4096),
-      cwdSource: oneOf('project', 'requested', 'home'),
+      cwdSource: oneOf('project', 'worktree', 'requested', 'home'),
       shell: text(256),
       title: text(512),
       status: oneOf('running', 'exited'),
@@ -575,7 +610,29 @@ const gitStatus: Check = (value) =>
       files: array(gitFile, 2000),
       truncated: boolean,
     },
-    { repositoryRoot: text(16384), branch: text(4096), head: text(128) },
+    { worktreeId: id, repositoryRoot: text(16384), branch: text(4096), head: text(128) },
+  );
+const gitBranches: Check = (value) =>
+  shape(
+    value,
+    {
+      projectId: id,
+      state: oneOf('repository', 'not-repository', 'no-folder'),
+      detached: boolean,
+      changed: integer,
+      busy: boolean,
+      branches: array(
+        (branch) =>
+          shape(
+            branch,
+            { name: text(4096), remote: boolean, current: boolean },
+            { worktree: text(16384) },
+          ),
+        500,
+      ),
+      truncated: boolean,
+    },
+    { worktreeId: id, current: text(4096) },
   );
 const gitDiff: Check = (value) =>
   shape(value, {
@@ -664,9 +721,12 @@ const wallpaper: Check = (value) => {
 };
 
 const params: Record<RequestMethod, Check> = {
-  'git.status': (value) => shape(value, { projectId: id }),
-  'git.diff': (value) => shape(value, { projectId: id, path: relativePath, side: gitSide }),
-  'git.setStaged': (value) => shape(value, { projectId: id, path: relativePath, staged: boolean }),
+  'git.status': (value) => shape(value, { projectId: id }, { worktreeId: id }),
+  'git.branches': (value) => shape(value, { projectId: id }, { worktreeId: id }),
+  'git.diff': (value) =>
+    shape(value, { projectId: id, path: relativePath, side: gitSide }, { worktreeId: id }),
+  'git.setStaged': (value) =>
+    shape(value, { projectId: id, path: relativePath, staged: boolean }, { worktreeId: id }),
   'snapshot.list': (v) => shape(v, {}),
   'snapshot.settings.get': (v) => shape(v, {}),
   'snapshot.settings.update': snapshotSettings,
@@ -678,7 +738,11 @@ const params: Record<RequestMethod, Check> = {
   'workspace.get': (value) => shape(value, {}),
   'conversation.get': (value) => shape(value, { resourceId: id }),
   'conversation.create': (value) =>
-    shape(value, { projectId: id, presentation }, { providerId, options: optionMap }),
+    shape(
+      value,
+      { projectId: id, presentation },
+      { providerId, options: optionMap, workspace: newWorkspace, requestId: id },
+    ),
   'session.compact': (value) => shape(value, { resourceId: id, requestId: id }),
   'provider.list': (value) => shape(value, {}, { refresh: boolean }),
   'provider.configure': (value) =>
@@ -732,8 +796,8 @@ const params: Record<RequestMethod, Check> = {
   },
   'turn.interrupt': (value) => shape(value, { sessionId: id }),
   'directory.list': (value) => shape(value, { projectId: id, path: listingPath }),
-  'file.read': (value) => shape(value, { projectId: id, path: relativePath }),
-  'file.reveal': (value) => shape(value, { projectId: id, path: relativePath }),
+  'file.read': (value) => shape(value, { projectId: id, path: relativePath }, { worktreeId: id }),
+  'file.reveal': (value) => shape(value, { projectId: id, path: relativePath }, { worktreeId: id }),
   'url.openExternal': (value) => shape(value, { url: text(2048) }),
   'file.write': (value) =>
     shape(value, { projectId: id, path: relativePath, text: text(2_000_000, true) }),
@@ -751,15 +815,25 @@ const params: Record<RequestMethod, Check> = {
   'thread.setClosed': (value) => shape(value, { resourceId: id, closed: boolean }),
   'thread.keepOpen': (value) => shape(value, { resourceId: id }),
   'resource.open': (value) => {
-    shape(value, { projectId: id, kind: oneOf(...OPENABLE_KINDS) }, { path: relativePath });
+    shape(
+      value,
+      { projectId: id, kind: oneOf(...OPENABLE_KINDS) },
+      { path: relativePath, worktreeId: id },
+    );
     const record = object(value);
     if ((record.kind === 'file') !== (record.path !== undefined))
       invalid('Only a file resource is opened by path, and it requires one.');
+    if (record.kind === 'browser' && record.worktreeId !== undefined)
+      invalid('A browser does not open in a worktree.');
   },
   'search.query': (value) =>
     shape(value, { query: text(256, true) }, { projectId: id, providerId, pinned: boolean }),
   'terminal.create': (value) =>
-    shape(value, { projectId: id }, { cwd: text(4096), cols: columns, rows: lines }),
+    shape(
+      value,
+      { projectId: id },
+      { cwd: text(4096), worktreeId: id, cols: columns, rows: lines },
+    ),
   'terminal.start': (value) => shape(value, { resourceId: id }, { cols: columns, rows: lines }),
   'terminal.get': (value) => shape(value, { resourceId: id }),
   'terminal.list': (value) => shape(value, {}, { projectId: id }),
@@ -781,6 +855,7 @@ const params: Record<RequestMethod, Check> = {
 
 const responses: Record<RequestMethod, Check> = {
   'git.status': gitStatus,
+  'git.branches': gitBranches,
   'git.diff': gitDiff,
   'git.setStaged': gitStatus,
   'snapshot.list': (v) => shape(v, { snapshots: array(snapshot, 500) }),
@@ -800,7 +875,7 @@ const responses: Record<RequestMethod, Check> = {
   'snapshot.cleanup': (v) => shape(v, { removed: integer }),
   'workspace.get': workspace,
   'conversation.get': conversation,
-  'conversation.create': (value) => shape(value, { resource, session, conversation }),
+  'conversation.create': (value) => shape(value, { resource, session, conversation }, { worktree }),
   'turn.start': (value) => shape(value, { accepted: oneOf(true), sessionId: id, requestId: id }),
   'session.compact': (value) =>
     shape(value, { accepted: oneOf(true), sessionId: id, requestId: id }),
