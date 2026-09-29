@@ -438,6 +438,12 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   );
   const closeTab = useCallback((tabId: string) => dispatch({ type: 'closeTab', tabId }), []);
 
+  // Which projects show their threads is yours: it starts with the first
+  // project and then changes only from its row, never from opening a chat.
+  useEffect(() => {
+    if (expandedProjects === undefined && projectId) setExpandedProjects([projectId]);
+  }, [expandedProjects, projectId]);
+
   /** A project row selects the project and shows or hides its threads. */
   const toggleProject = useCallback(
     (id: string) => {
