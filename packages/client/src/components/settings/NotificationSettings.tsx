@@ -49,23 +49,25 @@ export function NotificationSettings({ platform }: { platform: DesktopServices['
         <Row
           title="Show a badge"
           sub={
-            desktop
-              ? `A dot on the ${platform === 'macos' ? 'Dock' : 'taskbar'} and tray icon while a chat wants you, coloured by the most urgent reason.`
-              : 'Only the desktop app can badge its icon.'
+            desktop ? (
+              <>
+                A dot on the {platform === 'macos' ? 'Dock' : 'taskbar'} and tray icon while a chat
+                wants you, coloured by the most urgent reason.
+                <span className="notify-legend">
+                  {BADGES.map((badge) => (
+                    <span key={badge.tone}>
+                      <i className={`notify-dot ${badge.tone}`} aria-hidden="true" />
+                      {badge.label}
+                    </span>
+                  ))}
+                </span>
+              </>
+            ) : (
+              'Only the desktop app can badge its icon.'
+            )
           }
           disabled={!desktop}
         >
-          <div className="notify-badges" aria-hidden="true">
-            {BADGES.map((badge) => (
-              <span key={badge.tone} className="notify-badge-sample">
-                <span className="notify-badge-icon">
-                  jam
-                  <i className={`notify-badge ${badge.tone}`} />
-                </span>
-                <span>{badge.label}</span>
-              </span>
-            ))}
-          </div>
           <Toggle
             label="Show a badge"
             on={prefs.badge}
