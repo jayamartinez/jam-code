@@ -242,47 +242,28 @@
   justify-content: center;
   padding: 0;
 }
-.notify-badges {
+.notify-legend {
   display: flex;
-  align-items: flex-end;
-  gap: 18px;
+  gap: 14px;
+  margin-top: 6px;
+  color: var(--color-text-muted);
 }
-.notify-badge-sample {
-  display: flex;
-  flex-direction: column;
+.notify-legend > span {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--color-text-subtle);
-  font-size: calc(10.5px * var(--ui-scale));
 }
-.notify-badge-icon {
-  position: relative;
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border-radius: 8px;
-  background: var(--color-bg-base);
-  border: 1px solid var(--color-border-strong);
-  color: var(--color-text-primary);
-  font-size: calc(10px * var(--ui-scale));
-  font-weight: 600;
-}
-.notify-badge {
-  position: absolute;
-  right: -3px;
-  top: -3px;
-  width: 11px;
-  height: 11px;
+.notify-dot {
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  box-shadow: 0 0 0 2px var(--color-surface-raised);
 }
-.notify-badge.input {
+.notify-dot.input {
   background: var(--color-warning);
 }
-.notify-badge.error {
+.notify-dot.error {
   background: var(--color-danger);
 }
-.notify-badge.finished {
+.notify-dot.finished {
   background: var(--color-success);
 }
