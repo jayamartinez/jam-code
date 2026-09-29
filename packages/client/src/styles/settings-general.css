@@ -236,7 +236,7 @@
   gap: 6px;
 }
 
-/* Notifications: the badge as the taskbar shows it, in each status colour. */
+/* General → Notifications: the badge as the taskbar shows it, in each status colour. */
 .notify-play {
   width: 28px;
   justify-content: center;

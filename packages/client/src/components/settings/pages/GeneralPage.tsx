@@ -14,6 +14,7 @@ import {
   Select,
   Toggle,
 } from '../controls';
+import { NotificationSettings } from '../NotificationSettings';
 import type { SettingsPageProps } from '../types';
 import { effortLabel } from '../../composer-model';
 import {
@@ -43,6 +44,7 @@ export default function GeneralPage({
   newThreadWorkspace,
   onNewThreadWorkspace,
   onNavigate,
+  platform,
   providerControl,
 }: SettingsPageProps) {
   const provider = defaultProvider(providers);
@@ -262,6 +264,8 @@ export default function GeneralPage({
           <IdlePreview projects={projects} days={idleThreadDays} />
         </Card>
       </Section>
+
+      <NotificationSettings platform={platform} />
     </div>
   );
 }
