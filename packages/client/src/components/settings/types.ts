@@ -45,8 +45,10 @@ export interface ProjectControl {
   add?(): Promise<Project | null>;
   /** Forgets a project. Its folder and history stay on disk. */
   remove(projectId: string): Promise<void>;
-  /** Chooses a folder with the picker; absent without one. */
-  pickFolder?(): Promise<string | null>;
+  /** Chooses a folder with the picker, opened in `start`; absent without one. */
+  pickFolder?(start?: string): Promise<string | null>;
+  /** Opens the system emoji picker; absent without one. */
+  openEmojiPicker?(): Promise<void>;
 }
 
 /** Everything a Settings page may read or change. Pages own no records. */

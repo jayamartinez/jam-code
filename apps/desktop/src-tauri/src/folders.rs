@@ -5,14 +5,23 @@
 
 use jam_runtime::JamError;
 
+/// `start` opens the chooser in that folder, to swap a project folder for a
+/// nearby one. A folder that no longer exists is ignored.
 #[tauri::command]
-pub async fn pick_directory(window: tauri::WebviewWindow) -> Result<Option<String>, JamError> {
-    let Some(folder) = rfd::AsyncFileDialog::new()
+pub async fn pick_directory(
+    window: tauri::WebviewWindow,
+    start: Option<String>,
+) -> Result<Option<String>, JamError> {
+    let mut dialog = rfd::AsyncFileDialog::new()
         .set_title("Open a project folder")
-        .set_parent(&window)
-        .pick_folder()
-        .await
-    else {
+        .set_parent(&window);
+    if let Some(start) = start
+        .map(std::path::PathBuf::from)
+        .filter(|path| path.is_dir())
+    {
+        dialog = dialog.set_directory(start);
+    }
+    let Some(folder) = dialog.pick_folder().await else {
         return Ok(None);
     };
     folder
