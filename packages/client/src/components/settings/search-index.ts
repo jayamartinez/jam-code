@@ -126,7 +126,7 @@ const ROWS: SettingsEntry[] = [
     keywords: 'monospace editor size',
   },
   { page: 'Appearance', section: 'Interface', title: 'Terminal font', keywords: 'monospace size' },
-  { page: 'Projects', title: 'Name', keywords: 'project rename icon emoji' },
+  { page: 'Projects', title: 'Name', keywords: 'project rename icon' },
   { page: 'Projects', title: 'Pinned in sidebar', keywords: 'project pin' },
   { page: 'Providers', title: 'Default for new chats', keywords: 'claude codex agent' },
   { page: 'Providers', title: 'Model', keywords: 'opus sonnet gpt' },
