@@ -24,6 +24,8 @@
     "allow-pick-directory",
     "allow-open-emoji-picker",
     "allow-open-feedback",
+    "allow-set-attention-badge",
+    "allow-notify",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

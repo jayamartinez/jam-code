@@ -23,6 +23,8 @@ serde_json.workspace = true
 tokio.workspace = true
 tauri = { version = "2.12.0", features = ["tray-icon", "image-png", "image-ico", "unstable"] }
 tauri-plugin-single-instance = "2.4.5"
+# System notifications (Windows toasts, macOS User Notifications).
+tauri-plugin-notification = "2"
 # The native folder picker (Windows IFileOpenDialog, macOS NSOpenPanel).
 rfd = { version = "0.16", default-features = false }
 

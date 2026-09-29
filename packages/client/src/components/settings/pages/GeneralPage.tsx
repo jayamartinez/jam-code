@@ -17,7 +17,6 @@ import {
 import type { SettingsPageProps } from '../types';
 import { effortLabel } from '../../composer-model';
 import {
-  NOTIFICATION_EVENTS,
   defaultProvider,
   liveProviders,
   sharedDefault,
@@ -261,58 +260,6 @@ export default function GeneralPage({
             </Row>
           </div>
           <IdlePreview projects={projects} days={idleThreadDays} />
-        </Card>
-      </Section>
-
-      <Section
-        label={
-          <>
-            Thread notifications <Planned />
-          </>
-        }
-      >
-        <Card>
-          <div className="general-matrix" role="table" aria-label="Thread notifications">
-            <div className="general-matrix-row head" role="row">
-              <span role="columnheader">When a thread…</span>
-              <span role="columnheader">Notification</span>
-              <span role="columnheader">Dock badge</span>
-              <span role="columnheader">Sound</span>
-            </div>
-            {NOTIFICATION_EVENTS.map((event) => (
-              <div className="general-matrix-row" role="row" key={event.id}>
-                <span role="cell" className="general-matrix-event">
-                  <i className={`general-dot ${event.tone}`} aria-hidden="true" />
-                  {event.label}
-                </span>
-                {(['notification', 'badge', 'sound'] as const).map((channel) => (
-                  <span role="cell" key={channel}>
-                    <input
-                      type="checkbox"
-                      className="gt-check"
-                      aria-label={`${event.label}: ${channel}`}
-                      checked={event.defaults[channel]}
-                      disabled
-                      readOnly
-                    />
-                  </span>
-                ))}
-              </div>
-            ))}
-          </div>
-          <Row
-            title="Only when JAM isn't focused"
-            sub="While you're looking at JAM, the sidebar shows it instead."
-          >
-            <Toggle label="Only when JAM isn't focused" on />
-          </Row>
-          <Row title="Sound">
-            <Select
-              label="Notification sound"
-              value="chime"
-              options={[{ value: 'chime', label: 'Soft chime' }]}
-            />
-          </Row>
         </Card>
       </Section>
     </div>

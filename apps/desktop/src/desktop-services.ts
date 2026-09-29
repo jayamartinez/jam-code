@@ -36,5 +36,7 @@ export function createDesktopServices(): DesktopServices {
     openFeedback: (kind) => invoke<void>('open_feedback', { kind }),
     browser: createBrowserHost(),
     snapshots: createSnapshotHost(),
+    setAttentionBadge: (badge) => invoke('set_attention_badge', { badge }),
+    notify: ({ title, body }) => invoke('notify', { title, body }),
   };
 }

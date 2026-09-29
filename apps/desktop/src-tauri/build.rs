@@ -51,6 +51,8 @@ fn main() {
             "pick_directory",
             "open_emoji_picker",
             "open_feedback",
+            "set_attention_badge",
+            "notify",
         ]),
     ))
     .expect("could not build the desktop application metadata");

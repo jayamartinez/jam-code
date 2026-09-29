@@ -14,6 +14,7 @@ import type { ReactNode } from 'react';
 
 export type SettingsIconName =
   | 'general'
+  | 'notifications'
   | 'appearance'
   | 'projects'
   | 'providers'
@@ -41,6 +42,12 @@ const GLYPHS: Record<SettingsIconName, ReactNode> = {
       <path d="M2.5 5h6M11.5 5h2M2.5 11h2M7.5 11h6" {...line} />
       <circle cx="10" cy="5" r="1.5" {...line} />
       <circle cx="6" cy="11" r="1.5" {...line} />
+    </>
+  ),
+  notifications: (
+    <>
+      <path d="M4 11V7.2a4 4 0 018 0V11l1 1.2H3L4 11z" {...line} strokeLinejoin="round" />
+      <path d="M6.6 13.6a1.5 1.5 0 002.8 0" {...line} />
     </>
   ),
   appearance: (

@@ -10,6 +10,7 @@ import type { NewThreadWorkspace, TimeFormat } from '../../state/preferences';
 
 export type SettingsPageId =
   | 'General'
+  | 'Notifications'
   | 'Appearance'
   | 'Projects'
   | 'Providers'

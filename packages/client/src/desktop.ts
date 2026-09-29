@@ -24,6 +24,16 @@ export interface DesktopServices {
   /** Native Browser views. Absent where the host cannot embed one. */
   browser?: BrowserHost;
   snapshots?: SnapshotHost;
+  /**
+   * The count badge on the taskbar and tray icon (the Dock on macOS), as
+   * RGBA images from `drawBadge`: `overlay` is `size` pixels square, `tray`
+   * `trayBadgeSize(size)`. null clears it.
+   */
+  setAttentionBadge?(
+    badge: { count: number; size: number; overlay: number[]; tray: number[] } | null,
+  ): Promise<void>;
+  /** A system notification. The host bounds its text. */
+  notify?(notification: { title: string; body: string }): Promise<void>;
 }
 
 /** A rectangle in the interface's CSS pixels, relative to the window. */

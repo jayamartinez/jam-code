@@ -44,6 +44,10 @@ import {
   type SplitDirection,
 } from './state/layout';
 import { RuntimeClient } from './state/runtime-client';
+import { attentionBadge, useChatAttention, type BadgeTone } from './state/chat-activity';
+import { useNotificationPrefs } from './state/notification-prefs';
+import { playSound } from './components/sounds';
+import { badgeIconSize, drawBadge, trayBadgeSize } from './components/attention-badge';
 import {
   type NewThreadWorkspace,
   useIdleThreadDays,
@@ -216,6 +220,41 @@ export function JamApp({ transport, desktop }: JamAppProps) {
 
   const activeTabId = layout.activeTabId;
   const activeId = activeResourceId(layout);
+  // A chat counts as seen while any pane of the current tab shows it.
+  const visibleSessionIds = leaves(activeTree(layout)).flatMap((pane) => {
+    const sessionId = workspace?.resources.find((item) => item.id === pane.resourceId)?.sessionId;
+    return sessionId ? [sessionId] : [];
+  });
+  const [notifications] = useNotificationPrefs();
+  const attention = useChatAttention(workspace?.sessions, visibleSessionIds, (event, session) => {
+    if (notifications.sound && event !== 'error') playSound(notifications.soundId);
+    if (notifications.system && !document.hasFocus() && desktop.notify) {
+      const title =
+        workspace?.resources.find((item) => item.sessionId === session.id)?.title ?? 'A chat';
+      const body =
+        event === 'finished'
+          ? 'The agent finished.'
+          : event === 'input'
+            ? 'The agent needs your input.'
+            : 'The agent hit an error.';
+      void desktop.notify({ title, body }).catch(() => {});
+    }
+  });
+  const finishedSessions = attention.finished;
+  const badge =
+    notifications.badge && workspace ? attentionBadge(workspace.sessions, attention) : null;
+  const badgeKey = badge ? `${badge.count}:${badge.tone}` : '';
+  useEffect(() => {
+    if (!desktop.setAttentionBadge) return;
+    const [count, tone] = badgeKey.split(':');
+    const size = badgeIconSize();
+    // The taskbar dot fills most of its slot; the tray's sits in the icon's corner.
+    const overlay = badgeKey ? drawBadge(tone as BadgeTone, size, 0.7) : null;
+    const tray = badgeKey ? drawBadge(tone as BadgeTone, trayBadgeSize(size)) : null;
+    void desktop
+      .setAttentionBadge(overlay && tray ? { count: Number(count), size, overlay, tray } : null)
+      .catch(() => {});
+  }, [badgeKey, desktop]);
   const activeResource = workspace?.resources.find((resource) => resource.id === activeId);
   const project = workspace?.projects.find(
     (item) => item.id === (activeResource?.projectId ?? newChats[activeId]?.projectId ?? projectId),
@@ -1477,6 +1516,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             {!layout.focus && (
               <Sidebar
                 workspace={workspace}
+                finishedSessions={finishedSessions}
                 collapsed={layout.collapsed}
                 platform={desktop.platform}
                 projectId={projectId}
@@ -1555,6 +1595,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                 layout={layout}
                 workspace={workspace}
                 drafts={newChats}
+                finishedSessions={finishedSessions}
                 project={project}
                 activeResource={activeResource}
                 shortcut={shortcut}
