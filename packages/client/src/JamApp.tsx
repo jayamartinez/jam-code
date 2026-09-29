@@ -44,7 +44,12 @@ import {
   type SplitDirection,
 } from './state/layout';
 import { RuntimeClient } from './state/runtime-client';
-import { attentionBadge, useChatAttention, type BadgeTone } from './state/chat-activity';
+import {
+  attentionBadge,
+  useChatAttention,
+  useWindowFocused,
+  type BadgeTone,
+} from './state/chat-activity';
 import { useNotificationPrefs } from './state/notification-prefs';
 import { playSound } from './components/sounds';
 import { badgeIconSize, drawBadge, trayBadgeSize } from './components/attention-badge';
@@ -231,9 +236,14 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     return sessionId ? [sessionId] : [];
   });
   const [notifications] = useNotificationPrefs();
-  const attention = useChatAttention(workspace?.sessions, visibleSessionIds, (event, session) => {
+  // Seen means on screen while JAM is the window in use; away, every chat can want you.
+  const windowFocused = useWindowFocused();
+  const seenSessionIds = windowFocused ? visibleSessionIds : [];
+  const attention = useChatAttention(workspace?.sessions, seenSessionIds, (event, session) => {
+    // Sounds and notifications are for when you are somewhere else.
+    if (document.hasFocus()) return;
     if (notifications.sound && event !== 'error') playSound(notifications.soundId);
-    if (notifications.system && !document.hasFocus() && desktop.notify) {
+    if (notifications.system && desktop.notify) {
       const title =
         workspace?.resources.find((item) => item.sessionId === session.id)?.title ?? 'A chat';
       const body =
