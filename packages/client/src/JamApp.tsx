@@ -508,6 +508,39 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     },
     [client],
   );
+  /**
+   * A middle click closes a tab at once, unless closing it deserves a look:
+   * a terminal, or a chat whose agent is working or waiting for you. That tab
+   * comes forward and asks first. Closing never stops either.
+   */
+  const [confirmClose, setConfirmClose] = useState<{
+    tabId: string;
+    title: string;
+    reason: 'terminal' | 'working' | 'waiting';
+  } | null>(null);
+  const middleCloseTab = useCallback(
+    (tabId: string) => {
+      const tab = layoutRef.current.tabs.find((item) => item.id === tabId);
+      const snapshot = client.getSnapshot().workspace;
+      const resource = snapshot?.resources.find((item) => item.id === tab?.resourceId);
+      const session = snapshot?.sessions.find((item) => item.id === resource?.sessionId);
+      const reason =
+        resource?.kind === 'terminal'
+          ? 'terminal'
+          : session?.needsInput
+            ? 'waiting'
+            : session?.status === 'running'
+              ? 'working'
+              : null;
+      if (!tab || !resource || !reason) {
+        closeTab(tabId);
+        return;
+      }
+      dispatch({ type: 'openTab', resourceId: resource.id });
+      setConfirmClose({ tabId, title: resource.title, reason });
+    },
+    [client, closeTab],
+  );
   const reopenTab = useCallback(() => {
     dispatch({ type: 'reopenTab' });
     setClosedNotice(null);
@@ -1648,6 +1681,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                 launcherOpen={!!launcher}
                 onSelectTab={(resourceId) => openResource(resourceId)}
                 onCloseTab={closeTab}
+                onMiddleCloseTab={middleCloseTab}
                 onMoveTab={(from, to) => dispatch({ type: 'moveTab', from, to })}
                 onNewResource={(element) =>
                   setLauncher((current) => (current ? null : { anchor: anchorOf(element) }))
@@ -1823,6 +1857,42 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             <button className="button" onClick={() => setPreviewContext(null)}>
               Done
             </button>
+          </Dialog>
+        )}
+        {confirmClose && (
+          <Dialog
+            title={`Close ${confirmClose.title}?`}
+            className="confirm-dialog"
+            onClose={() => setConfirmClose(null)}
+          >
+            <h2>Close “{confirmClose.title}”?</h2>
+            <p>
+              {confirmClose.reason === 'terminal'
+                ? 'Its shell keeps running. You can reopen it from New tab.'
+                : confirmClose.reason === 'waiting'
+                  ? 'The agent is waiting for you. Closing the tab doesn’t answer or stop it; the chat stays in History.'
+                  : 'The agent is still working. Closing the tab doesn’t stop it; the chat stays in History.'}
+            </p>
+            <footer>
+              <button
+                type="button"
+                className="button quiet"
+                autoFocus
+                onClick={() => setConfirmClose(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button danger"
+                onClick={() => {
+                  closeTab(confirmClose.tabId);
+                  setConfirmClose(null);
+                }}
+              >
+                Close tab
+              </button>
+            </footer>
           </Dialog>
         )}
         {contextMenu && <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} />}
