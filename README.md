@@ -116,10 +116,10 @@ Release builds and the release process: [docs/RELEASING.md](docs/RELEASING.md).
 
 ```sh
 pnpm check        # format, lint, types, tests, production frontend build
-pnpm check:rust   # rustfmt, cargo check, clippy -D warnings, tests
+pnpm check:rust   # rustfmt, clippy -D warnings (includes cargo check), tests
 ```
 
-CI runs both on Windows and macOS for every pull request.
+CI runs `pnpm check` once on Linux and the Rust checks on Windows and macOS for every pull request; a pull request that changes no Rust skips the Rust checks.
 
 | Path                | Responsibility                                                   |
 | ------------------- | ---------------------------------------------------------------- |
