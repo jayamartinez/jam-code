@@ -54,6 +54,7 @@ import { useNotificationPrefs } from './state/notification-prefs';
 import { playSound } from './components/sounds';
 import { badgeIconSize, drawBadge, trayBadgeSize } from './components/attention-badge';
 import { commandFor, useKeybindings, useShortcutHint } from './state/keybindings';
+import { terminalSplit, useTerminalPlacement } from './state/terminal-placement';
 import { chordFromEvent } from './components/settings/keybindings-data';
 import {
   type NewThreadWorkspace,
@@ -225,6 +226,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       /Mac|iPhone|iPad/.test(navigator.platform));
   const shortcut = usesCommand ? '⌘' : 'Ctrl';
   const { overrides: keybindings } = useKeybindings(usesCommand);
+  const [terminalPlacement] = useTerminalPlacement();
   const closeTabHint = useShortcutHint('close-tab', usesCommand);
   const reopenHint = useShortcutHint('reopen-tab', usesCommand);
 
@@ -871,8 +873,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
           break;
         case 'open-terminal': {
           if (busy || settingsMode) break;
-          // A terminal opens in a pane under the current one, like an editor's
-          // panel; a tab that already shows one just focuses it.
+          // A terminal opens where Settings → Terminal says: beside the pane
+          // you're in, or its own tab. A tab that already shows one focuses it.
           const current = layoutRef.current;
           const resources = client.getSnapshot().workspace?.resources ?? [];
           const shown = leaves(activeTree(current)).find(
@@ -880,17 +882,16 @@ export function JamApp({ transport, desktop }: JamAppProps) {
           );
           if (shown) {
             dispatch({ type: 'focusPane', paneId: shown.id });
-          } else if (!current.activeTabId) {
+          } else if (!current.activeTabId || !terminalSplit(terminalPlacement)) {
             void openKind('terminal');
           } else {
             const paneId = newPaneId();
             dispatch({ type: 'mode', mode: 'tiles' });
             dispatch({
               type: 'split',
-              direction: 'column',
+              ...terminalSplit(terminalPlacement)!,
               splitId: newSplitId(),
               newPaneId: paneId,
-              ratio: 0.68,
             });
             void openKind('terminal', undefined, paneId);
           }
@@ -934,6 +935,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     client,
     closeTab,
     keybindings,
+    terminalPlacement,
     reopenTab,
     splitPane,
     usesCommand,

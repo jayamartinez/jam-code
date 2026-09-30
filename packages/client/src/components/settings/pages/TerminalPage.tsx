@@ -11,6 +11,11 @@ import {
 } from '../controls';
 import { TERMINAL_FACTS } from '../tools-model';
 import type { SettingsPageProps } from '../types';
+import {
+  TERMINAL_PLACEMENTS,
+  useTerminalPlacement,
+  type TerminalPlacement,
+} from '../../../state/terminal-placement';
 
 /**
  * Terminal. The values shown are what a Terminal tab does today (a login
@@ -18,6 +23,7 @@ import type { SettingsPageProps } from '../types';
  * them is planned, so the controls are read-only.
  */
 export default function TerminalPage({ onNavigate }: SettingsPageProps) {
+  const [placement, setPlacement] = useTerminalPlacement();
   return (
     <div className="sv-page">
       <PageHeader
@@ -29,6 +35,17 @@ export default function TerminalPage({ onNavigate }: SettingsPageProps) {
 
       <Section label="Shell">
         <Card>
+          <Row
+            title="Terminal opens"
+            sub="Where Open terminal puts a new one: beside the pane you're in, or in its own tab."
+          >
+            <Select
+              label="Terminal opens"
+              value={placement}
+              options={TERMINAL_PLACEMENTS}
+              onChange={(value) => setPlacement(value as TerminalPlacement)}
+            />
+          </Row>
           <Row
             title="Shell"
             sub="Your login shell from $SHELL, started as a login shell so your profile and PATH load."
