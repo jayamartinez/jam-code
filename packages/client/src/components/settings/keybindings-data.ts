@@ -79,6 +79,15 @@ export const BINDING_GROUPS: BindingGroup[] = [
         ...command('new-tab'),
       },
       {
+        id: 'open-terminal',
+        command: 'Open terminal',
+        sub: 'In a pane below, or focus the one this tab has.',
+        context: 'Everywhere',
+        // ⌘` switches windows on a Mac, so it is ⌃` there, as in most editors.
+        keys: { mac: ['ctrl', '`'], other: ['mod', '`'] },
+        ...command('open-terminal'),
+      },
+      {
         id: 'settings',
         command: 'Settings',
         context: 'Everywhere',
