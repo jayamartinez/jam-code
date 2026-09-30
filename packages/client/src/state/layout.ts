@@ -182,6 +182,8 @@ export type LayoutAction =
       resourceId?: string;
       /** Initial split ratio; defaults to an even split. */
       ratio?: number;
+      /** The new pane goes first: above, or to the left. */
+      before?: boolean;
     }
   | { type: 'closePane'; paneId: string }
   | { type: 'focusPane'; paneId: string }
@@ -332,8 +334,8 @@ export function layoutReducer(state: LayoutState, action: LayoutAction): LayoutS
             id: action.splitId,
             direction: action.direction,
             ratio: clampRatio(action.ratio ?? 0.5),
-            first: target,
-            second: created,
+            first: action.before ? created : target,
+            second: action.before ? target : created,
           })),
           focusedPaneId: created.id,
         };
