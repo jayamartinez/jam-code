@@ -1,0 +1,95 @@
+name: Release
+
+# Builds the installers for a version tag (v0.1.0-alpha) or on demand. A tag
+# build also creates a *draft* prerelease with the artifacts and checksums;
+# nothing is published until a maintainer reviews and publishes the draft.
+#
+# Signing is optional. Without the secrets below the builds are unsigned
+# (macOS: ad-hoc signed). See docs/RELEASING.md.
+#   macOS: APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY,
+#          APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID (notarization)
+#   Windows: none wired yet; see docs/RELEASING.md.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            os: windows-latest
+            args: --bundles nsis
+          - name: macos-universal
+            os: macos-latest
+            args: --target universal-apple-darwin --bundles app,dmg
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: Swatinem/rust-cache@v2
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm check:rust
+      - name: Tag matches the app version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: test "v$(node -p "require('./apps/desktop/package.json').version")" = "$GITHUB_REF_NAME"
+      - name: Build
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: pnpm --filter @jam/desktop tauri build ${{ matrix.args }}
+      - run: node scripts/collect-release.mjs ${{ matrix.name }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jam-code-${{ matrix.name }}
+          path: target/release-artifacts/*
+          if-no-files-found: error
+
+  draft:
+    name: Draft release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Checksums
+        working-directory: artifacts
+        run: |
+          cat *.sha256 > SHA256SUMS.txt
+          rm *.sha256
+      - name: Create draft prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$GITHUB_REF_NAME" artifacts/*
+          --draft --prerelease --verify-tag
+          --title "JAM Code $GITHUB_REF_NAME"
+          --notes-file docs/release-notes/$GITHUB_REF_NAME.md

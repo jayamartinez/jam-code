@@ -62,7 +62,7 @@ import {
 
 interface ConversationProps extends Pick<
   PaneChromeProps,
-  'focused' | 'onSplitRight' | 'onSplitDown' | 'onExpand' | 'expandLabel' | 'menu'
+  'focused' | 'onSplitRight' | 'onSplitDown' | 'onExpand' | 'expandLabel' | 'onClose' | 'menu'
 > {
   resource: Resource;
   project?: Project;
@@ -120,6 +120,7 @@ export function ConversationPane(props: ConversationProps) {
   const demo = session?.providerId === 'mock';
   const name = sessionProviderName(session);
   const messages = conversation?.messages ?? [];
+  const statusText = session?.needsInput ? 'needs input' : (session?.status ?? 'idle');
   return (
     <PaneChrome
       className="conversation-pane"
@@ -129,6 +130,7 @@ export function ConversationPane(props: ConversationProps) {
       onSplitDown={props.onSplitDown}
       onExpand={props.onExpand}
       expandLabel={props.expandLabel}
+      onClose={props.onClose}
       menu={props.menu}
       heading={
         <>
@@ -151,11 +153,9 @@ export function ConversationPane(props: ConversationProps) {
         <span className="provider-status">
           <span
             className={`status-dot ${session?.needsInput ? 'needs-input' : (session?.status ?? '')}`}
+            title={`${name}: ${statusText}`}
           />
-          {name}{' '}
-          <span className="subtle">
-            {session?.needsInput ? 'needs input' : (session?.status ?? 'idle')}
-          </span>
+          <span className="provider-name">{name}</span> <span className="subtle">{statusText}</span>
           {demo && <span className="demo-label">Demo</span>}
         </span>
       }

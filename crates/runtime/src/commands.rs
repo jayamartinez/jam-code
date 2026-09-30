@@ -279,6 +279,9 @@ pub struct SearchQuery {
 pub struct ListDirectory {
     pub project_id: String,
     pub path: String,
+    /// Lists inside a chat's worktree rather than the project's folder.
+    #[serde(default)]
+    pub worktree_id: Option<String>,
 }
 
 #[derive(Deserialize)]

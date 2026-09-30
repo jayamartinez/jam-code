@@ -60,14 +60,9 @@
   color: var(--color-text-subtle);
   font-size: calc(11.5px * var(--ui-scale));
 }
-.snapshot-destination select {
+.snapshot-destination .menu-select-root {
   min-width: 0;
   max-width: 285px;
-  height: 24px;
-  color: var(--color-text-primary);
-  background: var(--color-fill);
-  border: none;
-  border-radius: 6px;
 }
 .snapshot-note {
   height: 32px;

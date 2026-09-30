@@ -89,7 +89,10 @@ Version 1 of `@jam/protocol`, extended additively:
 ### Access
 
 Every agent offers the same three access levels, mapped to its own settings at
-the adapter:
+the adapter. The default for new chats, and the default effort, are one
+app-wide choice in Settings → General (and the access pill in any chat): the
+client writes it to every real agent's saved `defaults`. An effort level an
+agent's starting model does not offer leaves that agent on its own default.
 
 | JAM               | Claude Code `--permission-mode` | Codex approval / sandbox         |
 | ----------------- | ------------------------------- | -------------------------------- |

@@ -12,7 +12,7 @@ use std::{
     process::{Command, Stdio},
 };
 
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+use crate::CREATE_NO_WINDOW;
 
 /// Forcefully ends `pid` and its descendants. Waits for `taskkill` so the
 /// tree is gone before the caller reports the child as stopped.

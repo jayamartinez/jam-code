@@ -160,8 +160,13 @@ const projectPath: Check = (value) => {
 const project: Check = (value) =>
   shape(
     value,
-    { id, name: text(256), initials: text(8), branch: text(256) },
-    { icon: projectIcon, paths: array(projectPath, iconLimits.paths), pinned: boolean },
+    { id, name: text(256), initials: text(8), branch: text(256, true) },
+    {
+      icon: projectIcon,
+      paths: array(projectPath, iconLimits.paths),
+      pinned: boolean,
+      folderMissing: boolean,
+    },
   );
 const resource: Check = (value) =>
   shape(
@@ -795,12 +800,20 @@ const params: Record<RequestMethod, Check> = {
     }
   },
   'turn.interrupt': (value) => shape(value, { sessionId: id }),
-  'directory.list': (value) => shape(value, { projectId: id, path: listingPath }),
+  'directory.list': (value) =>
+    shape(value, { projectId: id, path: listingPath }, { worktreeId: id }),
   'file.read': (value) => shape(value, { projectId: id, path: relativePath }, { worktreeId: id }),
   'file.reveal': (value) => shape(value, { projectId: id, path: relativePath }, { worktreeId: id }),
   'url.openExternal': (value) => shape(value, { url: text(2048) }),
   'file.write': (value) =>
     shape(value, { projectId: id, path: relativePath, text: text(2_000_000, true) }),
+  'project.create': (value) =>
+    shape(
+      value,
+      { paths: array(projectPath, iconLimits.paths) },
+      { name: text(iconLimits.nameUtf16), icon: projectIcon },
+    ),
+  'project.remove': (value) => shape(value, { projectId: id }),
   'project.update': (value) =>
     shape(
       value,
@@ -888,6 +901,8 @@ const responses: Record<RequestMethod, Check> = {
   'file.reveal': (value) => shape(value, { revealed: oneOf(true) }),
   'url.openExternal': (value) => shape(value, { opened: oneOf(true) }),
   'file.write': fileSaved,
+  'project.create': (value) => shape(value, { project, existing: boolean }),
+  'project.remove': (value) => shape(value, { projectId: id }),
   'project.update': (value) => shape(value, { project }),
   'thread.setClosed': (value) => shape(value, { resource }),
   'thread.keepOpen': (value) => shape(value, { resource }),

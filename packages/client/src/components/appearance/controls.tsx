@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { APPEARANCE, FONT_FAMILY } from '@jam/protocol';
 import { isFontAvailable, type FontChoice } from '../../appearance/fonts';
+import { MenuSelect } from '../MenuSelect';
 
 /** The Appearance page's own controls; everything else comes from the Settings v2 set. */
 
@@ -59,18 +60,13 @@ export function NumberSelect({
   onChange(value: number): void;
 }) {
   return (
-    <select
+    <MenuSelect
       className="sv-select mono"
-      aria-label={label}
-      value={value}
-      onChange={(event) => onChange(Number(event.target.value))}
-    >
-      {sizes(range).map((size) => (
-        <option key={size} value={size}>
-          {format(size)}
-        </option>
-      ))}
-    </select>
+      label={label}
+      value={String(value)}
+      options={sizes(range).map((size) => ({ value: String(size), label: format(size) }))}
+      onChange={(next) => onChange(Number(next))}
+    />
   );
 }
 
@@ -122,30 +118,34 @@ export function FontSelect({
           }}
         />
       )}
-      <select
+      <MenuSelect
         className="sv-select"
-        aria-label={label}
+        label={label}
         value={typing ? OTHER : value}
-        onChange={(event) => {
-          if (event.target.value === OTHER) {
+        options={[
+          ...(inherit ? [{ value: '', label: inherit }] : []),
+          ...options
+            .filter((choice) => !(inherit && choice.value === ''))
+            .map((choice) => ({
+              value: choice.value,
+              label: choice.label,
+              ...(choice.missing
+                ? { description: 'Not installed' }
+                : choice.note
+                  ? { description: choice.note }
+                  : {}),
+            })),
+          { value: OTHER, label: 'Other installed font…' },
+        ]}
+        onChange={(next) => {
+          if (next === OTHER) {
             setTyping(true);
             return;
           }
           setTyping(false);
-          onChange(event.target.value);
+          onChange(next);
         }}
-      >
-        {inherit && <option value="">{inherit}</option>}
-        {options
-          .filter((choice) => !(inherit && choice.value === ''))
-          .map((choice) => (
-            <option key={choice.label} value={choice.value}>
-              {choice.label}
-              {choice.missing ? ' · not installed' : choice.note ? ` · ${choice.note}` : ''}
-            </option>
-          ))}
-        <option value={OTHER}>Other installed font…</option>
-      </select>
+      />
       {typing && draft.trim() && valid && !isFontAvailable(draft.trim()) && (
         <small className="font-warning">Not found on this computer</small>
       )}

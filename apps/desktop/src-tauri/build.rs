@@ -3,6 +3,7 @@ fn main() {
         let mut build = cc::Build::new();
         build
             .file("src/snapshots/macos.m")
+            .file("src/mac_keys.m")
             .flag("-fobjc-arc")
             .flag("-fblocks");
         // `@available` compiles to ___isPlatformVersionAtLeast when the
@@ -21,7 +22,7 @@ fn main() {
             resources.trim()
         );
         println!("cargo:rustc-link-lib=static=clang_rt.osx");
-        build.compile("jam_snapshots");
+        build.compile("jam_macos");
         for framework in [
             "AppKit",
             "ScreenCaptureKit",
@@ -32,6 +33,7 @@ fn main() {
             println!("cargo:rustc-link-lib=framework={framework}");
         }
         println!("cargo:rerun-if-changed=src/snapshots/macos.m");
+        println!("cargo:rerun-if-changed=src/mac_keys.m");
     }
 
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
@@ -48,6 +50,10 @@ fn main() {
             "browser_close",
             "snapshot_host",
             "snapshot_toast_request",
+            "pick_directory",
+            "open_feedback",
+            "set_attention_badge",
+            "notify",
         ]),
     ))
     .expect("could not build the desktop application metadata");

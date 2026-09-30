@@ -33,13 +33,17 @@ fn quit(app: &AppHandle) {
     });
 }
 
+/// The tray's own icon, without a badge.
+pub fn tray_image() -> tauri::Result<tauri::image::Image<'static>> {
+    tauri::image::Image::from_bytes(include_bytes!("../icons/icon.png"))
+}
+
 pub fn install_tray(app: &App) -> tauri::Result<()> {
     let show_item = MenuItem::with_id(app, "show", "Show jam", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit jam", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
-    let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/icon.png"))?;
     TrayIconBuilder::with_id("jam")
-        .icon(icon)
+        .icon(tray_image()?)
         .tooltip("JAM Code")
         .menu(&menu)
         .show_menu_on_left_click(false)

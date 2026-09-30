@@ -1,5 +1,6 @@
 import { ArrowBigUp, CornerDownLeft } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { MenuSelect } from '../MenuSelect';
 
 /**
  * The Settings v2 vocabulary, shared by every page: a page header, labelled
@@ -145,19 +146,14 @@ export function Select<T extends string>({
   disabled?: boolean;
 }) {
   return (
-    <select
+    <MenuSelect
       className="sv-select"
-      aria-label={label}
+      label={label}
       value={value}
-      disabled={disabled || !onChange}
-      onChange={(event) => onChange?.(event.target.value as T)}
-    >
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
+      options={options}
+      disabled={disabled}
+      {...(onChange ? { onChange } : {})}
+    />
   );
 }
 

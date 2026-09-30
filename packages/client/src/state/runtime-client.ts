@@ -301,6 +301,11 @@ export class RuntimeClient {
     });
   }
 
+  /** Rereads the whole workspace, after a change that touches many records. */
+  reload() {
+    return this.synchronize();
+  }
+
   /** Reflect a project the runtime just updated without a full reread. */
   updateProject(project: Project) {
     const workspace = this.state.workspace;

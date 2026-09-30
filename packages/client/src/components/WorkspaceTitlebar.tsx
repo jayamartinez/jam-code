@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppWindow, Columns2, Plus, X } from 'lucide-react';
 import type { Project, Resource, WorkspaceSnapshot } from '@jam/protocol';
 import type { ChatDraft } from '../state/chat-draft';
@@ -6,19 +6,25 @@ import type { DesktopServices } from '../desktop';
 import type { LayoutState } from '../state/layout';
 import { Brand, IconButton, Shortcut, WindowControls } from './Controls';
 import { ProjectBadge } from './ProjectBadge';
+import { SessionDot } from './SessionDot';
 import { ResourceIcon } from './icons';
+import { useShortcutHint } from '../state/keybindings';
 
 interface WorkspaceTitlebarProps {
   desktop: DesktopServices;
   layout: Pick<LayoutState, 'tabs' | 'activeTabId' | 'mode' | 'focus'>;
-  workspace: Pick<WorkspaceSnapshot, 'resources' | 'sessions' | 'projects'>;
+  workspace: Pick<WorkspaceSnapshot, 'resources' | 'sessions' | 'projects' | 'providers'>;
   drafts: Record<string, ChatDraft>;
+  /** Chats that finished out of sight. */
+  finishedSessions: ReadonlySet<string>;
   project?: Project;
   activeResource?: Resource;
   shortcut: string;
   launcherOpen: boolean;
   onSelectTab(resourceId: string): void;
   onCloseTab(tabId: string): void;
+  /** A middle click: closes an idle tab, asks first about one that matters. */
+  onMiddleCloseTab(tabId: string): void;
   onMoveTab(from: number, to: number): void;
   onNewResource(anchor: Element): void;
   onExitFocus(): void;
@@ -30,17 +36,20 @@ export function WorkspaceTitlebar({
   layout,
   workspace,
   drafts,
+  finishedSessions,
   project,
   activeResource,
   shortcut,
   launcherOpen,
   onSelectTab,
   onCloseTab,
+  onMiddleCloseTab,
   onMoveTab,
   onNewResource,
   onExitFocus,
   onMode,
 }: WorkspaceTitlebarProps) {
+  const focusHint = useShortcutHint('focus', shortcut === '⌘');
   const strip = useRef<HTMLDivElement>(null);
   /** Set when a press turned into a drag, so the release does not also select. */
   const suppressClick = useRef(false);
@@ -116,6 +125,14 @@ export function WorkspaceTitlebar({
     return 0;
   };
 
+  // An overflowing strip scrolls, so the tab being shown is brought into view
+  // whenever it changes or a tab opens beside it.
+  useEffect(() => {
+    strip.current
+      ?.querySelector<HTMLElement>('.resource-tab.active')
+      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [layout.activeTabId, layout.tabs.length]);
+
   // Labels tighten as tabs accumulate rather than the strip silently scrolling
   // a tab out of reach behind the layout controls.
   const density = layout.tabs.length >= 9 ? 'tight' : layout.tabs.length >= 6 ? 'compact' : '';
@@ -185,6 +202,15 @@ export function WorkspaceTitlebar({
                 style={drag ? { transform: `translateX(${dragOffset(index)}px)` } : undefined}
                 title={projectName ? `${title} · ${projectName}` : title}
                 onPointerDown={startDrag(index)}
+                // Middle click closes, like a browser tab; no autoscroll.
+                onMouseDown={(event) => {
+                  if (event.button === 1) event.preventDefault();
+                }}
+                onAuxClick={(event) => {
+                  if (event.button !== 1) return;
+                  event.preventDefault();
+                  onMiddleCloseTab(tab.id);
+                }}
                 onClick={() => {
                   // A drag ends on this tab too; only a plain click selects.
                   if (suppressClick.current) {
@@ -217,7 +243,10 @@ export function WorkspaceTitlebar({
                 />
                 <span className="tab-title truncate">{title}</span>
                 {showProject && project && <ProjectBadge project={project} size={13} />}
-                {session?.status === 'running' && <span className="status-dot running" />}
+                <SessionDot
+                  session={session}
+                  finished={!!session && finishedSessions.has(session.id)}
+                />
                 <button
                   className="tab-close"
                   aria-label={`Close ${title} tab`}
@@ -251,19 +280,24 @@ export function WorkspaceTitlebar({
         }}
         onDoubleClick={() => void desktop.toggleMaximize()}
       />
-      <span
-        className="chrome-demo"
-        title={
-          desktop.platform === 'web'
-            ? 'Browser preview · in-memory data only'
-            : 'Isolated demo database · no tools execute'
-        }
-      >
-        {desktop.platform === 'web' ? 'Preview · Demo' : 'Demo'}
-      </span>
+      {/* Only the browser preview and an explicit demo database (JAM_DEMO=1)
+          carry the demo provider; a user's own workspace is never labelled. */}
+      {(desktop.platform === 'web' ||
+        workspace.providers.some((provider) => provider.id === 'mock')) && (
+        <span
+          className="chrome-demo"
+          title={
+            desktop.platform === 'web'
+              ? 'Browser preview · in-memory data only'
+              : 'Demo database · sample data, separate from your history'
+          }
+        >
+          {desktop.platform === 'web' ? 'Preview · Demo' : 'Demo'}
+        </span>
+      )}
       {layout.focus ? (
         <button className="focus-exit" onClick={onExitFocus}>
-          Exit focus<Shortcut>{shortcut} .</Shortcut>
+          Exit focus{focusHint && <Shortcut>{focusHint}</Shortcut>}
         </button>
       ) : (
         <div className="layout-toggle">

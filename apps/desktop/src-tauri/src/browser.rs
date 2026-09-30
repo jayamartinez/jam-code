@@ -132,6 +132,9 @@ pub struct ConsoleEntry {
 #[serde(rename_all = "camelCase")]
 pub struct Annotation {
     kind: AnnotationKind,
+    /// Its number on the page. An edited annotation comes again with the same one.
+    #[serde(default)]
+    index: u32,
     #[serde(default)]
     comment: String,
     #[serde(default)]

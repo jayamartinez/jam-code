@@ -164,6 +164,50 @@
   color: var(--color-text-faint);
   font-weight: 400;
 }
+.project-row .branch.missing {
+  color: var(--color-warning);
+}
+.project-row.add-project {
+  color: var(--color-text-muted);
+}
+.project-add-badge {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  border: 1px dashed var(--color-border-strong);
+}
+/* On hover, a project's branch gives way to + for a new thread there. */
+.project-group {
+  position: relative;
+}
+.project-new-thread {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--color-text-secondary);
+}
+.project-new-thread:hover:not(:disabled) {
+  background: var(--color-fill-strong);
+  color: var(--color-text-primary);
+}
+.project-group:hover > .project-new-thread,
+.project-new-thread:focus-visible {
+  display: flex;
+}
+.project-group:hover > .project-row .branch,
+.project-group:hover > .project-row .project-pin {
+  visibility: hidden;
+}
 /* An expanded project hands the highlight to its threads and keeps its weight. */
 .project-row.selected.expanded {
   background: transparent;
@@ -391,7 +435,7 @@
   gap: 6px;
   padding: 2px 8px 8px;
 }
-.history-filters select {
+.history-filters .menu-select-root {
   width: calc(50% - 3px);
 }
 .history-group {
@@ -1005,11 +1049,19 @@
   font-size: calc(12px * var(--ui-scale));
 }
 .focus-exit {
+  height: calc(24px * var(--ui-scale));
+  padding: 0 4px 0 8px;
+  border-radius: var(--radius-md);
   font-size: calc(11px * var(--ui-scale));
   display: flex;
+  flex-shrink: 0;
   gap: 6px;
   align-items: center;
+  white-space: nowrap;
   color: var(--color-text-muted);
+}
+.focus-exit:hover:not(:disabled) {
+  color: var(--color-text-primary);
 }
 @media (max-width: 1200px) {
   .sidebar:not(.rail) {
@@ -1042,4 +1094,135 @@
   .window-controls .icon-button {
     width: 32px;
   }
+}
+/* Pane close: the last control, set apart from the layout actions. */
+.pane-actions-divider {
+  width: 1px;
+  height: 16px;
+  margin: 0 2px;
+  flex-shrink: 0;
+  background: var(--color-border-strong);
+}
+.pane-button.close:hover:not(:disabled) {
+  color: var(--color-text-primary);
+}
+.pane-menu-group {
+  display: flex;
+  flex-direction: column;
+}
+.pane-menu-divider {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--color-border);
+}
+.pane-menu button.danger {
+  color: var(--color-danger);
+}
+.pane-menu button.described {
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding: 6px 8px 7px;
+}
+.pane-menu-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.pane-menu-label kbd {
+  margin-left: auto;
+  background: none;
+  color: var(--color-text-faint);
+}
+.pane-menu button small {
+  color: var(--color-text-subtle);
+  font-size: calc(11px * var(--ui-scale));
+}
+/* Reopen closed tab: a short toast at the bottom of the workspace. */
+.closed-tab-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  z-index: 70;
+  max-width: 420px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  padding: 0 5px 0 12px;
+  transform: translateX(-50%);
+  border-radius: 9px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface-raised);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 40%);
+  color: var(--color-text-secondary);
+  font-size: calc(12.5px * var(--ui-scale));
+}
+.closed-tab-toast button {
+  height: 24px;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--color-fill);
+  color: var(--color-text-strong);
+  font-size: calc(12px * var(--ui-scale));
+}
+.closed-tab-toast kbd {
+  background: none;
+}
+.sidebar-footer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.sidebar-footer .help-button {
+  width: 30px;
+  flex-shrink: 0;
+  justify-content: center;
+  padding: 0;
+}
+.help-menu-root {
+  flex-shrink: 0;
+}
+.help-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 200px;
+  padding: 4px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-overlay);
+  border: 1px solid var(--color-border-strong);
+  box-shadow: 0 20px 50px rgb(0 0 0 / 55%);
+}
+.help-menu button {
+  width: 100%;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border-radius: 6px;
+  color: var(--color-text-primary);
+  font-size: calc(12.5px * var(--ui-scale));
+  text-align: left;
+}
+.help-menu button span {
+  flex: 1;
+}
+.help-menu button svg {
+  color: var(--color-text-subtle);
+}
+.help-menu button:hover:not(:disabled),
+.help-menu button:focus-visible {
+  background: var(--color-fill);
+}
+.help-menu-divider {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--color-border-subtle);
 }

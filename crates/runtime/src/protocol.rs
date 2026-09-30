@@ -30,6 +30,19 @@ pub struct Project {
     /// Pinned projects sort first in the sidebar.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub pinned: bool,
+    /// When the project was removed from JAM. A removed project, and
+    /// everything in it, is left out of the workspace until its folder is
+    /// added again; its folder is never touched.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub removed_at: Option<String>,
+    /// Set in a workspace read when the first folder is gone or unreadable.
+    /// Computed, never stored.
+    #[serde(
+        default,
+        skip_deserializing,
+        skip_serializing_if = "std::ops::Not::not"
+    )]
+    pub folder_missing: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

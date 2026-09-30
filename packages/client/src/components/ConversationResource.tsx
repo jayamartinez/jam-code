@@ -30,7 +30,7 @@ export function ConversationResource({
   >;
   chrome: Pick<
     PaneChromeProps,
-    'focused' | 'onSplitRight' | 'onSplitDown' | 'onExpand' | 'expandLabel' | 'menu'
+    'focused' | 'onSplitRight' | 'onSplitDown' | 'onExpand' | 'expandLabel' | 'onClose' | 'menu'
   >;
 }) {
   const resourceId = resource.id;

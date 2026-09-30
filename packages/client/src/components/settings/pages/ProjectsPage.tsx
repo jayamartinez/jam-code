@@ -1,6 +1,5 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { PROJECT_ICONS, type Project } from '@jam/protocol';
-import { QUICK_EMOJI } from '../../ProjectEditor';
 import { PRESET_GLYPHS, ProjectBadge, TONE_LABELS, squareProjectImage } from '../../ProjectBadge';
 import { Planned, Row, Segmented, Select, Toggle } from '../controls';
 import {
@@ -14,30 +13,39 @@ import {
   type IconDraft,
   type IconKind,
 } from '../projects-model';
-import type { ProjectChanges, SettingsPageProps } from '../types';
+import type { ProjectChanges, ProjectControl, SettingsPageProps } from '../types';
 
 const ICON_KINDS: { value: IconKind; label: string }[] = [
   { value: 'initials', label: 'Initials' },
   { value: 'preset', label: 'Glyph' },
-  { value: 'emoji', label: 'Emoji' },
   { value: 'image', label: 'Image' },
 ];
 const limits = PROJECT_ICONS.limits;
 
 /**
  * Projects as a list and a detail. Name, icon, folders and pinning save as
- * they change through `project.update`; per-project overrides and removal
- * have no runtime support yet and are marked Planned.
+ * they change through `project.update`; Add project opens the system folder
+ * chooser, and removal forgets the project without touching its folder.
+ * Per-project overrides have no runtime support yet and are marked Planned.
  */
-export default function ProjectsPage({ projects, platform, onUpdateProject }: SettingsPageProps) {
+export default function ProjectsPage({
+  projects,
+  platform,
+  onUpdateProject,
+  projectControl,
+}: SettingsPageProps) {
   const [selectedId, setSelectedId] = useState(() => initialProjectId(projects));
+  const [adding, setAdding] = useState(false);
   const selected =
     projects.find((project) => project.id === selectedId) ??
     projects.find((project) => project.id === initialProjectId(projects));
 
   return (
     <div className="sv-page wide">
-      <p className="sv-providers-intro">Projects JAM works in. Changes save as you make them.</p>
+      <p className="sv-providers-intro">
+        Folders JAM works in. Changes save as you make them; removing a project never touches its
+        files.
+      </p>
       <div className="sv-split">
         <nav className="sv-split-list" aria-label="Projects">
           {projects.map((project) => (
@@ -53,25 +61,38 @@ export default function ProjectsPage({ projects, platform, onUpdateProject }: Se
                 <strong>{project.name}</strong>
                 <small>{projectSummary(project)}</small>
               </span>
+              {project.folderMissing && <span className="sv-chip warning">Missing</span>}
               {project.pinned && <PinMark />}
             </button>
           ))}
           <div className="sv-split-divider" />
-          <div className="sv-project-row add" aria-disabled="true">
+          <button
+            type="button"
+            className="sv-project-row add"
+            disabled={!projectControl.add || adding}
+            title={projectControl.add ? undefined : 'Adding a folder needs the desktop app'}
+            onClick={() => {
+              setAdding(true);
+              void projectControl
+                .add?.()
+                .then((project) => project && setSelectedId(project.id))
+                .finally(() => setAdding(false));
+            }}
+          >
             <span className="sv-add-badge" aria-hidden="true">
               +
             </span>
             <span className="sv-provider-name">
-              <span>Add project…</span>
+              <span>{adding ? 'Adding…' : 'New project…'}</span>
             </span>
-            <Planned />
-          </div>
+          </button>
         </nav>
         {selected ? (
           <ProjectDetail
             key={selected.id}
             project={selected}
             platform={platform}
+            control={projectControl}
             onUpdate={(changes) => onUpdateProject(selected.id, changes)}
           />
         ) : (
@@ -100,12 +121,16 @@ function PinMark() {
 function ProjectDetail({
   project,
   platform,
+  control,
   onUpdate,
 }: {
   project: Project;
   platform: SettingsPageProps['platform'];
+  control: ProjectControl;
   onUpdate(changes: ProjectChanges): Promise<void>;
 }) {
+  const [confirmingRemoval, setConfirmingRemoval] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [name, setName] = useState(project.name);
   const [draft, setDraft] = useState<IconDraft>(() => iconDraft(project.icon));
   const [paths, setPaths] = useState<string[]>(project.paths ?? []);
@@ -149,12 +174,6 @@ function ProjectDetail({
     if (event.key === 'Enter') event.currentTarget.blur();
   };
 
-  const emojiShortcut =
-    platform === 'windows'
-      ? 'Win + .'
-      : platform === 'macos'
-        ? 'Ctrl + ⌘ + Space'
-        : 'your emoji picker';
   const preview: Project = { ...project, icon: buildIcon(draft) ?? project.icon };
 
   return (
@@ -173,6 +192,30 @@ function ProjectDetail({
         <p className="sv-error" role="alert">
           {error}
         </p>
+      )}
+
+      {project.folderMissing && (
+        <div className="sv-missing" role="status">
+          <p>
+            JAM Code can’t find this project’s folder. It may have been moved, renamed or be on a
+            drive that isn’t connected. Its chats are safe.
+          </p>
+          {control.pickFolder && (
+            <button
+              type="button"
+              className="sv-button"
+              onClick={async () => {
+                const chosen = await control.pickFolder!();
+                if (!chosen) return;
+                const next = [chosen, ...paths.slice(1)];
+                setPaths(next);
+                savePaths(next);
+              }}
+            >
+              Locate folder…
+            </button>
+          )}
+        </div>
       )}
 
       <div className="sv-detail-group">
@@ -240,37 +283,6 @@ function ProjectDetail({
                 })}
               </div>
             )}
-            {draft.kind === 'emoji' && (
-              <>
-                <div className="sv-glyph-grid emoji" role="listbox" aria-label="Emoji">
-                  {QUICK_EMOJI.map((emoji) => (
-                    <button
-                      key={emoji}
-                      type="button"
-                      role="option"
-                      aria-selected={draft.emoji === emoji}
-                      className={`icon-choice ${draft.emoji === emoji ? 'selected' : ''}`}
-                      onClick={() => changeIcon({ ...draft, emoji })}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-                <div className="sv-icon-line">
-                  <input
-                    className="sv-input emoji"
-                    aria-label="Emoji"
-                    placeholder="🙂"
-                    value={draft.emoji}
-                    maxLength={limits.emojiUtf16}
-                    onChange={(event) => setDraft({ ...draft, emoji: event.target.value })}
-                    onBlur={() => changeIcon(draft)}
-                    onKeyDown={onEnter}
-                  />
-                  <span className="sv-hint">Or open the system picker with {emojiShortcut}.</span>
-                </div>
-              </>
-            )}
             {draft.kind === 'image' && (
               <div className="sv-icon-line">
                 <label className="sv-button">
@@ -328,6 +340,22 @@ function ProjectDetail({
                 onKeyDown={onEnter}
               />
               {index === 0 && path.trim() && <span className="sv-chip">Primary</span>}
+              {control.pickFolder && (
+                <button
+                  type="button"
+                  className="sv-button"
+                  aria-label={`Choose folder ${index + 1}`}
+                  onClick={async () => {
+                    const chosen = await control.pickFolder!();
+                    if (!chosen) return;
+                    const next = paths.map((item, i) => (i === index ? chosen : item));
+                    setPaths(next);
+                    savePaths(next);
+                  }}
+                >
+                  Choose…
+                </button>
+              )}
               <button
                 type="button"
                 className="sv-folder-remove"
@@ -354,7 +382,17 @@ function ProjectDetail({
             <button
               type="button"
               className="sv-folder add"
-              onClick={() => {
+              onClick={async () => {
+                // The folder chooser first; a typed path is still possible
+                // where there is none.
+                if (control.pickFolder) {
+                  const chosen = await control.pickFolder();
+                  if (!chosen) return;
+                  const next = [...paths, chosen];
+                  setPaths(next);
+                  savePaths(next);
+                  return;
+                }
                 setPaths((current) => [...current, '']);
                 requestAnimationFrame(() => lastPath.current?.focus());
               }}
@@ -420,15 +458,53 @@ function ProjectDetail({
 
       <div className="sv-danger-row">
         <div>
-          <strong>
-            Remove from JAM
-            <Planned />
-          </strong>
-          <p>Files stay on disk; conversations are kept until you delete them.</p>
+          <strong>Remove from JAM Code</strong>
+          <p>
+            {confirmingRemoval
+              ? `Remove ${project.name}? Its folder isn’t touched, and its chats come back if you add the folder again.`
+              : 'Files stay on disk. Its chats are hidden until you add the folder again.'}
+          </p>
         </div>
-        <button type="button" className="sv-button danger" disabled>
-          Remove…
-        </button>
+        {confirmingRemoval ? (
+          <span className="sv-danger-actions">
+            <button
+              type="button"
+              className="sv-button"
+              disabled={removing}
+              onClick={() => setConfirmingRemoval(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="sv-button danger"
+              disabled={removing}
+              onClick={async () => {
+                setRemoving(true);
+                setError(null);
+                try {
+                  await control.remove(project.id);
+                } catch (cause) {
+                  setError(
+                    cause instanceof Error ? cause.message : 'The project could not be removed.',
+                  );
+                  setConfirmingRemoval(false);
+                  setRemoving(false);
+                }
+              }}
+            >
+              {removing ? 'Removing…' : 'Remove'}
+            </button>
+          </span>
+        ) : (
+          <button
+            type="button"
+            className="sv-button danger"
+            onClick={() => setConfirmingRemoval(true)}
+          >
+            Remove…
+          </button>
+        )}
       </div>
     </section>
   );

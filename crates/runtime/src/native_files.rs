@@ -1,6 +1,6 @@
 use crate::{
     JamError,
-    protocol::{FileContents, Project},
+    protocol::{DirectoryEntry, DirectoryListing, FileContents, Project},
 };
 use std::path::{Path, PathBuf};
 pub(crate) fn project_folder(project: &Project) -> Result<Option<PathBuf>, JamError> {
@@ -154,6 +154,104 @@ pub(crate) fn read_native(
         status: None,
         demo: false,
     })
+}
+
+const MAX_ENTRIES: usize = 500;
+
+/// One level of a project folder, directories first. Read-only and bounded.
+/// Symlinks, junctions and `.git` are left out, matching what reads accept,
+/// so a listing never leads outside the folder.
+pub(crate) fn list_native(
+    project_id: &str,
+    root: &Path,
+    path: &str,
+) -> Result<DirectoryListing, JamError> {
+    let directory = if path.is_empty() {
+        root.to_path_buf()
+    } else {
+        validate_path(path)?;
+        scoped_directory(root, path)?
+    };
+    let reader = std::fs::read_dir(&directory)
+        .map_err(|_| JamError::new("unavailable", "This folder can't be read."))?;
+    let mut entries = Vec::new();
+    let mut truncated = false;
+    for entry in reader.flatten() {
+        let Ok(name) = entry.file_name().into_string() else {
+            continue;
+        };
+        if name.eq_ignore_ascii_case(".git") {
+            continue;
+        }
+        let Ok(metadata) = std::fs::symlink_metadata(entry.path()) else {
+            continue;
+        };
+        if metadata.file_type().is_symlink() || is_reparse_point(&metadata) {
+            continue;
+        }
+        if entries.len() == MAX_ENTRIES * 4 {
+            truncated = true;
+            break;
+        }
+        let directory = metadata.is_dir();
+        entries.push(DirectoryEntry {
+            path: if path.is_empty() {
+                name.clone()
+            } else {
+                format!("{path}/{name}")
+            },
+            name,
+            kind: if directory { "directory" } else { "file" }.into(),
+            status: None,
+            has_children: directory.then_some(true),
+        });
+    }
+    entries.sort_by(|left, right| {
+        (left.kind != "directory")
+            .cmp(&(right.kind != "directory"))
+            .then_with(|| left.name.to_lowercase().cmp(&right.name.to_lowercase()))
+    });
+    truncated |= entries.len() > MAX_ENTRIES;
+    entries.truncate(MAX_ENTRIES);
+    Ok(DirectoryListing {
+        project_id: project_id.into(),
+        path: path.into(),
+        entries,
+        truncated,
+        demo: false,
+    })
+}
+
+/// A directory inside the project, reached without following any link.
+fn scoped_directory(root: &Path, path: &str) -> Result<PathBuf, JamError> {
+    let mut target = root.to_path_buf();
+    for part in path.split('/') {
+        target.push(part);
+        let metadata = std::fs::symlink_metadata(&target)
+            .map_err(|_| JamError::new("not_found", "That folder is not in this project."))?;
+        if metadata.file_type().is_symlink() || is_reparse_point(&metadata) {
+            return Err(JamError::new(
+                "unavailable",
+                "Linked folders are unsupported.",
+            ));
+        }
+    }
+    let resolved = canonical(&target)
+        .map_err(|_| JamError::new("not_found", "That folder is not in this project."))?;
+    if !resolved.starts_with(root) || !resolved.is_dir() {
+        return Err(JamError::invalid("That is not a folder in this project."));
+    }
+    Ok(resolved)
+}
+
+#[cfg(windows)]
+fn is_reparse_point(metadata: &std::fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    metadata.file_attributes() & 0x400 != 0
+}
+#[cfg(not(windows))]
+fn is_reparse_point(_: &std::fs::Metadata) -> bool {
+    false
 }
 
 #[cfg(unix)]

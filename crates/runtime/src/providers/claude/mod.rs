@@ -258,19 +258,19 @@ impl ProviderAdapter for ClaudeAdapter {
 /// `claude auth status` prints JSON and exits 0 when signed in, 1 when not.
 /// Only these fields are read; account identifiers are never kept.
 async fn auth_status(executable: &Path) -> Option<(bool, Value)> {
-    let output = tokio::time::timeout(
-        Duration::from_secs(15),
-        tokio::process::Command::new(executable)
-            .args(["auth", "status"])
-            .env("PATH", discovery::search_path())
-            .stdin(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .kill_on_drop(true)
-            .output(),
-    )
-    .await
-    .ok()?
-    .ok()?;
+    let mut command = tokio::process::Command::new(executable);
+    command
+        .args(["auth", "status"])
+        .env("PATH", discovery::search_path())
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .kill_on_drop(true);
+    #[cfg(windows)]
+    command.creation_flags(crate::CREATE_NO_WINDOW);
+    let output = tokio::time::timeout(Duration::from_secs(15), command.output())
+        .await
+        .ok()?
+        .ok()?;
     let value: Value = serde_json::from_slice(&output.stdout).ok()?;
     let logged_in = value.get("loggedIn").and_then(Value::as_bool)?;
     let kept = json!({

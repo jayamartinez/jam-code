@@ -201,6 +201,40 @@
   font-size: calc(12px * var(--ui-scale));
   overflow-wrap: anywhere;
 }
+/* Asks before a middle click closes a tab that is doing something. */
+.dialog.confirm-dialog {
+  top: 0;
+  bottom: 0;
+  height: fit-content;
+  margin: auto;
+  width: 380px;
+  padding: 20px;
+}
+.confirm-dialog h2 {
+  font-size: calc(15px * var(--ui-scale));
+  font-weight: 500;
+  color: var(--color-text-strong);
+}
+.confirm-dialog p {
+  margin: 8px 0 18px;
+  color: var(--color-text-muted);
+  font-size: calc(12.5px * var(--ui-scale));
+  line-height: calc(19px * var(--ui-scale));
+}
+.confirm-dialog footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.confirm-dialog .button.danger,
+.confirm-dialog .button.danger:hover:not(:disabled) {
+  background: var(--color-danger);
+  color: var(--color-on-accent);
+  font-weight: 500;
+}
+.confirm-dialog .button.danger:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
 .demo-label {
   color: var(--color-text-subtle);
   font-size: calc(9px * var(--ui-scale));
@@ -574,5 +608,91 @@
   }
   .settings-nav {
     width: 230px;
+  }
+}
+
+/* Settings search: the field from Paper's nav; results replace the sections. */
+.settings-search {
+  height: 36px;
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: var(--color-fill-subtle);
+  color: var(--color-text-subtle);
+}
+.settings-search:focus-within {
+  border-color: var(--color-border-strong);
+}
+.settings-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: calc(12px * var(--ui-scale));
+  outline: none;
+}
+/* The field's border shows focus, as in the other search fields. */
+.settings-search input:focus-visible {
+  outline: none;
+}
+.settings-search input::placeholder {
+  color: var(--color-text-subtle);
+}
+.settings-inner-search {
+  padding: 0 8px 10px;
+}
+.settings-inner-search .settings-search {
+  height: 30px;
+}
+.settings-results {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.settings-result {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  text-align: left;
+}
+.settings-result span {
+  color: var(--color-text-primary);
+  font-size: calc(13px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
+}
+.settings-result small {
+  color: var(--color-text-subtle);
+  font-size: calc(11px * var(--ui-scale));
+  line-height: calc(14px * var(--ui-scale));
+}
+.settings-result:hover:not(:disabled),
+.settings-result:focus-visible {
+  background: var(--color-fill);
+}
+.settings-no-results {
+  padding: 8px;
+  color: var(--color-text-subtle);
+  font-size: calc(12px * var(--ui-scale));
+}
+.sv-row-found {
+  border-radius: var(--radius-md);
+  animation: sv-row-found 1.8s ease-out;
+}
+@keyframes sv-row-found {
+  0%,
+  40% {
+    background: var(--color-accent-soft);
+    box-shadow: 0 0 0 1px var(--color-accent-border);
+  }
+  100% {
+    background: transparent;
+    box-shadow: none;
   }
 }

@@ -1,9 +1,16 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod app_webview;
+mod attention;
 mod bridge;
 mod browser;
+mod feedback;
+mod folders;
 mod lifecycle;
+#[cfg(target_os = "macos")]
+mod mac_keys;
 mod snapshots;
+mod text_input;
 
 use jam_runtime::Runtime;
 use std::sync::{Arc, atomic::AtomicBool};
@@ -16,7 +23,13 @@ pub(crate) struct Host {
 }
 
 fn main() {
-    let app = tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(target_os = "macos")]
+    let builder = builder
+        .menu(mac_keys::menu)
+        .on_menu_event(mac_keys::on_menu_event);
+    let app = builder
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             lifecycle::show(app)
         }))
@@ -32,12 +45,28 @@ fn main() {
             browser::browser_action,
             browser::browser_close,
             snapshots::snapshot_host,
-            snapshots::snapshot_toast_request
+            snapshots::snapshot_toast_request,
+            folders::pick_directory,
+            feedback::open_feedback,
+            attention::set_attention_badge,
+            attention::notify
         ])
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
-            let runtime = Runtime::open_demo(data_dir.join("jam-demo.sqlite"))?;
+            // `JAM_DEMO=1` opens a separate demo database with sample
+            // projects and the demo provider, for development and
+            // demonstrations. It never touches the user's history.
+            let runtime = if std::env::var_os("JAM_DEMO").is_some_and(|value| value == "1") {
+                let demo_dir = data_dir.join("demo");
+                std::fs::create_dir_all(&demo_dir)?;
+                Runtime::open_demo(demo_dir.join("demo.sqlite"))?
+            } else {
+                Runtime::open_user_data(&data_dir)?
+            };
+            text_input::keep_typed_text();
+            #[cfg(target_os = "macos")]
+            mac_keys::forward_command_period(app.handle());
             app.manage(browser::BrowserHost::default());
             app.manage(snapshots::SnapshotHost::default());
             app.manage(Host {
@@ -85,8 +114,7 @@ fn main() {
             // resizability attaches it. Not yet verified on Windows.
             #[cfg(windows)]
             window.set_resizable(true)?;
-            #[cfg(not(windows))]
-            let _ = window;
+            app_webview::make_app_like(&window)?;
             // Startup fails visibly if the reopen path cannot be created; never hide an unreachable app.
             lifecycle::install_tray(app)?;
             snapshots::install(app.handle());

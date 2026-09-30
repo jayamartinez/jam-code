@@ -5,3 +5,4 @@ export * from './errors';
 export * from './validation';
 export * from './git';
 export * from './snapshots';
+export * from './projects';

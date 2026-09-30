@@ -132,8 +132,68 @@ fn status(value: Option<&str>, exit_code: Option<i64>) -> String {
     .into()
 }
 
+/// The command as a person would type it. Codex reports each command as the
+/// quoted invocation of its shell: `"C:\…\pwsh.exe" -Command 'git status'`
+/// on Windows (backslashes escaped the POSIX way) or `/bin/zsh -lc 'ls'` on
+/// macOS. The shell wrapper is dropped when the rest is one quoted script,
+/// and escaped Windows path separators read as single backslashes.
+pub(crate) fn display_command(raw: &str) -> String {
+    let raw = raw.trim();
+    if let Some(script) = shell_script(raw) {
+        return script;
+    }
+    if raw.contains(":\\\\") {
+        raw.replace("\\\\", "\\")
+    } else {
+        raw.to_string()
+    }
+}
+
+fn shell_script(raw: &str) -> Option<String> {
+    let (program, rest) = match raw.strip_prefix('"') {
+        Some(quoted) => {
+            let end = quoted.find('"')?;
+            (&quoted[..end], quoted[end + 1..].trim_start())
+        }
+        None => raw
+            .split_once(' ')
+            .map(|(program, rest)| (program, rest.trim_start()))?,
+    };
+    let name = program.rsplit(['/', '\\']).next()?.to_ascii_lowercase();
+    let name = name.strip_suffix(".exe").unwrap_or(&name);
+    if !["pwsh", "powershell", "bash", "zsh", "sh", "cmd"].contains(&name) {
+        return None;
+    }
+    // Options up to the one that introduces the script: `-NoProfile
+    // -Command`, `-lc`, `/c`. Anything else is not a wrapped script.
+    let mut rest = rest;
+    loop {
+        let (flag, after) = rest.split_once(' ')?;
+        if !(flag.starts_with('-') || flag.starts_with('/')) {
+            return None;
+        }
+        rest = after.trim_start();
+        if ["-command", "-c", "-lc", "/c"].contains(&flag.to_ascii_lowercase().as_str()) {
+            break;
+        }
+    }
+    let script = match (rest.chars().next(), rest.chars().last()) {
+        (Some('\''), Some('\'')) if rest.len() >= 2 => {
+            let inner = &rest[1..rest.len() - 1];
+            // POSIX quoting writes a quote inside as '"'"'; PowerShell as ''.
+            inner.replace("'\"'\"'", "'").replace("''", "'")
+        }
+        (Some('"'), Some('"')) if rest.len() >= 2 && !rest[1..rest.len() - 1].contains('"') => {
+            rest[1..rest.len() - 1].to_string()
+        }
+        _ if !rest.contains(['\'', '"']) => rest.to_string(),
+        _ => return None,
+    };
+    (!script.trim().is_empty()).then_some(script)
+}
+
 fn command(id: &str, item: &Value) -> MessageBlock {
-    let command = text(item, "command").unwrap_or_default();
+    let command = &display_command(text(item, "command").unwrap_or_default());
     let exit = item.get("exitCode").and_then(Value::as_i64);
     let mut detail = item
         .get("aggregatedOutput")
@@ -156,7 +216,7 @@ fn command(id: &str, item: &Value) -> MessageBlock {
         [action] => match text(action, "type") {
             Some("read") => (
                 "read",
-                format!("Read {}", text(action, "name").unwrap_or(command)),
+                format!("Read {}", text(action, "name").unwrap_or(command.as_str())),
             ),
             Some("search") => (
                 "search",
@@ -348,7 +408,8 @@ pub(crate) fn interaction(
                 Some(host) => format!("Codex wants network access to {host}"),
                 None => "Codex wants to run a command".into(),
             };
-            interaction.detail = text(params, "command").map(|c| bounded(c, 8_000));
+            interaction.detail =
+                text(params, "command").map(|c| bounded(&display_command(c), 8_000));
             interaction.choices = standard();
             if let Some(prefix) = params
                 .get("proposedExecpolicyAmendment")
@@ -479,6 +540,35 @@ pub(crate) fn cancellation(method: &str) -> Value {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn commands_read_as_typed_without_their_shell() {
+        use super::display_command;
+        let cases = [
+            (
+                r#""C:\\Users\\a\\AppData\\Local\\Microsoft\\WindowsApps\\pwsh.exe" -Command 'git branch --show-current'"#,
+                "git branch --show-current",
+            ),
+            (
+                r#""C:\\Program Files\\PowerShell\\7\\pwsh.exe" -NoProfile -Command 'Get-Location; ls'"#,
+                "Get-Location; ls",
+            ),
+            (r#"cmd.exe /c "dir /b""#, "dir /b"),
+            ("/bin/zsh -lc ls", "ls"),
+            ("/bin/bash -lc 'pnpm test'", "pnpm test"),
+            (r#"/bin/zsh -lc 'echo '"'"'hi'"'"''"#, "echo 'hi'"),
+            ("pnpm check", "pnpm check"),
+            ("bash script.sh", "bash script.sh"),
+            (
+                r#""C:\\tools\\rg.exe" -n todo"#,
+                r#""C:\tools\rg.exe" -n todo"#,
+            ),
+            (r#"cat "a b.txt""#, r#"cat "a b.txt""#),
+        ];
+        for (raw, shown) in cases {
+            assert_eq!(display_command(raw), shown, "{raw}");
+        }
+    }
+
     use super::*;
 
     #[test]

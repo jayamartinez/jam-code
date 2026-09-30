@@ -3,7 +3,7 @@ import { RefreshCw } from 'lucide-react';
 import type { ProviderCapability, ProviderDescriptor } from '@jam/protocol';
 import { PROVIDER_CAPABILITIES } from '@jam/protocol';
 import { ProviderIcon } from '../../icons';
-import { Planned, Row, Segmented, Select, Toggle } from '../controls';
+import { Planned, Row, Select, Toggle } from '../controls';
 import { ComingSoonGlyph } from '../provider-glyphs';
 import {
   CAPABILITY_LABELS,
@@ -16,7 +16,6 @@ import {
   statusCells,
 } from '../providers-model';
 import type { ProviderControl, SettingsPageProps } from '../types';
-import { effortLabel } from '../../composer-model';
 import { ProviderAccount } from './ProviderAccount';
 import { ProviderModels } from './ProviderModels';
 
@@ -26,7 +25,11 @@ import { ProviderModels } from './ProviderModels';
  * own CLI; anything it did not report stays unknown. Saved choices go to the
  * runtime; nothing here reads or stores provider credentials.
  */
-export default function ProvidersPage({ providers, providerControl }: SettingsPageProps) {
+export default function ProvidersPage({
+  providers,
+  providerControl,
+  onNavigate,
+}: SettingsPageProps) {
   const [selectedId, setSelectedId] = useState(() => initialProviderId(providers));
   const [checking, setChecking] = useState(false);
   const selected =
@@ -116,6 +119,7 @@ export default function ProvidersPage({ providers, providerControl }: SettingsPa
             control={providerControl}
             checking={checking}
             onCheck={check}
+            onGeneral={() => onNavigate('General')}
           />
         ) : (
           <div className="sv-split-detail empty">The runtime reported no providers.</div>
@@ -130,19 +134,18 @@ function ProviderDetail({
   control,
   checking,
   onCheck,
+  onGeneral,
 }: {
   provider: ProviderDescriptor;
   control: ProviderControl;
   checking: boolean;
   onCheck(): void;
+  onGeneral(): void;
 }) {
   const live = provider.id !== 'mock';
   const defaults = provider.defaults ?? {};
   const models = provider.models ?? [];
   const chosenModel = models.find((item) => item.id === defaults.model);
-  // Effort levels follow the chosen model, else the one the provider lists first.
-  const model = chosenModel ?? models.find((item) => item.isDefault) ?? models[0];
-  const efforts = model?.efforts ?? [];
   const [executable, setExecutable] = useState(provider.executableOverride ?? '');
   const saveDefault = (key: string, value: string | undefined) => {
     const next = { ...defaults };
@@ -248,42 +251,31 @@ function ProviderDetail({
                     : {})}
                 />
               </Row>
-              {efforts.length > 0 && (
-                <Row title="Effort" sub={`Levels ${model?.label ?? 'this model'} reports.`}>
-                  <Segmented
-                    label="Effort"
-                    value={defaults.effort ?? ''}
-                    options={[
-                      {
-                        value: '',
-                        label: model?.defaultEffort
-                          ? `Default (${effortLabel(model.defaultEffort)})`
-                          : 'Default',
-                      },
-                      ...efforts.map((effort) => ({
-                        value: effort,
-                        label: effortLabel(effort),
-                      })),
-                    ]}
-                    onChange={(value) => saveDefault('effort', value || undefined)}
-                  />
-                </Row>
-              )}
-              {(provider.options ?? []).map((option) => (
-                <Row key={option.id} title={option.label} sub={option.description}>
-                  <Select
-                    label={option.label}
-                    value={defaults[option.id] ?? option.default}
-                    options={option.values.map((value) => ({
-                      value: value.value,
-                      label: value.label,
-                    }))}
-                    onChange={(value) =>
-                      saveDefault(option.id, value === option.default ? undefined : value)
-                    }
-                  />
-                </Row>
-              ))}
+              <Row
+                title="Effort and permissions"
+                sub="New chats use the effort and permissions set for every agent in General."
+              >
+                <button type="button" className="sv-link" onClick={onGeneral}>
+                  General ›
+                </button>
+              </Row>
+              {(provider.options ?? [])
+                .filter((option) => option.id !== 'access')
+                .map((option) => (
+                  <Row key={option.id} title={option.label} sub={option.description}>
+                    <Select
+                      label={option.label}
+                      value={defaults[option.id] ?? option.default}
+                      options={option.values.map((value) => ({
+                        value: value.value,
+                        label: value.label,
+                      }))}
+                      onChange={(value) =>
+                        saveDefault(option.id, value === option.default ? undefined : value)
+                      }
+                    />
+                  </Row>
+                ))}
             </>
           ) : (
             <Row title="Model">

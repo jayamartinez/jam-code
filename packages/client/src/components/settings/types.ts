@@ -39,6 +39,16 @@ export interface ProviderControl {
   configure(changes: RequestMap['provider.configure']['params']): Promise<void>;
 }
 
+/** Adding, removing and relinking projects; the runtime owns the records. */
+export interface ProjectControl {
+  /** Opens the folder picker and adds the chosen folder. Absent without one. */
+  add?(): Promise<Project | null>;
+  /** Forgets a project. Its folder and history stay on disk. */
+  remove(projectId: string): Promise<void>;
+  /** Chooses a folder with the picker, opened in `start`; absent without one. */
+  pickFolder?(start?: string): Promise<string | null>;
+}
+
 /** Everything a Settings page may read or change. Pages own no records. */
 export interface SettingsPageProps {
   providers: ProviderDescriptor[];
@@ -57,10 +67,13 @@ export interface SettingsPageProps {
   newThreadWorkspace: NewThreadWorkspace;
   onNewThreadWorkspace(next: NewThreadWorkspace): void;
   onUpdateProject(projectId: string, changes: ProjectChanges): Promise<void>;
+  projectControl: ProjectControl;
   /** Moves to another Settings page, e.g. from a "Providers ›" link. */
   onNavigate(page: SettingsPageId): void;
   /** Runtime requests for pages backed by runtime settings (Snapshots). */
   transport: JamTransport;
   /** Present only in the desktop app, where capture exists. */
   snapshots?: SnapshotHost;
+  /** JAM Code's GitHub pages; present only in the desktop app. */
+  openFeedback?: DesktopServices['openFeedback'];
 }

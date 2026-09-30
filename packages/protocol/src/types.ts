@@ -42,6 +42,7 @@ export interface Project {
   id: string;
   name: string;
   initials: string;
+  /** The checked-out branch, read live; empty for a folder that is not in Git. */
   branch: string;
   /** Absent means the project draws its initials. */
   icon?: ProjectIcon;
@@ -52,6 +53,8 @@ export interface Project {
   paths?: string[];
   /** Pinned projects sort first in the sidebar. */
   pinned?: boolean;
+  /** The first folder is gone or unreadable: moved, renamed or on a detached drive. */
+  folderMissing?: boolean;
 }
 
 /** Resources outlive their views. Closing a tab never destroys this record. */
@@ -518,7 +521,7 @@ export interface RequestMap
     result: { sessionId: string; interrupted: boolean };
   };
   'directory.list': {
-    params: { projectId: string; path: string };
+    params: { projectId: string; path: string; worktreeId?: string };
     result: DirectoryListing;
   };
   'file.read': {
@@ -536,6 +539,20 @@ export interface RequestMap
     params: { projectId: string; path: string; text: string };
     result: FileSaved;
   };
+  /**
+   * Adds a folder as a project. Adding a folder JAM already knows returns
+   * that project (`existing`), restoring it if it was removed.
+   */
+  'project.create': {
+    /** The first folder is the project's primary one. Name defaults to its folder's. */
+    params: { paths: string[]; name?: string; icon?: ProjectIcon };
+    result: { project: Project; existing: boolean };
+  };
+  /**
+   * Removes JAM's reference to a project. Its folder is never touched, and
+   * its conversations return if the folder is added again.
+   */
+  'project.remove': { params: { projectId: string }; result: { projectId: string } };
   'project.update': {
     params: {
       projectId: string;

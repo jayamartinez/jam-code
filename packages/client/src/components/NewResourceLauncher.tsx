@@ -4,6 +4,7 @@ import type { OpenableKind, Presentation, Project } from '@jam/protocol';
 import { IconSlot, ProviderIcon } from './icons';
 import { ProjectBadge } from './ProjectBadge';
 import { useOccludesNativeViews } from '../state/native-occlusion';
+import { useShortcutHint } from '../state/keybindings';
 
 /**
  * The New Resource launcher answers "what do I want to open?".
@@ -39,6 +40,8 @@ export interface NewResourceLauncherProps {
   /** Live terminals in this project, reopened rather than started again. */
   terminals?: { id: string; label: string; detail: string }[];
   onOpenTerminal?(resourceId: string): void;
+  /** Opens the folder picker; absent where the host has none. */
+  onAddProject?(): void;
 }
 
 const SEARCH_GLYPH = (
@@ -76,7 +79,10 @@ export function NewResourceLauncher({
   onResource,
   terminals,
   onOpenTerminal,
+  onAddProject,
 }: NewResourceLauncherProps) {
+  const newChatHint = useShortcutHint('new-chat', shortcut === '⌘');
+  const codexHint = useShortcutHint('new-chat-codex', shortcut === '⌘');
   const container = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
   useOccludesNativeViews();
@@ -107,6 +113,8 @@ export function NewResourceLauncher({
   const trigger = useRef<Element | null>(null);
   const [switching, setSwitching] = useState(false);
   const project = projects.find((item) => item.id === projectId);
+  /** Only a project without a folder still lists the demo file tree. */
+  const folderless = !project?.paths?.length;
 
   const sections = useMemo<{ label: string; actions: LauncherAction[] }[]>(
     () => [
@@ -116,14 +124,14 @@ export function NewResourceLauncher({
           {
             id: 'claude',
             label: 'Claude Code chat',
-            shortcut: `${shortcut} N`,
+            shortcut: newChatHint,
             icon: <ProviderIcon presentation="claude" />,
             run: () => onAgentChat('claude'),
           },
           {
             id: 'codex',
             label: 'Codex chat',
-            shortcut: `${shortcut} ⇧ N`,
+            shortcut: codexHint,
             icon: <ProviderIcon presentation="codex" />,
             run: () => onAgentChat('codex'),
           },
@@ -194,7 +202,7 @@ export function NewResourceLauncher({
           {
             id: 'file-browser',
             label: 'File browser',
-            hint: 'Demo tree',
+            ...(folderless ? { hint: 'Demo tree' } : {}),
             icon: (
               <ToolGlyph>
                 <path
@@ -269,7 +277,16 @@ export function NewResourceLauncher({
           ]
         : []),
     ],
-    [onAgentChat, onOpenTerminal, onResource, shortcut, terminals],
+    [
+      codexHint,
+      folderless,
+      newChatHint,
+      onAgentChat,
+      onOpenTerminal,
+      onResource,
+      shortcut,
+      terminals,
+    ],
   );
 
   useEffect(() => {
@@ -416,24 +433,16 @@ export function NewResourceLauncher({
         <button
           type="button"
           className="launcher-row launcher-project-row dashed"
-          disabled
-          title="Choosing a local folder needs native folder access, which is not implemented yet."
+          disabled={!onAddProject}
+          title={onAddProject ? undefined : 'Adding a folder needs the desktop app'}
+          onClick={() => {
+            onClose();
+            onAddProject?.();
+          }}
         >
           <Folder size={12} />
-          <span className="launcher-row-label">Open folder…</span>
+          <span className="launcher-row-label">New project…</span>
         </button>
-        <button
-          type="button"
-          className="launcher-row launcher-project-row field"
-          disabled
-          title="Cloning a repository is not implemented yet."
-        >
-          <span className="mono">git clone url or owner/repo</span>
-        </button>
-        <p className="launcher-note">
-          Local folders on disk are not listed: detecting them needs native folder access. These are
-          demo projects.
-        </p>
       </div>
     </div>
   );

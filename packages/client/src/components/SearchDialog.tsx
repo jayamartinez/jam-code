@@ -11,6 +11,7 @@ import type {
 import { loadRecentSearches, rememberSearch, saveRecentSearches } from '../state/recent-searches';
 import { compactAge } from '../state/threads';
 import { Dialog, IconButton, Shortcut } from './Controls';
+import { MenuSelect } from './MenuSelect';
 import { ProviderIcon, sessionProviderName } from './icons';
 
 /** How many recent chats show before anything is typed. */
@@ -155,28 +156,28 @@ export function SearchDialog({
         </IconButton>
       </div>
       <div className="search-filters">
-        <select
-          aria-label="Search project"
+        <MenuSelect
+          label="Search project"
           value={projectId}
-          onChange={(event) => setProjectId(event.target.value)}
-        >
-          <option value="">Any project</option>
-          {projects.map((project) => (
-            <option key={project.id} value={project.id}>
-              {project.name}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="Search provider"
+          options={[
+            { value: '', label: 'Any project' },
+            ...projects.map((project) => ({ value: project.id, label: project.name })),
+          ]}
+          onChange={setProjectId}
+        />
+        <MenuSelect
+          label="Search provider"
           value={providerId}
-          onChange={(event) => setProviderId(event.target.value)}
-        >
-          <option value="">Any provider</option>
-          <option value="mock">Mock</option>
-          <option value="claude">Claude Code</option>
-          <option value="codex">Codex</option>
-        </select>
+          options={[
+            { value: '', label: 'Any provider' },
+            ...(sessions.some((session) => session.providerId === 'mock')
+              ? [{ value: 'mock', label: 'Demo' }]
+              : []),
+            { value: 'claude', label: 'Claude Code' },
+            { value: 'codex', label: 'Codex' },
+          ]}
+          onChange={setProviderId}
+        />
         <label>
           <input
             type="checkbox"

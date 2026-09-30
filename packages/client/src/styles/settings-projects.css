@@ -229,3 +229,29 @@
   color: var(--color-text-subtle);
   font-size: calc(11.5px * var(--ui-scale));
 }
+.sv-project-row.add:not(:disabled) {
+  cursor: pointer;
+}
+.sv-project-row.add:not(:disabled):hover .sv-provider-name > span {
+  color: var(--color-text-primary);
+}
+.sv-danger-actions {
+  display: flex;
+  gap: 8px;
+}
+/* A project whose folder is gone: say so, and offer the chooser to find it. */
+.sv-missing {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--color-warning) 30%, transparent);
+  border-radius: var(--radius-lg);
+  background: var(--color-warning-soft);
+}
+.sv-missing p {
+  flex: 1;
+  color: var(--color-text-secondary);
+  font-size: calc(12px * var(--ui-scale));
+  line-height: calc(17px * var(--ui-scale));
+}

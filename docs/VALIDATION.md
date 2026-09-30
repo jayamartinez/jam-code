@@ -710,3 +710,79 @@ displayed the prefix; Show in Explorer opened Documents; Terminate shell read "S
 natively on the branch: relative activity paths, changed-file link opening beside the chat. The Explorer argument was
 verified directly; the in-app Show in Explorer click, tray Quit with a running agent command, `.cmd` shims, other
 display scales, Appearance themes, Snapshots and smart-quote input were not re-run in this pass.
+
+## Alpha release pass — v0.1.0-alpha (2026-09-29, Windows 11 25H2)
+
+Baseline `main` `0d392fe`; branch `feat/alpha-readiness`. Windows 11 Pro 25H2,
+WebView2 153, Node 22.19, pnpm 12.6, Rust 1.97.1/MSVC, Claude Code 2.1.284,
+codex-cli 0.159.0.
+
+**Automated.** `pnpm check` (285 frontend tests) and `pnpm check:rust` pass.
+New runtime tests (`crates/runtime/tests/user_data.rs`) cover a clean first
+run (no projects, only the Settings resource, no demo provider), the upgrade
+of a schema-6 `jam-demo.sqlite` with the demo seed plus real work (demo seed
+removed, a demo project with a folder kept and renamed, the person's own
+chats, bindings, settings, search and demo-provider chat kept, the legacy file
+unchanged, a `.before-v7.bak` written, no re-import), refusal of a newer
+schema (for both files), adding folders (canonical identity, name, live
+branch, plain folders, multiple folders, name and icon, invalid input),
+removal and restoration, a missing folder, and native directory listing with
+traversal refused. `tests/release-metadata.test.ts` keeps versions, license
+and bundle resources consistent. The opt-in
+`upgrade_a_copy_of_a_real_database` test upgraded a copy of a real
+development database: both real chats (Claude Code, 16 messages; Codex, 16
+messages) and their project survived; the nine demo chats and three
+folderless demo projects were removed.
+
+**Packaging.** `tauri build --bundles nsis` produced a 4.4 MiB per-user
+installer, `JAM Code_0.1.0-alpha_x64-setup.exe` (the `-alpha` version is
+accepted; WiX/MSI would not). The executable reports JAM Code / 0.1.0-alpha /
+Jay Martinez. A silent install put the app, `LICENSE`,
+`THIRD_PARTY_NOTICES.md`, an uninstaller and a Start menu shortcut in place;
+the silent uninstall removed them and left application data alone. The
+installer is unsigned (`NotSigned`), as documented. The installed build was
+not launched, because it would have used the developer's real data folder.
+
+**Native QA** used a release build with its own identifier
+(`dev.jamcode.desktop.alphaqa`), launched outside the agent's job object, with
+computer use and a temporary loopback WebView2 debug port. The developer
+watched and interacted during part of it.
+
+- Clean install: first-run screen with no projects or chats, both agents
+  detected and signed in with versions, no Demo label.
+- New project: the dialog (name, icon, folders); the native Windows folder
+  chooser ("Open a project folder", `#32770`, parented to JAM); name filled
+  from the folder; a second folder added and marked Primary; an emoji icon;
+  the project created with its live branch; a plain folder shows "No Git".
+- A real Claude Code turn in a new project; a Codex turn in a new worktree
+  (`jam/…` branch created on Send), a command approved once, then Deny and
+  stop leaving the turn interrupted. Typed quotes arrived unchanged.
+- File browser listing the real folder (no Demo tree label); Review's
+  non-Git state; Browser loading `example.com` in a WebView2 pane; a terminal
+  starting in the project folder (IPC) and terminating.
+- Settings → General: default agent, effort and permissions for every agent,
+  saved to both agents' defaults; three quick clicks all applied.
+- Settings → Projects: Remove with inline confirmation; files untouched.
+- Upgrade: a copy of the real development database placed as
+  `jam-demo.sqlite` opened as its real project and two chats, with the backup
+  written and the legacy file kept.
+
+Found and fixed during this pass: every Git call and provider check flashed
+an empty console window in the release build (no `CREATE_NO_WINDOW`); a
+"Demo" titlebar chip on user data; Codex commands shown as their quoted
+PowerShell invocation with doubled backslashes; General's shared defaults
+racing when changed quickly; "Your work is still here" shown before any
+chat existed.
+
+**Performance** (release QA build, 1 project, no chats open): after 10 s,
+60 s idle used 0.05 s of CPU (0.08% of one core); 209 MB private and 372 MB
+working set across the app and its six WebView2 processes. No provider, Git
+or shell process was running at idle. Startup time was not measured.
+
+**Not verified.** macOS (no Mac in this session: the folder picker's
+NSOpenPanel path, the smart-quote fix, the `.app`/`.dmg` bundle, ad-hoc
+signing and Gatekeeper behaviour), the universal macOS build, Windows 10,
+the installed build against real data, tray Quit with a running chat,
+keyboard shortcuts under automation (synthetic keys do not reach the web
+view), restoring a removed project through the UI (runtime-tested), and
+developer-reported manual testing.
