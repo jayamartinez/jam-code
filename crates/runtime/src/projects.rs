@@ -83,6 +83,7 @@ impl Runtime {
                 existing: true,
             });
         }
+        refuse_taken_folders(&state.store.all_projects()?, None, &paths)?;
         let name = input
             .name
             .map(|name| name.trim().to_string())
@@ -197,6 +198,37 @@ fn chosen_folder(path: &str) -> Result<PathBuf, JamError> {
         )
     })?;
     Ok(folder)
+}
+
+/// A folder belongs to one project: refuses `paths` when another project
+/// that is still in JAM (not `except`) lists one of them.
+pub(crate) fn refuse_taken_folders(
+    projects: &[Project],
+    except: Option<&str>,
+    paths: &[String],
+) -> Result<(), JamError> {
+    for path in paths {
+        // However it is written: a trailing separator or other case is the same folder.
+        let folder =
+            crate::native_files::canonical(Path::new(path)).unwrap_or_else(|_| PathBuf::from(path));
+        let folder = folder.as_path();
+        let owner = projects.iter().find(|project| {
+            project.removed_at.is_none()
+                && Some(project.id.as_str()) != except
+                && project
+                    .paths
+                    .iter()
+                    .any(|stored| same_folder(Path::new(stored), folder))
+        });
+        if let Some(owner) = owner {
+            let name = folder_name(path).unwrap_or_else(|| path.clone());
+            return Err(JamError::new(
+                "conflict",
+                format!("“{name}” is already in {}.", owner.name),
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn same_folder(stored: &Path, folder: &Path) -> bool {

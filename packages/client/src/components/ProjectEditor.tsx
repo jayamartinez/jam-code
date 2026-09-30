@@ -19,12 +19,15 @@ type IconKind = ProjectIcon['kind'];
 
 export function ProjectEditor({
   project,
+  projects,
   onPickFolder,
   onSave,
   onClose,
 }: {
   /** Absent for a new project. */
   project?: Project;
+  /** Every project, so a folder another one has is caught before saving. */
+  projects: readonly Project[];
   /** The system folder chooser, opened in `start` when given. */
   onPickFolder?(start?: string): Promise<string | null>;
   onSave(changes: { name: string; paths: string[]; icon: ProjectIcon }): Promise<void>;
@@ -70,6 +73,13 @@ export function ProjectEditor({
     icon,
   };
   const limits = PROJECT_ICONS.limits;
+  /** The other project that already has this folder, if one does. */
+  const ownerOf = (path: string) =>
+    projects.find(
+      (other) =>
+        other.id !== project?.id && (other.paths ?? []).some((known) => sameFolder(known, path)),
+    );
+  const taken = paths.map(ownerOf).find(Boolean);
 
   /** Adds a folder, or swaps the one at `index`, through the system chooser. */
   const choose = async (index?: number) => {
@@ -88,6 +98,7 @@ export function ProjectEditor({
     setError(null);
     if (!name.trim()) return setError('A project needs a name.');
     if (!paths.length) return setError('Choose the project’s folder.');
+    if (taken) return setError(`A folder here is already in ${taken.name}.`);
     if (kind === 'emoji' && !emoji) return setError('Choose an emoji, or another kind of icon.');
     if (kind === 'image' && !image) return setError('Choose an image first.');
     setSaving(true);
@@ -182,7 +193,7 @@ export function ProjectEditor({
             <div className="project-dialog-folders" role="group" aria-label="Folders">
               <span className="project-dialog-label">Folders</span>
               {paths.map((path, index) => (
-                <div className="project-folder" key={path}>
+                <div className={`project-folder ${ownerOf(path) ? 'taken' : ''}`} key={path}>
                   <button
                     type="button"
                     className="project-folder-choose"
@@ -193,8 +204,13 @@ export function ProjectEditor({
                     <Folder size={15} strokeWidth={1.7} />
                     <span className="truncate">{folderName(path)}</span>
                   </button>
-                  {index === 0 && paths.length > 1 && (
-                    <span className="project-folder-primary">Primary</span>
+                  {ownerOf(path) ? (
+                    <span className="project-folder-taken" role="alert">
+                      Already in {ownerOf(path)?.name}
+                    </span>
+                  ) : (
+                    index === 0 &&
+                    paths.length > 1 && <span className="project-folder-primary">Primary</span>
                   )}
                   <button
                     type="button"
@@ -223,12 +239,16 @@ export function ProjectEditor({
         )}
         <footer className="project-dialog-footer">
           <span className="project-dialog-hint">
-            {paths.length ? `Enter to ${creating ? 'create' : 'save'}` : ''}
+            {paths.length && !taken ? `Enter to ${creating ? 'create' : 'save'}` : ''}
           </span>
           <button type="button" className="button quiet" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="button primary" disabled={saving || !paths.length}>
+          <button
+            type="submit"
+            className="button primary"
+            disabled={saving || !paths.length || Boolean(taken)}
+          >
             {saving ? 'Saving…' : creating ? 'Create project' : 'Save'}
           </button>
         </footer>
@@ -381,4 +401,10 @@ function folderName(path: string) {
       .split(/[\\/]/)
       .pop() || path
   );
+}
+
+/** Whether two folder paths name the same folder: separators, a trailing one and case aside. */
+function sameFolder(a: string, b: string) {
+  const plain = (path: string) => path.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  return plain(a) === plain(b);
 }

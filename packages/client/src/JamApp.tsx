@@ -1927,6 +1927,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         {contextMenu && <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} />}
         {creatingProject && (
           <ProjectEditor
+            projects={workspace.projects}
             {...(desktop.pickDirectory ? { onPickFolder: desktop.pickDirectory } : {})}
             onSave={createProject}
             onClose={() => closeNewProject(null)}
@@ -1938,6 +1939,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             return target ? (
               <ProjectEditor
                 project={target}
+                projects={workspace.projects}
                 {...(desktop.pickDirectory ? { onPickFolder: desktop.pickDirectory } : {})}
                 onSave={(changes) => updateProject(target.id, changes)}
                 onClose={() => setEditingProject(null)}

@@ -382,7 +382,14 @@ impl Runtime {
                     project.initials = initials_of(&project.name);
                 }
                 if let Some(paths) = input.paths {
-                    project.paths = paths.into_iter().map(|p| p.trim().to_string()).collect();
+                    let paths: Vec<String> =
+                        paths.into_iter().map(|p| p.trim().to_string()).collect();
+                    crate::projects::refuse_taken_folders(
+                        &state.store.all_projects()?,
+                        Some(&project.id),
+                        &paths,
+                    )?;
+                    project.paths = paths;
                 }
                 if let Some(icon) = input.icon {
                     // Plain initials in the default tone is the absence of an icon.
