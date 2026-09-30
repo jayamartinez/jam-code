@@ -201,6 +201,40 @@
   font-size: calc(12px * var(--ui-scale));
   overflow-wrap: anywhere;
 }
+/* Asks before a middle click closes a tab that is doing something. */
+.dialog.confirm-dialog {
+  top: 0;
+  bottom: 0;
+  height: fit-content;
+  margin: auto;
+  width: 380px;
+  padding: 20px;
+}
+.confirm-dialog h2 {
+  font-size: calc(15px * var(--ui-scale));
+  font-weight: 500;
+  color: var(--color-text-strong);
+}
+.confirm-dialog p {
+  margin: 8px 0 18px;
+  color: var(--color-text-muted);
+  font-size: calc(12.5px * var(--ui-scale));
+  line-height: calc(19px * var(--ui-scale));
+}
+.confirm-dialog footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.confirm-dialog .button.danger,
+.confirm-dialog .button.danger:hover:not(:disabled) {
+  background: var(--color-danger);
+  color: var(--color-on-accent);
+  font-weight: 500;
+}
+.confirm-dialog .button.danger:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
 .demo-label {
   color: var(--color-text-subtle);
   font-size: calc(9px * var(--ui-scale));

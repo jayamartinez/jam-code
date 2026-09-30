@@ -19,6 +19,8 @@ interface WorkspaceTitlebarProps {
   launcherOpen: boolean;
   onSelectTab(resourceId: string): void;
   onCloseTab(tabId: string): void;
+  /** A middle click: closes an idle tab, asks first about one that matters. */
+  onMiddleCloseTab(tabId: string): void;
   onMoveTab(from: number, to: number): void;
   onNewResource(anchor: Element): void;
   onExitFocus(): void;
@@ -36,6 +38,7 @@ export function WorkspaceTitlebar({
   launcherOpen,
   onSelectTab,
   onCloseTab,
+  onMiddleCloseTab,
   onMoveTab,
   onNewResource,
   onExitFocus,
@@ -185,6 +188,15 @@ export function WorkspaceTitlebar({
                 style={drag ? { transform: `translateX(${dragOffset(index)}px)` } : undefined}
                 title={projectName ? `${title} · ${projectName}` : title}
                 onPointerDown={startDrag(index)}
+                // Middle click closes, like a browser tab; no autoscroll.
+                onMouseDown={(event) => {
+                  if (event.button === 1) event.preventDefault();
+                }}
+                onAuxClick={(event) => {
+                  if (event.button !== 1) return;
+                  event.preventDefault();
+                  onMiddleCloseTab(tab.id);
+                }}
                 onClick={() => {
                   // A drag ends on this tab too; only a plain click selects.
                   if (suppressClick.current) {
