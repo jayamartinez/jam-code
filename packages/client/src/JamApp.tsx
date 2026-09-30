@@ -804,6 +804,33 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         case 'new-chat-codex':
           if (!busy) newChat('codex');
           break;
+        case 'open-terminal': {
+          if (busy || settingsMode) break;
+          // A terminal opens in a pane under the current one, like an editor's
+          // panel; a tab that already shows one just focuses it.
+          const current = layoutRef.current;
+          const resources = client.getSnapshot().workspace?.resources ?? [];
+          const shown = leaves(activeTree(current)).find(
+            (pane) => resources.find((item) => item.id === pane.resourceId)?.kind === 'terminal',
+          );
+          if (shown) {
+            dispatch({ type: 'focusPane', paneId: shown.id });
+          } else if (!current.activeTabId) {
+            void openKind('terminal');
+          } else {
+            const paneId = newPaneId();
+            dispatch({ type: 'mode', mode: 'tiles' });
+            dispatch({
+              type: 'split',
+              direction: 'column',
+              splitId: newSplitId(),
+              newPaneId: paneId,
+              ratio: 0.68,
+            });
+            void openKind('terminal', undefined, paneId);
+          }
+          break;
+        }
         case 'new-tab':
           // The keyboard path hangs from the tab strip's own new-tab button.
           setLauncher({ anchor: anchorOf(document.querySelector('.new-resource')) });
@@ -839,6 +866,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [
     activeTabId,
+    client,
     closeTab,
     keybindings,
     reopenTab,
@@ -847,6 +875,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     launcher,
     layout.focus,
     newChat,
+    openKind,
     openSettings,
     overlay,
     previewContext,
