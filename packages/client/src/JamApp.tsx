@@ -54,7 +54,11 @@ import { useNotificationPrefs } from './state/notification-prefs';
 import { playSound } from './components/sounds';
 import { badgeIconSize, drawBadge, trayBadgeSize } from './components/attention-badge';
 import { commandFor, useKeybindings, useShortcutHint } from './state/keybindings';
-import { terminalSplit, useTerminalPlacement } from './state/terminal-placement';
+import {
+  terminalSplit,
+  useTerminalPlacement,
+  type TerminalPlacement,
+} from './state/terminal-placement';
 import { chordFromEvent } from './components/settings/keybindings-data';
 import {
   type NewThreadWorkspace,
@@ -835,6 +839,22 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   }, []);
 
   /** Splitting applies to the current tab's own arrangement. */
+  /** A new terminal beside the pane you're in, or in its own tab. */
+  const openTerminalAt = useCallback(
+    (placement: TerminalPlacement) => {
+      const split = terminalSplit(placement);
+      if (!layoutRef.current.activeTabId || !split) {
+        void openKind('terminal');
+        return;
+      }
+      const paneId = newPaneId();
+      dispatch({ type: 'mode', mode: 'tiles' });
+      dispatch({ type: 'split', ...split, splitId: newSplitId(), newPaneId: paneId });
+      void openKind('terminal', undefined, paneId);
+    },
+    [openKind],
+  );
+
   const splitPane = useCallback((direction: SplitDirection, paneId?: string) => {
     dispatch({ type: 'mode', mode: 'tiles' });
     dispatch({
@@ -861,6 +881,11 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       if (!command) return;
       event.preventDefault();
       const busy = Boolean(overlay || launcher);
+      if (command.startsWith('terminal-')) {
+        if (!busy && !settingsMode)
+          openTerminalAt(command.slice('terminal-'.length) as TerminalPlacement);
+        return;
+      }
       switch (command) {
         case 'search':
           setOverlay('search');
@@ -873,28 +898,14 @@ export function JamApp({ transport, desktop }: JamAppProps) {
           break;
         case 'open-terminal': {
           if (busy || settingsMode) break;
-          // A terminal opens where Settings → Terminal says: beside the pane
-          // you're in, or its own tab. A tab that already shows one focuses it.
-          const current = layoutRef.current;
+          // A tab that already shows a terminal focuses it; otherwise one opens
+          // where Settings → Terminal says.
           const resources = client.getSnapshot().workspace?.resources ?? [];
-          const shown = leaves(activeTree(current)).find(
+          const shown = leaves(activeTree(layoutRef.current)).find(
             (pane) => resources.find((item) => item.id === pane.resourceId)?.kind === 'terminal',
           );
-          if (shown) {
-            dispatch({ type: 'focusPane', paneId: shown.id });
-          } else if (!current.activeTabId || !terminalSplit(terminalPlacement)) {
-            void openKind('terminal');
-          } else {
-            const paneId = newPaneId();
-            dispatch({ type: 'mode', mode: 'tiles' });
-            dispatch({
-              type: 'split',
-              ...terminalSplit(terminalPlacement)!,
-              splitId: newSplitId(),
-              newPaneId: paneId,
-            });
-            void openKind('terminal', undefined, paneId);
-          }
+          if (shown) dispatch({ type: 'focusPane', paneId: shown.id });
+          else openTerminalAt(terminalPlacement);
           break;
         }
         case 'new-tab':
@@ -935,6 +946,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     client,
     closeTab,
     keybindings,
+    openTerminalAt,
     terminalPlacement,
     reopenTab,
     splitPane,

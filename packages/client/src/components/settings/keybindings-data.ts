@@ -213,6 +213,24 @@ export const BINDING_GROUPS: BindingGroup[] = [
   {
     title: 'Terminal',
     bindings: [
+      // A new terminal in one place, whatever Terminal opens says; no keys until you give them.
+      ...(
+        [
+          ['below', 'Open terminal below'],
+          ['above', 'Open terminal above'],
+          ['right', 'Open terminal to the right'],
+          ['left', 'Open terminal to the left'],
+          ['tab', 'Open terminal in a new tab'],
+        ] as const
+      ).map(([place, name]) => ({
+        id: `terminal-${place}`,
+        command: name,
+        context: 'Everywhere',
+        keys: same([]),
+        editable: true,
+        source: 'JamApp.tsx',
+        evidence: "command.startsWith('terminal-')",
+      })),
       {
         id: 'terminal-find',
         command: 'Find in terminal',
