@@ -7,6 +7,8 @@ mod browser;
 mod feedback;
 mod folders;
 mod lifecycle;
+#[cfg(target_os = "macos")]
+mod mac_keys;
 mod snapshots;
 mod text_input;
 
@@ -21,7 +23,12 @@ pub(crate) struct Host {
 }
 
 fn main() {
-    let app = tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(target_os = "macos")]
+    let builder = builder
+        .menu(mac_keys::menu)
+        .on_menu_event(mac_keys::on_menu_event);
+    let app = builder
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             lifecycle::show(app)
@@ -58,6 +65,8 @@ fn main() {
                 Runtime::open_user_data(&data_dir)?
             };
             text_input::keep_typed_text();
+            #[cfg(target_os = "macos")]
+            mac_keys::forward_command_period(app.handle());
             app.manage(browser::BrowserHost::default());
             app.manage(snapshots::SnapshotHost::default());
             app.manage(Host {
