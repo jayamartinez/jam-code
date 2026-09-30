@@ -904,8 +904,13 @@ export function JamApp({ transport, desktop }: JamAppProps) {
           const shown = leaves(activeTree(layoutRef.current)).find(
             (pane) => resources.find((item) => item.id === pane.resourceId)?.kind === 'terminal',
           );
-          if (shown) dispatch({ type: 'focusPane', paneId: shown.id });
-          else openTerminalAt(terminalPlacement);
+          if (shown) {
+            dispatch({ type: 'focusPane', paneId: shown.id });
+            // Focusing the pane is layout state; typing needs the terminal's own input.
+            document
+              .querySelector<HTMLElement>(`[data-pane-id="${shown.id}"] .xterm-helper-textarea`)
+              ?.focus();
+          } else openTerminalAt(terminalPlacement);
           break;
         }
         case 'new-tab':

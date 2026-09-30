@@ -84,11 +84,29 @@ export default function KeybindingsPage({ platform }: SettingsPageProps) {
     const onPointer = (event: PointerEvent) => {
       if (!(event.target as Element).closest?.('.sv-key-button')) setRecording(null);
     };
+    // A macOS Edit menu takes ⌘C, ⌘X and ⌘V before any key event, and the page
+    // sees the clipboard command instead. Accepting the `before…` event keeps
+    // the menu item enabled even with nothing selected, so the refusal shows.
+    const clipboardKeys: Record<string, string> = { copy: 'c', cut: 'x', paste: 'v' };
+    const onBeforeClipboard = (event: Event) => event.preventDefault();
+    const onClipboard = (event: Event) => {
+      event.preventDefault();
+      const why = chordProblem(`mod+${clipboardKeys[event.type]}`);
+      if (why) setProblem({ id: binding.id, text: why });
+    };
     window.addEventListener('keydown', onKey, true);
     window.addEventListener('pointerdown', onPointer, true);
+    for (const type of Object.keys(clipboardKeys)) {
+      window.addEventListener(type, onClipboard, true);
+      window.addEventListener(`before${type}`, onBeforeClipboard, true);
+    }
     return () => {
       window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('pointerdown', onPointer, true);
+      for (const type of Object.keys(clipboardKeys)) {
+        window.removeEventListener(type, onClipboard, true);
+        window.removeEventListener(`before${type}`, onBeforeClipboard, true);
+      }
     };
   }, [recording, mac, overrides, assign]);
 

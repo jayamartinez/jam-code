@@ -31,6 +31,9 @@
   color: var(--color-text-primary);
   font-size: calc(12px * var(--ui-scale));
 }
+.sv-search input:focus-visible {
+  outline: none;
+}
 .sv-search input::placeholder {
   color: var(--color-text-faint);
 }

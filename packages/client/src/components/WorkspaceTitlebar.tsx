@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppWindow, Columns2, Plus, X } from 'lucide-react';
 import type { Project, Resource, WorkspaceSnapshot } from '@jam/protocol';
 import type { ChatDraft } from '../state/chat-draft';
@@ -124,6 +124,14 @@ export function WorkspaceTitlebar({
     if (drag.over <= index && index < drag.from) return drag.step;
     return 0;
   };
+
+  // An overflowing strip scrolls, so the tab being shown is brought into view
+  // whenever it changes or a tab opens beside it.
+  useEffect(() => {
+    strip.current
+      ?.querySelector<HTMLElement>('.resource-tab.active')
+      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [layout.activeTabId, layout.tabs.length]);
 
   // Labels tighten as tabs accumulate rather than the strip silently scrolling
   // a tab out of reach behind the layout controls.

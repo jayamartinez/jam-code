@@ -338,7 +338,13 @@
     padding-left: 18px;
     padding-right: 18px;
   }
+  /* Narrow tiles keep the status dot and drop the words beside it. */
   .tiles .pane-actions .provider-status {
+    padding: 3px;
+    background: none;
+    border-color: transparent;
+  }
+  .tiles .pane-actions .provider-status :is(.provider-name, .subtle, .demo-label) {
     display: none;
   }
   .new-chat-suggestions {

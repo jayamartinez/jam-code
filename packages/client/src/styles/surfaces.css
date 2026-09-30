@@ -635,6 +635,10 @@
   font-size: calc(12px * var(--ui-scale));
   outline: none;
 }
+/* The field's border shows focus, as in the other search fields. */
+.settings-search input:focus-visible {
+  outline: none;
+}
 .settings-search input::placeholder {
   color: var(--color-text-subtle);
 }
