@@ -363,6 +363,48 @@ fn an_explicit_demo_database_still_has_its_seed() {
 }
 
 #[test]
+fn a_folder_belongs_to_one_project() {
+    let data = TempDir::new("taken-folders");
+    let (app, docs, other) = (
+        data.0.join("app"),
+        data.0.join("docs"),
+        data.0.join("other"),
+    );
+    for folder in [&app, &docs, &other] {
+        std::fs::create_dir_all(folder).unwrap();
+    }
+    let runtime = Runtime::open_user_data(data.0.join("app-data")).unwrap();
+    let path = |folder: &std::path::PathBuf| folder.to_str().unwrap().to_owned();
+    request(
+        &runtime,
+        "project.create",
+        json!({ "paths": [path(&app), path(&docs)] }),
+    );
+
+    // Another project's second folder cannot start or join a new one.
+    let error = call(
+        &runtime,
+        "project.create",
+        json!({ "paths": [path(&docs)] }),
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("already in app"), "{error}");
+    let second = request(
+        &runtime,
+        "project.create",
+        json!({ "paths": [path(&other)] }),
+    );
+    let id = second["project"]["id"].as_str().unwrap();
+    let error = call(
+        &runtime,
+        "project.update",
+        json!({ "projectId": id, "paths": [path(&other), path(&app)] }),
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("already in app"), "{error}");
+}
+
+#[test]
 fn folders_become_projects_that_can_be_removed_and_restored() {
     let data = TempDir::new("projects");
     let folder = data.0.join("My App");

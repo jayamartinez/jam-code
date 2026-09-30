@@ -602,6 +602,11 @@ span.icon-slot {
 
 /* New / Edit project (Paper, Core flows "16 · New project dialog"). */
 .dialog.project-dialog {
+  /* Short and fixed in size, so it sits in the middle rather than near the top. */
+  top: 0;
+  bottom: 0;
+  height: fit-content;
+  margin: auto;
   width: 440px;
   max-width: calc(100vw - 32px);
   /* The icon popover hangs below the icon, past the dialog's edge. */
@@ -721,6 +726,14 @@ span.icon-slot {
 .project-folder-choose svg {
   flex-shrink: 0;
   color: var(--color-text-muted);
+}
+.project-folder.taken {
+  box-shadow: inset 0 0 0 1px var(--color-warning);
+}
+.project-folder-taken {
+  flex-shrink: 0;
+  color: var(--color-warning);
+  font-size: calc(11.5px * var(--ui-scale));
 }
 .project-folder-primary {
   flex-shrink: 0;
