@@ -1,788 +1,191 @@
-# Foundation validation
-
-This document describes reproducible checks and the boundary of their evidence. Current implementation results are recorded below. Automated interaction is not developer-reported manual testing.
-
-## Automated gates
-
-- `pnpm format:check`: repository text formatting.
-- `pnpm lint`: TypeScript/React lint plus forbidden native/provider imports in shared packages.
-- `pnpm typecheck`: strict contract/client/host checks.
-- `pnpm test`: core layout, transport/normalization and architecture boundary tests.
-- `pnpm build`: production frontend compilation; development preview is excluded.
-- `cargo fmt --all --check`, `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`.
-
-Native runtime tests cover migration/seed idempotence, persistence/reopen, FTS queries, retry deduplication and view-independent subscriptions. UI checks must verify native IPC as well as browser rendering; neither substitutes for the other.
-
-## Manual acceptance sequence
-
-1. Run `pnpm desktop`. Confirm the compact Nightglass sidebar/tabs and the jam mark and wordmark. No provider login or credential prompt should appear.
-2. Open several conversations from history. Switch Single/Tiles. Close and reopen a tab; the transcript should remain available. Collapse/reopen the sidebar.
-3. Send an ordinary mock message. Observe streamed response/tool state and completion. Submit `/fail` to check honest failure, then recover with another message.
-4. Send, interrupt promptly, and confirm no late completion overwrites interrupted state. Send again; switch resources or hide/reopen the window while it runs. Work must continue independently of view visibility.
-5. Search a distinctive phrase you sent. Open the result. Quit from the tray, relaunch, and verify native history/search persist. Browser preview deliberately resets on reload.
-6. Open Settings via footer and Ctrl/Cmd+,; return via Escape. Open Settings as a resource if available. Only mock is enabled; installed/authenticated live-provider state is unknown, not fabricated.
-7. Resize to 960×640 and 1440×900. Check composer visibility, independently scrolling history/transcript, keyboard focus rings, accessible labels and no horizontal document overflow.
-8. Verify the native close/hide/reopen/Quit flow. Repeat on macOS before making cross-platform claims.
-
-Deferred functions must be visibly labeled or disabled. No demo command should execute on the computer. No attachment should send without explicit submission.
-
-## Visual comparison
-
-Compare the running shell against Paper's Windows Single and Windows Tiled frames, plus the semantic token frame. Inspect 280px sidebar, 44px titlebar, 42px pane header, 6px tile gaps, 8px outer padding, max-width 700px single conversation, compact typography and subtle translucent surfaces. The semantic token `container-thread` is 640px while the actual Single frame uses 700px; follow the frame per surface. Check collapsed rail at 56px separately.
-
-Mock labels and disabled future controls are intentional honesty requirements. Paper's provider/model/version/count numbers are design examples, not live facts.
-
-## Resource and layout milestone (2026-09-26, macOS)
-
-Automated gates run on macOS 15 (Darwin 25.3), Node 22 via the documented
-`npm exec` pnpm workaround, Rust stable:
-
-| Check                                                                              | Result                                                                                                                        |
-| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm format:check`, `pnpm lint`, `pnpm typecheck`                                 | Passed                                                                                                                        |
-| `pnpm test`                                                                        | Passed: 60 tests across seven files, up from 37                                                                               |
-| `pnpm build`                                                                       | Passed; CodeMirror is a separate 291 kB chunk and each language mode is its own chunk, so none of it is in the startup bundle |
-| `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` | Passed                                                                                                                        |
-| `cargo test --workspace`                                                           | Passed: 14 tests, including the file service and file-resource identity                                                       |
-
-New automated coverage: split right, split down, nested splits, ratio clamping,
-pane focus, closing a pane versus closing a resource tab, Single ↔ Tiles round
-trips preserving both the arrangement and every resource identity, two
-conversations in one arrangement, promoted drafts staying in their pane,
-one-level directory listings, path-escape rejection, and file resources keeping
-one identity per path across a runtime restart. Boundary tests now fail if the
-layout tree names a resource kind or if the tile renderer imports a resource
-surface.
-
-The development build was restarted under `pnpm desktop` so the running
-application serves the new client with hot reload.
-
-**Visual comparison.** The client was rendered headlessly at 1440x900 against
-the development server and compared with the Paper frames. Verified on screen:
-the launcher's 600px width, 42px drop below the titlebar and centring on the
-main region; its Agents/Tools sections, project column and honest disabled
-states; provider icon density across pinned, history, tabs and launcher rows;
-Single to Tiles; split right and split down; the empty-pane affordance; a
-Claude conversation and a Codex conversation side by side, each with its own
-composer; the file browser's lazy tree, git status letters and branch footer;
-opening a file into a different pane; the File resource's path metadata,
-`Read-only` and `Demo tree` labels, gutter and syntax highlighting; a file
-above a terminal nested inside a split with the browser, built from generic
-splits only; and a Single/Tiles round trip restoring all three panes with
-resource identities intact.
-
-Four defects were found this way and fixed: the launcher's project badge was
-stretched by an inherited `flex: 1`; a disabled launcher row rendered both its
-hint and a redundant "Unavailable" chip; the initially focused launcher row had
-no visible highlight because the rule used `:focus-visible` after a
-programmatic focus; and a pane header wrapped to three lines at tile width,
-which now drops the branch and then the project label by the header's own
-width through a container query. Opening a file also preferred an arbitrary
-pane and could displace a working conversation; it now prefers a pane already
-showing a file, then an empty pane.
-
-**Not verified.** Two things still need a hands-on pass. The macOS native
-traffic lights cannot appear in a browser render, so the titlebar inset,
-spacing and drag regions from Issue 1 are implemented from the frame's
-computed styles but unconfirmed on screen; computer use was unavailable this
-session because Accessibility and Screen Recording were not granted. Windows
-was not run at all, so the claim that its chrome is unregressed rests on the
-platform-conditional code paths and unchanged Windows CSS, not on observation.
-The headless render also exercises the browser preview transport, not the
-native SQLite runtime, so these are rendering and interaction checks rather
-than native IPC checks.
-
-## Tabs, panes and Files milestone (2026-09-26)
-
-`pnpm format:check`, `lint`, `typecheck`, `build`, `cargo fmt --all --check`
-and `cargo clippy --workspace --all-targets -- -D warnings` pass. 64 frontend
-tests across eight files and 15 runtime tests pass, including: selecting a tab
-while an empty pane is focused switches the workspace rather than filling that
-pane; each tab keeping its own arrangement; pane resources staying out of the
-tab bar; tab reordering; a promoted draft carrying its tab, tree and text; and
-a save round trip persisting a working copy across a runtime restart while
-leaving other files and the shipped fixture untouched.
-
-Verified by rendering the client headlessly at 1440x900 against the development
-server and reading the screenshots: tab selection no longer assigns into an
-empty pane; splitting creates no tab; the file browser stays visible when a
-file opens, with the file landing in a pane beside it; the tree keeps its
-expansion across that reshape; browser, editor and terminal form the Files
-frame's arrangement from generic splits; File, File Browser and Review remain
-three distinct panes; typing marks the editor dirty and Cmd/Ctrl+S clears it;
-and both icon themes render at the same geometry.
-
-Defects found this way and fixed: the provider mark was stretched to half-width
-in search results and new-chat suggestions by an ambient `span { flex: 1 }`; the
-branch chip drew its icon over its text; a pane header wrapped to three lines at
-tile width; the file tree collapsed whenever a file opened; the browser header
-clipped its project name at 250px and its footer wrapped; a Rust manifest
-carried the Node package mark in both themes; and the first JAM glyph set was
-illegible at 14px and was redrawn mark-first.
-
-**Not verified.** The macOS native traffic lights still cannot appear in a
-browser render, so Issue 1's titlebar geometry remains implemented from the
-frame's computed styles and unconfirmed on screen; computer use was unavailable
-because Accessibility and Screen Recording were not granted. Windows was not
-run. The headless route exercises the browser preview transport, so saves were
-confirmed against the preview's in-memory store in the browser and against
-SQLite only through runtime tests, not through the native app. Tab drag-and-drop
-reordering was implemented and type-checked but exercised only through its
-keyboard path and unit test, not by dragging in the running app.
-
-## Appearance and project identity pass (2026-09-26)
-
-The whole gate passes again: format, lint, typecheck, build, `cargo fmt`,
-`cargo clippy -- -D warnings`, 64 frontend tests and 15 runtime tests.
-
-Verified by headless render: the editor now resolves to Geist Mono rather than
-the browser's default serif (`.cm-scroller` computes to the Geist Mono Variable
-stack); the Appearance settings page changes editor family, size and line
-height with a live preview; project icon presets and image upload are offered
-per project; tab badges appear once more than one project is open; and
-pointer-based tab reordering moves a tab from index 0 to index 2.
-
-The editor font was regressing because the CodeMirror theme used `var(--font-mono)`
-alone. That token holds the design's family _name_, `Geist Mono`, which is not a
-loaded family, so the editor fell through to a serif default while every other
-mono surface used the full stack.
-
-**Not verified.** The macOS Settings header inset was confirmed only as a
-computed value of 78px under a simulated platform class; the native traffic
-lights themselves still need a look on macOS, as does Issue 1's titlebar
-geometry. Windows was not run. Project icon images were exercised through the
-squaring helper's code path in the browser only — no image was uploaded end to
-end, and image icons have not been round-tripped through the native SQLite
-runtime, only through the preview transport and runtime validation.
-
-## macOS chrome, verified on screen (2026-09-26)
-
-Computer use became available once Screen Recording was granted to the Claude
-desktop app. The Tauri dev executable is a bare binary that computer use cannot
-target, so the app was run as a debug `.app` bundle (`pnpm tauri build --debug
---bundles app`), which registers as `jam`.
-
-Three real macOS defects were found and fixed by looking at the native window:
-
-- **Traffic lights sat about 7pt above the titlebar row.** Tauri's
-  `traffic_light_position.y` is not a distance from the top: wry sets the
-  titlebar container to `button height + y`, and the buttons keep their own
-  offset inside it. `y = 16` centred them near 15pt; the 44pt titlebar row is
-  centred at 22pt. `y = 23` puts the lights on the same line as the tabs and
-  the sidebar header's controls.
-- **The dedicated Settings title touched the green light.** Its header now
-  starts at 88px: the lights span 18–70px, and the title keeps the same 18px of
-  air on their right that they keep from the window edge.
-- **With the sidebar collapsed, the green light covered the first tab.** The
-  56px rail is narrower than the lights; the titlebar now starts its tabs 32px
-  in from the rail so they clear the lights by the same 18px.
-
-Verified in the running native app: expanded sidebar, dedicated Settings and
-collapsed rail. Windows was not run.
-
-## Editing, tabs and cross-platform pass (2026-09-26, macOS)
-
-Checked in headless Chromium against the preview transport (a 16-step sweep:
-send, failure, interrupt, search, shortcuts, launcher anchoring, tiles, file
-open and save, status colours, tab drag, project editing with emoji, glyph and
-image, appearance, sidebar) and then in the native debug `.app`.
-
-Defects found and fixed in this pass:
-
-- **Custom images "could not be read"** natively: object (`blob:`) URLs are
-  refused by the desktop CSP. Images now load as `data:` URLs. A dark
-  transparent logo is given a light backing. Verified by uploading an SVG
-  through the native macOS file sheet.
-- **Modified status letters were uncoloured**: they used a `.warning` class
-  that does not exist. Status letters and names now use `status-*` classes.
-- **Dragging a tab selected it, then did not move it in WebKit.** The click
-  after a drag is now suppressed. Separately, WebKit started a text selection
-  from the press, which swallowed the drag; the press now prevents default and
-  captures the pointer. Chromium never showed the second defect, so the
-  headless sweep could not catch it — it was found and verified natively.
-- **The launcher ignored Escape and outside right-clicks natively**; it now
-  listens at window level and closes on blur, and its `+` toggles.
-- **The native WebView menu (Reload, Inspect Element) opened over JAM's own
-  menu** when right-clicking inside it. JAM's menus swallow the event, and the
-  desktop host suppresses the WebView menu except over editable or selected
-  text. Right-clicking a sidebar row also selected the word under the pointer;
-  the sidebar is no longer selectable text.
-- **Codex chats showed a neutral or Claude mark** in a new chat's composer and
-  its "Continue in" rows. The draft and each row's session now supply it.
-- **The file browser shrank to ~120px** beside a chat; its split ratio now
-  comes from the pane's real width. Web preview on a Mac used Ctrl shortcuts;
-  it now follows the Mac modifier.
-
-Verified natively on macOS: launcher anchored below `+` and toggling closed;
-tab reorder without selection; editor gutter; coloured `A` status; project
-context menu, editor, emoji and glyph badges, and image upload with backing;
-the Codex mark. Not verified: Escape and typed input under computer use,
-because synthetic keystrokes did not reach the WebView in this session (clicks
-did) — Escape is covered in Chromium only. Windows was not run; the path
-placeholder, emoji-picker hint (Win + .), Ctrl shortcuts and context-menu
-suppression are written for it but untested there.
-
-Once, natively, a modal dialog opened without painting (Escape dismissed it).
-It did not recur and no cause was found; no speculative fix was made.
-
-## Project threads, pinned projects and sentence-case labels (2026-09-26)
-
-Automated: the runtime proves closing is explicit, survives restart, is
-refused for non-conversations and unknown IDs, and is undone by sending; that
-Keep open persists; and that project pinning persists and clears. The preview
-transport repeats those cases, validation rejects malformed thread requests,
-and client tests cover open/closed ordering, the suggestion rule (including
-the Keep open snooze, running sessions and "never"), pinned ordering and
-compact ages. Headless Chromium drove the sidebar end to end with the
-threshold at one day: one prompt at a time, amber ages, close, Closed group,
-Keep open moving the question on, reopen from the menu, collapse and switch
-projects, pin ordering and mark, and a send reopening a closed thread. No
-computed uppercase remains on any label.
-
-Not yet verified in the native app or on Windows. The demo seed's
-timestamps are fixed, so with the seven-day default no seeded thread looks
-idle until a week has passed; set Settings → Threads to one day to see the
-prompt.
-
-## Multi-project threads, Codex colour mark and search recents (2026-09-26)
-
-Headless Chromium: three projects expanded together and collapsing one left
-the others; the Codex mark renders the gradient with no white tile and every
-instance has a unique gradient ID; search lists recent chats before typing,
-remembers a search only after its result is opened, runs a recent search on
-Enter, opens a recent chat with arrow and Enter, and clears. One defect was
-found and fixed: a row rendered under a resting pointer took the selection on
-`mouseenter`, so Enter opened a chat instead of the recent search; selection
-now follows pointer movement only. A client test covers recent-search
-ordering, de-duplication and bounds. Native rendering of the gradient mark is
-checked below the gate; Windows was not run.
-
-## Terminal (2026-09-26, macOS)
-
-Automated: `pnpm check` (84 frontend tests) and `pnpm check:rust` pass. Runtime
-tests start real PTYs with `/bin/sh`: several independent terminals with
-distinct titles, input and output in order, ANSI and UTF-8 output, `stty size`
-following resize, detaching a view and a window reload leaving the shell
-running with output replayed on reattach, two views of one terminal, a shell
-that exits by itself reporting its code and restarting in the same resource,
-explicit termination ending the shell and its foreground job, Ctrl+C
-interrupting only the foreground program, a requested working directory, flow
-control pausing near 256 KiB for a view that never acknowledges and resuming
-when it does, Quit refusing further requests, and invalid requests failing
-before any shell starts. Client tests cover ordered input, split pastes,
-coalesced resizes, acknowledgement steps, restart clearing the screen, and a
-closed view detaching without ever sending `terminal.kill`.
-
-Native, in a debug `.app` built from this branch with a temporary identifier so
-it could not share the running app's single-instance lock or database: created
-a terminal beside a conversation; `pwd` at home with the "has no folder" note;
-`TERM`/`COLORTERM`; 16 ANSI colours, true colour, underline and bold;
-arrows, CJK, a double-width emoji, λ and box drawing; 3000 lines and
-scrollback by wheel and scrollbar; Ctrl+C (exit 130); double-click selection,
-⌘C (clipboard read back) and ⌘V; ⌘F find with a match count; dragging the
-split changed `stty size` to 42×111; a second terminal on its own tty below the
-first; a running loop kept ticking while its tab was not shown and while its
-pane was closed, and was reopened from the launcher's Running list;
-Single ↔ Tiles; Terminate shell released its tty while the other shell ran
-on; Restart shell; terminal above a file browser and file; Quit ended both
-shells (checked with `ps`).
-
-Found and fixed natively: zsh's end-of-line mark stuck on the first row
-because the shell started at 80 columns inside a 77-column view (shells now
-start at the pane's size); explicit termination read as "exited with code 1"
-(now "Shell terminated"); two terminals were indistinguishable (now `zsh`,
-`zsh 2`); the launcher overflowed the window once Running rows arrived.
-
-Not verified: Escape in the find field (synthetic Escape does not reach this
-WebView under computer use); a window reload in the native app (covered by the
-runtime test only); Windows and ConPTY, which were neither compiled nor run
-(the Windows shell selection and key handling are written but untested); the browser preview,
-which reports terminals as unavailable by design. Flow control was measured
-in tests, not under a real flood in the app; memory under many terminals was
-not measured.
-
-## Native Browser prototype (2026-09-26, macOS 26)
-
-Automated: format, lint, typecheck, 79 frontend tests (13 files) and the
-production build pass. `cargo fmt`, `cargo clippy --workspace --all-targets
--- -D warnings` and `cargo test --workspace` pass, including the host's
-navigation policy (typed navigation, and what a page's frames may load),
-resource-ID and bounds validation tests, the runtime test that every browser
-open is a distinct durable resource, and the preview transport's equivalent.
-Client tests cover address parsing and overlay occlusion counting.
-
-Native checks were run in a debug `.app` built with a CLI config override
-(`identifier dev.jamcode.desktop.browser`, product `jam browser`). That gave it
-its own single-instance lock and demo database, so a running `jam` was
-untouched. The page used was a local test server with edge and corner markers,
-an input, links and an IPC probe. Verified on screen through computer use:
-
-| Requirement                  | Result                                                                                                                                                             |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Creation                     | The first navigation creates the WKWebView; blank browsers show JAM's own prompt                                                                                   |
-| Positioning / clipping       | Edge border and all four corner markers visible inside the 12px well, in every layout below                                                                        |
-| Resize with pane             | Split drag (547→796px), sidebar collapse (move + grow to 956px), window resize to minimum (819×656) and the annotation tray appearing (780→728px tall) all tracked |
-| Split down                   | Page clipped to the upper pane; the pane below is uncovered                                                                                                        |
-| Z-order / overlays           | Search dialog, launcher and pane menu each hide the page while open; it returns with state intact                                                                  |
-| Focus / keyboard             | First click focuses the page; typing reaches its input; clicking JAM returns focus and ⌘K works again                                                              |
-| Shortcuts while page focused | **Limitation:** ⌘K goes to the page, not JAM                                                                                                                       |
-| Navigation                   | Typed localhost and bare `example.com` (to https) load; `target=_blank` stays in the pane; Back/Forward enable from the Navigation API and work                    |
-| `file:` link                 | Not followed (refused by WebKit before JAM's hook; no notice shown)                                                                                                |
-| IPC isolation                | The page's `invoke('jam_request')` is denied: "not allowed on window main, webview browser-…, allowed on webviews: main"                                           |
-| Multiple browsers            | Two browsers in two tabs, each keeping its page and history across tab switches                                                                                    |
-| Lifecycle                    | Closing a pane or switching tabs hides the page; "Close browser page" destroys it and the pane returns to blank; navigating again starts a new history             |
-| Element annotation           | Picker highlights in-page, captures selector, styles and console (1 error), and stages a chip into the adjacent conversation without sending                       |
-
-A defect was found and fixed natively. After "Close browser page", the pane
-kept its old address and raised a generic runtime error, because it was still
-sizing a destroyed view. Views are now created lazily and closing resets them
-to blank. Host rejections now reach the banner with their real message.
-
-**Not verified or known gaps.** Windows/WebView2 was not run. Synthetic Escape
-did not reach JAM's dialog under computer use (the × button was used). Escape
-inside the picker is untested natively. Memory per page was not measured.
-Region capture, screenshots, network inspection and devtools are not
-implemented. Once its pane is closed, a live page has no UI path back other
-than reopening that resource, and browser resources are not yet listed in
-the sidebar; the eight-page cap bounds this. Page title does not yet update
-the tab title. The last URL is not persisted across restarts.
-
-### Follow-up: traffic lights and annotate mode (2026-09-26)
-
-**Traffic lights regressed** with the Browser branch. The lights sat a few
-points above the titlebar row. The cause is in Tauri: its `unstable` feature,
-needed for child webviews, builds even the main webview as a child view, and
-wry applies `traffic_light_position` only to a window's content webview. The
-main window is now built from a `WindowConfig`, which sets the inset on the
-window itself. Verified on screen: the lights are level with the tab row at
-launch, after a window resize, and with the sidebar collapsed to the rail.
-The same Tauri path skips the Windows edge-resize handler for undecorated
-windows. The host re-asserts resizability for it, but that is unverified
-without Windows.
-
-**Annotate mode** replaces separate Element and Region tools. Verified in the
-native app: a click opened "Comment on element 1" below the heading. Typing
-and Enter added it with a numbered marker. A drag became "Comment on region 2"
-with a dashed rectangle, and the Add button stacked it. The tray read "2
-annotations · 1 element · 1 region · console (1 error)". Turning the mode off
-made the page interactive again (its pushState button updated the address)
-with the markers kept. "Add to" staged two chips that lead with their
-comments, cleared the markers, and sent nothing. Cancel works. Escape could
-not be verified: computer use's synthetic Escape reaches no web content (the
-page's own key logger recorded the keys typed before and after it, but not
-Escape), so Escape needs a real keyboard. Client tests cover the staged
-description text.
-
-## Appearance, editor and Markdown (2026-09-27, macOS)
-
-Automated: `pnpm check` (130 tests) and `pnpm check:rust` pass. New tests cover
-the appearance contract in TypeScript and Rust (shared fixture, strict
-validation, restart persistence, wallpaper bounds), theme resolution (the
-resolver reproduces tokens.css exactly; every theme has every role; accent
-never changes status, code or terminal colours; contrast floors per theme),
-the appearance store (immediate apply, coalesced and ordered saves, late
-runtime answers, failed saves), language detection (one fixture checked by
-both the runtime and the preview; every grammar loads and produces semantic
-classes), and Markdown security (raw HTML, event handlers, `javascript:`,
-`data:`, `file:`, `tauri:` and control-character schemes, remote images).
-
-Visual QA used an isolated build: identifier
-`dev.jamcode.desktop.appearance-qa`, its own app-data database and dev port,
-so the main build's single-instance guard and demo database were untouched
-(the new migration would otherwise make an older build refuse the shared
-database). Another agent was driving the shared screen, and computer-use
-screenshots were refused in this session, so:
-
-- **Browser preview, scripted through the DevTools protocol in headless
-  Chromium at 1440×900:** all six themes across sidebar, tabs, file browser,
-  Markdown preview and Settings; the Appearance page; interface 15px with the
-  system font, Menlo 14/22 in the editor; gradient background with 62% panes;
-  an image wallpaper chosen through the real file input (downsized to
-  2560×1600 WebP) with brightness, blur and 24px pane blur; the editor with
-  TSX, Python, JSON, `.gitignore` and `.env.example`; the demo report in
-  Preview and Source. The Settings navigation at 2× matches Paper's frame; the
-  only differences are live data ("1 on") and the unimplemented ⇧⇧ hint.
-- **Native (WKWebView) app, window capture only, no input:** a Frost + Violet
-  record written to the QA database was applied after a restart, confirming
-  runtime persistence and native theming of the workspace.
-
-Not verified by eye: the native Terminal's live re-theming and font change
-(xterm reads the same roles; covered by code, not by a screenshot), native
-Browser chrome in each theme, and Windows. Browser preview is not native
-validation.
-
-Bundle (production build): the main chunk is 412 KB (129 KB gzip), up from
-387 KB (121 KB gzip) before this pass — theme data, resolver, store and
-Settings icons. The Appearance page (5 KB gzip), Markdown preview with
-markdown-it (44 KB gzip) and each grammar are separate chunks loaded on first
-use; the largest grammar chunks (HTML, Python, YAML, SQL) are 12–33 KB gzip.
-CSS grew from 70 KB to 91 KB (16.5 KB gzip).
-
-`tauri build` refuses the repository's existing mismatch between the `tauri`
-crate (2.12) and `@tauri-apps/api` (2.11); the QA bundle was built with
-`--ignore-version-mismatches`. The mismatch predates this branch and is not
-changed here.
-
-### Follow-up: editor themes, surfaces and effects (2026-09-27)
-
-`pnpm check` (134 tests) and `pnpm check:rust` pass. Tests add: every one of
-the 31 themes against the contrast floors; independent sidebar and pane
-opacity; backdrop blur emitted as `none` for opaque surfaces, zero blur or
-nothing to soften; effect layers and their sizes; wallpaper palette
-extraction; "Match colours to image" tinting surfaces and the accent only
-while an image is shown, never text or status; and a Rust check that a record
-saved before these fields existed still reads. Browser-preview QA (DevTools
-protocol, 1440×900): the Dark/Light theme list; eight editor themes across
-sidebar, tree, tabs and the TSX editor; Clear with a halftone pattern and fade
-over an image; Solid; Glass with matched colours. Not re-verified natively in
-this pass. The main chunk is 432 KB (136 KB gzip), up 6.8 KB gzip for the
-palette data.
-
-## Performance measurement procedure
-
-Use release builds for product claims, fixed machine/window/corpus and five cold launches plus five warm launches. Record runtime startup timestamp and frontend `jam-bootstrap` to workspace-loaded mark. Record median/p95, OS/build, corpus size and installed WebView version.
-
-Measure total private working set/RSS of the runtime and its WebView descendants, then CPU after 60 seconds idle and while streaming a bounded turn. Do not call a single executable's RSS the whole app footprint. No idle timers/network polling should be needed.
-
-For FTS, seed a disposable synthetic corpus of 10k conversations/100k messages and record median/p95 query latency, query types and result cap. Keep benchmark data outside source. Add pagination/virtualization and event batching before large real history import. No startup/memory/search performance target is claimed achieved by small demo tests.
-
-## Current-run results
-
-Validated on Windows on 2026-09-26 with Node 22.19, pnpm 12.6, Rust 1.97.1/MSVC, Chromium and the installed WebView2 runtime.
-
-| Check                                                         | Result                                                                                                                    |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Frozen-lockfile installation                                  | Passed; four workspace projects, no lockfile changes                                                                      |
-| Prettier, ESLint, TypeScript                                  | Passed                                                                                                                    |
-| Frontend/contract tests                                       | Passed: 37 tests across six files                                                                                         |
-| Production frontend build                                     | Passed; preview transport excluded, demo resource renderer is a separate lazy chunk                                       |
-| Rust formatting, workspace check, Clippy with warnings denied | Passed                                                                                                                    |
-| Runtime tests                                                 | Passed: nine tests, including persistence, FTS, cancellation, retry receipts, overflow recovery and failed-write handling |
-| Native debug build and `pnpm desktop` startup                 | Passed                                                                                                                    |
-| Public-source hygiene                                         | Passed; private references, screenshots, data and build output are not Git candidates                                     |
-
-Browser interaction checks passed for new chat/first send, stop, requested failure and recovery, draft retention, search/open, dedicated and resource Settings, sidebar collapse, focus, and both layouts. At 960×640 the document had no horizontal or vertical overflow; transcript and resource panes retain their own scrolling. Long sidebar branch labels may truncate at the minimum width.
-
-Native WebView checks exercised the actual Tauri transport and SQLite runtime: sending, closing a view during a running turn, reopening its completed transcript, `/fail`, explicit Stop, and completing work while the window was hidden. Launching a second executable retained one host and reopened its window. After stopping and restarting the app, the new conversation, transcript and FTS result remained available under a new runtime epoch. A context-only submission left the transcript unchanged while staged, then persisted a context block after explicit Send. A final page reload rendered without a Vite overlay or reported browser errors.
-
-The native content was inspected through Computer Use and then tested through a temporary, loopback-only WebView2 debug connection using [the documented WebView2 testing mechanism](https://playwright.dev/docs/webview2). The debug connection is test tooling, not a product remote-access implementation, and is not enabled by normal startup.
-
-The final ordinary native launch was independently verified through Windows accessibility: the conversation, composer and Mock controls were present, and the temporary debug port was closed. A redundant standalone-browser smoke check at that point timed out in the automation connection; the successful earlier browser checks and direct native checks above are the functional evidence.
-
-Single and Tiles were compared against the canonical Paper frames. Corrected tab order, transcript density, tool-label wrapping, newest-first history and Tiles column width. Final native measurements at 1440×900: Single conversation/composer 700px; Tiles 640px; secondary column 408px. Focus uses 720px and suppresses the duplicate pane header. After-only app screenshots are in ignored `output/playwright/`, including `native-single-final.png` and `native-tiles-final.png`; no Paper or private reference images were copied into source.
-
-A development-only issue appeared when Windows formatting briefly truncated files and Vite cached an empty transform. The watcher now waits for stable writes; the final source was formatted, rebuilt and reloaded successfully. Standard pnpm startup works through the documented npm-exec workaround for this machine's broken global pnpm launcher.
-
-Not run: macOS native build/interaction, a packaged or signed release, large-history performance benchmarks, assistive-technology testing, and developer manual testing. Tray Quit's UI interaction still needs a hands-on pass; graceful shutdown is covered in runtime tests. Mock-only integration is intentional: real providers, PTY/editor/browser services, snapshots and remote access are not implemented. No performance target is claimed from this small demo corpus.
-
-## Git / Review Changes milestone
-
-Automated temporary repositories cover detection/non-repositories, unborn and
-detached HEAD, clean/modified/index/untracked states, renames, deletions, Unicode,
-spaces/tabs/newlines and literal pathspec-looking names, binary content, conflicts,
-multiple hunks, missing final newlines, bounded status/patches, safe stage/unstage,
-scoped File-resource reads and symlink rejection. A shared JSON diff fixture checks
-the Rust/TypeScript wire shape. Client tests cover coalescing, stale folder responses,
-mutation refresh and selection surviving pane remounts.
-
-Native macOS computer-use QA used an isolated app identity/database/port and a
-throwaway repository. Review matched Git status and `+2 −1` for a text change;
-stage then unstage updated both the UI and Git index without changing working
-contents. A staged rename and Unicode untracked addition rendered correctly.
-Open file produced a separate, read-only File pane alongside Review and preserved
-the selection. Clean and non-Git folders displayed explicit empty states. Paper's
-Review frame was inspected and compared with the running surface. These are agent
-QA observations, not developer-reported testing. Windows remains unverified.
-
-Repeat locally: configure a project's first folder in project details, open Review,
-compare `git status --short` and `git diff`/`git diff --cached`, stage/unstage a
-throwaway file, and open it beside Review. Make an external edit then focus JAM or
-use Refresh. No automatic background watcher is claimed. Native directory browsing,
-real file writes, hunk mutations, discard/revert, commits and review annotations
-remain deferred; see ADR 0010.
-
-The ignored `observe_large_repository_costs` integration test is an explicit
-performance observation, run with `cargo test -p jam-runtime --test git
-observe_large_repository_costs -- --ignored --nocapture`. It creates 10,000 tracked
-files with 100 modifications and reports medians over five warm status/selected-diff
-reads. It measures a debug build and local filesystem, not a cross-platform SLA.
-The development launcher also reports the existing Tauri Rust 2.12 / JavaScript
-2.11 version mismatch; the isolated native app nevertheless built and ran. Dependency
-alignment is outside this Git milestone.
-
-## Snapshots — macOS, 2026-09-27
-
-The Snapshot branch was based on integrated main `9cfcb7d`, in an isolated
-worktree. Native QA used a separate app identifier and app-data database, an
-ad-hoc local app bundle and its own Vite port. It did not open the Appearance
-agent's app data. This is development-build evidence, not signed-release QA. Replacing the ad-hoc
-QA binary invalidated macOS grants despite enabled toggles. Resetting only its
-Input Monitoring grant, re-adding the bundle and restarting restored the active
-listener. Screen Recording was also refreshed for the same approved QA app.
-
-Frontend format/lint/types, 99 tests across 18 files and the production frontend
-build passed. Rust format, workspace check, Clippy with warnings denied and 52
-tests passed (5 host, 12 runtime unit, 15 runtime integration, 6 Snapshot storage
-integration, 14 Terminal integration). Snapshot tests cover gesture timing,
-quiet period/cooldown/reset, enabled settings, destination/inbox, metadata and
-restart, explicit-send canonical context and retry deduplication, retention,
-traversal/symlink rejection, private permissions and crash-orphan recovery.
-JPEG-shaped bytes in storage tests are opaque fixtures, not fake capture evidence.
-
-With user-approved Input Monitoring and Screen Recording, the actual app captured
-external Terminal windows at 3358×2016, approximately 1.1 MiB including thumbnail.
-The developer reported that focus stayed in the current app and visual shutter
-feedback appeared. The real images appeared as composer context in the last
-focused mock conversation. Read-only QA database checks found no sent snapshots
-and the same 18 seeded messages after capture, destination changes and removal.
-Computer use cannot synthesize modifier-only presses on this host, so the physical
-Shift Shift trigger was developer-operated.
-
-Native UI checks verified unavailable/registered/disabled shortcut states,
-re-registration, composer removal to the inbox, changing destination, saving a
-note, and Open in chat navigating to that destination. After selecting a non-agent
-review resource, the stored last-focused conversation remained unchanged. The
-shared Paper card and Settings surface were inspected in the running app. The
-three-second toast lifetime supersedes Paper's six seconds at the developer's
-request; interaction state is scoped to each capture so it cannot pause later
-captures. Captures and local QA output are excluded from Git.
-
-The developer did not hear the initial sound. A small native playback probe
-confirmed that macOS resolved Tink and started playback at 18%; the current output
-was AirPods. JAM's volume was raised to 35% without changing system settings.
-Audibility at the final level remains a hands-on check. The native flash is 120 ms.
-Idle behavior was reviewed for event-only input handling, on-demand capture and
-one-shot retention timers; no CPU/latency benchmark or broad performance claim.
-
-Not verified: Windows (explicitly unavailable), region/full-screen capture,
-ordinary key-combination registration, protected/fullscreen/multi-display window
-edge cases, Secure Input, final sound audibility, clipboard end-to-end, signed
-release permissions, and prolonged real-keyboard accidental-trigger testing.
-Automated detector tests cover typing/repeats/holds; macOS cannot enumerate
-app-local double-Shift conflicts. Provider integration remains mock-only.
-
-## Providers V0 — Claude Code and Codex (2026-09-27, macOS)
-
-Automated: `pnpm check` and `pnpm check:rust` pass. New Rust tests cover Codex
-item/approval mapping, Claude tool classification, permission and question
-responses, delta/final reconciliation, the interaction broker (answered once,
-stale after withdrawal or restart), the transcript builder, discovery and
-process framing and group termination. `crates/runtime/tests/providers.rs`
-runs the runtime with the demo provider and a scripted adapter: simulated
-approvals and questions through `interaction.respond`, interrupts cancelling
-pending requests, restart expiring them, provider-ID binding and resume after
-restart, option validation, the project-folder requirement and persisted
-provider settings. Client tests cover composer choices, the new-chat provider
-choice and provider status copy; protocol tests cover the new requests, blocks
-and interaction validation.
-
-Live, against the installed CLIs (Claude Code 2.1.283, codex-cli 0.157.1),
-with `crates/runtime/tests/live_providers.rs`:
-
-- `JAM_LIVE_PROVIDERS=1`: both detected, signed in and listed their models in
-  about a second with no inference request; plans were the CLIs' own
-  (`max`, `prolite`); no email reached the client.
-- `JAM_LIVE_TURNS=1` (small inference requests on the signed-in accounts):
-  a streamed reply from each provider with the model and context usage they
-  reported; a Codex command approval (`/bin/zsh -lc ls`, Allow once) and a
-  Claude file-write permission (Write `hello.txt`, Allow once) answered through
-  JAM interactions; interrupting a long reply and sending a follow-up on the
-  same session succeeded for both, about 2 s after Stop.
-- The first interrupt run found a real race: a follow-up accepted while Codex
-  was still stopping became part of the interrupted turn. Turns now wait
-  (bounded) for the previous turn's provider work to end.
-
-Visual QA, browser preview: driven in an offscreen WebKit view (a local Swift
-script using `WKWebView.takeSnapshot`) through the demo provider's `/approval`
-and `/question`, New Chat, a transcript with every block type and Settings →
-Providers with live-shaped provider data. Found and fixed a composer overflow
-that hid Send and a serif fallback in interaction details.
-
-Native QA, macOS, computer use, on a debug bundle with its own identifier and
-database (`dev.jamcode.desktop.providers-qa`) and a scratch Git repository as
-the project folder:
-
-- Settings → Providers showed Claude Code 2.1.283 and Codex 0.157.1 as
-  installed and signed in, the plans each CLI reported, their models, effort
-  levels and permission options, capabilities and the detected executables.
-- Claude Code: a real edit asked for permission (Claude's own reason shown),
-  "Allow once" applied it to disk, and the reply rendered as Markdown with a
-  highlighted code block and context usage. After the app was killed and
-  relaunched, the chat resumed Claude's session with its context; an
-  AskUserQuestion was answered in JAM and a second edit was allowed for the
-  session.
-- Codex: with approval mode Untrusted, Deny declined a command (Codex retried
-  a narrower one); Stop while an approval was pending left the session
-  interrupted and the request cancelled. Closing a running chat's tab did not
-  stop its turn: it finished and was complete when reopened. Explicit Quit
-  ended JAM's `codex app-server`; the user's own Codex and ChatGPT processes
-  were untouched.
-- Found and fixed natively: a stale status cell from duplicate React keys, a
-  new chat's title arriving only at the end of its first turn (a dropped
-  metadata refresh), an unchosen model shown as the provider's listed default
-  rather than what its own configuration selected, "· Interrupted" on tools
-  with no output, an unreadable hovered Allow button, a redundant
-  AskUserQuestion tool row, and outdated "folders are not read" copy.
-
-### Follow-up: chat refinement, access, context and streaming
-
-Automated: `pnpm check`, `pnpm check:rust` and the live suite with
-`JAM_LIVE_PROVIDERS=1 JAM_LIVE_TURNS=1` (access `ask`) pass. New tests cover
-the compaction notice lifecycle and Codex add/delete line counts.
-
-Native, macOS, computer use:
-
-- Claude: an Edit approval rendered inside the Edit card; Allow once collapsed
-  it to "Allowed once" and the reply followed. The context popover showed
-  Claude's reported 40,937 of 1,000,000 tokens; Compact now showed
-  "Compacting context…" at once, then Claude's own notice, and the ring fell
-  from 4% to 3%. Auto-compact switched off and back on.
-- Codex, Access = Ask: command, file-change and read approvals rendered inline
-  (including Codex's "Always allow" amendment); Compact now went from 18k to
-  5k tokens without changing the chat's model.
-- Stream replies off showed "Writing…" and then the complete reply.
-- Found and fixed natively: a compaction reused the previous reply's
-  "Working for" heading and reset the model label; the transcript stopped
-  following a reply that grew without a new message; a new Codex file showed
-  +0 −0 (Codex sends an added file's content, not a diff).
-
-### Follow-up: turn log, approvals, file links and web preview
-
-Designed first in Paper (Core flows 9–12, and the General settings frame).
-Automated: `pnpm check` and `pnpm check:rust` pass. New tests cover file
-references in inline code and prose, local server detection, diff previews
-from both adapters, `completedAt`, and the scoped `file.reveal` and
-`url.openExternal` requests (a folderless project, other sites, `file:`).
-
-Native, macOS, computer use, against Claude Code 2.1.283:
-
-- An edit under Ask for approval showed "Waiting for approval" in the open
-  log and Claude's real diff in the blue approval card; Allow once folded the
-  turn to "Worked for 18s · Edited 1 file" with the changed-files card.
-- `math.ts:20` in Claude's prose was a link; clicking it opened the file
-  beside the chat with line 20 selected. Right-click → Reveal in Finder
-  selected the file in Finder.
-- A command that printed a local address against a running server showed the
-  preview bar; Open web preview opened JAM's browser beside the chat on that
-  page, and Open in browser opened it in the default browser.
-- The access pill and its menu worked in a chat and a new chat's footer.
-- Found and fixed natively: diff text wrapping per character, the access menu
-  clipped by the composer, the file preview opening too narrow beside a chat.
-- Noticed, not fixed: macOS smart quotes replace typed quotes in the composer
-  (a command Claude was asked to run failed on a curly quote).
-
-Not verified: Windows (`.cmd` shims, process groups), provider versions other
-than those listed, Claude sub-agent text, Codex questions (experimental API,
-unsupported), and long-running sessions past the 15-minute idle stop.
-Conversations with real providers are stored in the same local database the
-foundation seeded with demo history (`jam-demo.sqlite`); separating demo and
-user history is a follow-up.
-
-## Windows hardening (2026-09-28, Windows 11 25H2)
-
-Baseline `a4fb77f` on Windows 11 Pro 25H2 (build 26200, x64, Ryzen 7 7800X3D), 1920×1080 at 100%, WebView2 153.0.4234.48,
-Node 22.19, pnpm 12.6 (through `npm exec`), Rust 1.97.1/MSVC, Git 2.46, Claude Code 2.1.284 and codex-cli 0.158.0, both
-native `.exe` files on PATH.
-
-Automated on main: `pnpm check` passed (226 tests). `pnpm check:rust` failed on Windows only: an unused `mut` and a dead
-test-only method under clippy, Windows-only unused test helpers, a Git test writing names NTFS cannot store, and terminal
-tests failing because portable-pty 0.9 reports a successful `TerminateProcess` as an error. All pass on
-`fix/windows-hardening`, with new Windows tests for provider process-tree termination, verbatim path simplification,
-project-relative provider paths and terminal termination.
-
-Native, computer use, debug build. JAM was also launched through WMI so it ran outside the agent's job object and MSIX
-container; launching from an agent's shell virtualized `%APPDATA%`, hid orphans behind a kill-on-close job and made
-terminal Ctrl+C ignored by inheritance. Those were environment artifacts, not product bugs.
-
-Worked on main: launch, custom titlebar, minimize/maximize/restore, double-click maximize, Snap Layouts flyout, drag,
-every edge and corner resize at 100%, sidebar, tabs, Single/Tiles, split right/down, nested splits and divider drag;
-PowerShell 7 over ConPTY with Unicode, ANSI and true colour, 3000 lines, copy, paste, find, resize, restart and Ctrl+C;
-`claude`/`codex` typed in Terminal stay ordinary commands; Settings → Providers detection, sign-in and models; Claude
-and Codex chats with streaming, approvals, Markdown, file links, Stop, follow-up after Stop, tab close without stopping
-work and resume after Quit and relaunch; WebView2 Browser with HTTPS and localhost, back/forward/reload, focus, overlay
-hiding, restore/maximize, sidebar and split geometry, two browsers and element/region annotation staging without Send;
-Review status, rename, Unicode and diff; tray Show, close to tray, single instance re-showing a hidden window. Explicit
-Quit ended every JAM descendant (MCP servers exit on stdin EOF) and left the user's own Claude and Codex processes alone.
-
-Found and fixed: a command an agent was running (`ping`) survived Quit; project roots were verbatim `\\?\C:\…` paths, so
-provider activity showed absolute paths, changed-file links failed with "Unsupported repository-relative path" and Review
-displayed the prefix; Show in Explorer opened Documents; Terminate shell read "Shell exited with code 1". Retested
-natively on the branch: relative activity paths, changed-file link opening beside the chat. The Explorer argument was
-verified directly; the in-app Show in Explorer click, tray Quit with a running agent command, `.cmd` shims, other
-display scales, Appearance themes, Snapshots and smart-quote input were not re-run in this pass.
-
-## Alpha release pass — v0.1.0-alpha (2026-09-29, Windows 11 25H2)
-
-Baseline `main` `0d392fe`; branch `feat/alpha-readiness`. Windows 11 Pro 25H2,
-WebView2 153, Node 22.19, pnpm 12.6, Rust 1.97.1/MSVC, Claude Code 2.1.284,
-codex-cli 0.159.0.
-
-**Automated.** `pnpm check` (285 frontend tests) and `pnpm check:rust` pass.
-New runtime tests (`crates/runtime/tests/user_data.rs`) cover a clean first
-run (no projects, only the Settings resource, no demo provider), the upgrade
-of a schema-6 `jam-demo.sqlite` with the demo seed plus real work (demo seed
-removed, a demo project with a folder kept and renamed, the person's own
-chats, bindings, settings, search and demo-provider chat kept, the legacy file
-unchanged, a `.before-v7.bak` written, no re-import), refusal of a newer
-schema (for both files), adding folders (canonical identity, name, live
-branch, plain folders, multiple folders, name and icon, invalid input),
-removal and restoration, a missing folder, and native directory listing with
-traversal refused. `tests/release-metadata.test.ts` keeps versions, license
-and bundle resources consistent. The opt-in
-`upgrade_a_copy_of_a_real_database` test upgraded a copy of a real
-development database: both real chats (Claude Code, 16 messages; Codex, 16
-messages) and their project survived; the nine demo chats and three
-folderless demo projects were removed.
-
-**Packaging.** `tauri build --bundles nsis` produced a 4.4 MiB per-user
-installer, `JAM Code_0.1.0-alpha_x64-setup.exe` (the `-alpha` version is
-accepted; WiX/MSI would not). The executable reports JAM Code / 0.1.0-alpha /
-Jay Martinez. A silent install put the app, `LICENSE`,
-`THIRD_PARTY_NOTICES.md`, an uninstaller and a Start menu shortcut in place;
-the silent uninstall removed them and left application data alone. The
-installer is unsigned (`NotSigned`), as documented. The installed build was
-not launched, because it would have used the developer's real data folder.
-
-**Native QA** used a release build with its own identifier
-(`dev.jamcode.desktop.alphaqa`), launched outside the agent's job object, with
-computer use and a temporary loopback WebView2 debug port. The developer
-watched and interacted during part of it.
-
-- Clean install: first-run screen with no projects or chats, both agents
-  detected and signed in with versions, no Demo label.
-- New project: the dialog (name, icon, folders); the native Windows folder
-  chooser ("Open a project folder", `#32770`, parented to JAM); name filled
-  from the folder; a second folder added and marked Primary; an emoji icon;
-  the project created with its live branch; a plain folder shows "No Git".
-- A real Claude Code turn in a new project; a Codex turn in a new worktree
-  (`jam/…` branch created on Send), a command approved once, then Deny and
-  stop leaving the turn interrupted. Typed quotes arrived unchanged.
-- File browser listing the real folder (no Demo tree label); Review's
-  non-Git state; Browser loading `example.com` in a WebView2 pane; a terminal
-  starting in the project folder (IPC) and terminating.
-- Settings → General: default agent, effort and permissions for every agent,
-  saved to both agents' defaults; three quick clicks all applied.
-- Settings → Projects: Remove with inline confirmation; files untouched.
-- Upgrade: a copy of the real development database placed as
-  `jam-demo.sqlite` opened as its real project and two chats, with the backup
-  written and the legacy file kept.
-
-Found and fixed during this pass: every Git call and provider check flashed
-an empty console window in the release build (no `CREATE_NO_WINDOW`); a
-"Demo" titlebar chip on user data; Codex commands shown as their quoted
-PowerShell invocation with doubled backslashes; General's shared defaults
-racing when changed quickly; "Your work is still here" shown before any
-chat existed.
-
-**Performance** (release QA build, 1 project, no chats open): after 10 s,
-60 s idle used 0.05 s of CPU (0.08% of one core); 209 MB private and 372 MB
-working set across the app and its six WebView2 processes. No provider, Git
-or shell process was running at idle. Startup time was not measured.
-
-**Not verified.** macOS (no Mac in this session: the folder picker's
-NSOpenPanel path, the smart-quote fix, the `.app`/`.dmg` bundle, ad-hoc
-signing and Gatekeeper behaviour), the universal macOS build, Windows 10,
-the installed build against real data, tray Quit with a running chat,
-keyboard shortcuts under automation (synthetic keys do not reach the web
-view), restoring a removed project through the UI (runtime-tested), and
-developer-reported manual testing.
+# Validation
+
+What is checked automatically, what has been exercised by hand on each
+platform, and what has not. This describes the current alpha
+(`v0.1.0-alpha`). Evidence for an individual change lives in its pull request;
+this file is not a log.
+
+Three kinds of evidence are kept apart throughout: automated tests, QA an
+agent performed in the running app, and testing the developer reported doing
+by hand. The browser development preview is not native validation, and
+Windows testing is not macOS testing.
+
+## Automated checks
+
+```sh
+pnpm check        # format:check, lint, typecheck, test, build
+pnpm check:rust   # cargo fmt --check, clippy -D warnings, cargo test
+node scripts/third-party-notices.mjs --check
+```
+
+- `pnpm lint` also enforces the package boundaries: no native, Node or
+  provider imports in the shared client and protocol packages.
+- `pnpm test` covers the layout tree, transport and event normalization,
+  protocol validation, appearance (theme resolution and contrast floors for
+  every theme), Markdown rendering safety, keybindings, architecture
+  boundaries and release metadata (one version everywhere, MIT, bundled
+  notices).
+- `cargo test --workspace` covers migrations and upgrade of older databases,
+  persistence and reopen, full-text search, retry deduplication,
+  cancellation, subscriptions independent of views, real PTY terminals, Git
+  status, diffs and staging against temporary repositories, branches and
+  worktrees, snapshot storage, projects from folders, provider adapters
+  against scripted input, and the desktop host's browser navigation policy.
+
+Opt-in tests, never run by CI:
+
+| Test                                                                                                           | What it does                                                                                   |
+| -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `JAM_LIVE_PROVIDERS=1 cargo test -p jam-runtime --test live_providers -- --ignored --nocapture`                | Detects the installed Claude Code and Codex CLIs, sign-in and models. No inference request.    |
+| The same with `JAM_LIVE_TURNS=1`                                                                               | Sends a few short turns, an approval and an interrupt. Counts toward the signed-in plans.      |
+| `JAM_UPGRADE_SOURCE=<file> cargo test -p jam-runtime --test user_data upgrade_a_copy -- --ignored --nocapture` | Upgrades a copy of a real database and reports what survived. The source file is not modified. |
+| `cargo test -p jam-runtime --test git observe_large_repository_costs -- --ignored --nocapture`                 | Times status and diff reads on 10,000 tracked files. An observation, not a target.             |
+
+## Continuous integration
+
+Every pull request and every push to `main` runs:
+
+- **Web** (Linux): `pnpm check`, then the third-party notices check.
+- **Rust** (Windows and macOS): `cargo fmt --all --check`,
+  `cargo clippy --workspace --all-targets -- -D warnings` and
+  `cargo test --workspace`. A pull request that changes no Rust, Cargo or
+  workflow file skips these jobs; `main` always runs them.
+
+The Release workflow runs both check suites again on Windows and macOS,
+verifies that the tag matches the app version, and only then builds the
+installers (see [RELEASING.md](RELEASING.md)).
+
+## Platform status
+
+### Windows
+
+Exercised on Windows 11 Pro 25H2 (x64) with WebView2 153, Claude Code 2.1.284
+and codex-cli 0.159.0, in a release build with its own application
+identifier. This was agent QA; the developer watched and interacted during
+part of it.
+
+Verified:
+
+- The NSIS installer: per-user install, Start menu shortcut, bundled license
+  and notices, silent uninstall leaving application data in place. The
+  installer is unsigned, as documented.
+- First run with no projects, both agents detected with versions and sign-in
+  state.
+- New project with the native folder picker, several folders, a plain
+  (non-Git) folder.
+- Claude Code and Codex chats: streaming, approvals, Stop and follow-up,
+  closing a tab without stopping its turn, resume after Quit and relaunch, a
+  Codex chat in a new worktree on its own branch.
+- Terminal over ConPTY (PowerShell 7): Unicode, colour, scrollback, copy,
+  paste, find, resize, restart, Ctrl+C.
+- Browser (WebView2): HTTPS and localhost, navigation, geometry under splits
+  and resizes, two browsers, element and region annotations staged without
+  sending.
+- File browser, Review (status, rename, Unicode, diff), Settings → General
+  and Projects, removing a project without touching its files.
+- Window chrome: custom titlebar, snap layouts, edge resize at 100% scale,
+  tray, close to tray, single instance.
+- Quit ends every process JAM Code started and leaves the user's own Claude
+  and Codex processes alone.
+- Upgrade of a development database: real chats kept, demo seed removed,
+  backup written.
+
+Not verified:
+
+- Windows 10, and display scales other than 100%.
+- The installed build against real user data (it was installed and
+  uninstalled, not launched).
+- Agents installed as `.cmd` or `.ps1` shims rather than native executables
+  (issue #7).
+- Tray Quit while a chat is running; keyboard shortcuts under automation
+  (synthetic keys do not reach the web view).
+- The shared-client changes that landed with the macOS QA pass (terminal
+  focus, the chat pane's close button, tab-strip scrolling, Settings search
+  focus).
+
+### macOS
+
+Exercised in development builds (a debug `.app` with its own application
+identifier), with Claude Code 2.1.283 and codex-cli 0.157.1.
+
+Verified:
+
+- Window chrome: traffic-light position in the expanded sidebar, the
+  collapsed rail and dedicated Settings; the application menu, ⌘W closing a
+  tab and ⌘. toggling focus mode.
+- Claude Code and Codex chats: sign-in and model detection, streaming,
+  approvals and questions, Stop, resume after the app was killed and
+  relaunched, compaction, file links, web preview of a local server.
+- Terminal (zsh): colour, Unicode, scrollback, copy, paste, find, resize,
+  several terminals, shells surviving a closed pane, Quit ending them.
+- Browser (WKWebView): positioning and clipping in every layout, overlays,
+  focus, navigation, isolation from JAM Code's own IPC, annotations.
+- Review against a real repository; project icons; tab reordering.
+- Snapshots: capture of another application's window without taking focus,
+  staging into the last-focused chat, the toast, retention settings. The
+  both-Shift shortcut was operated by the developer.
+- Appearance: a saved theme applied natively after a restart.
+- The developer reported a manual pass of the integrated alpha build. One
+  item, right-click on text, was fixed afterwards and its recheck is pending.
+
+Not verified:
+
+- The packaged universal `.app` and `.dmg`: installation, ad-hoc signing and
+  Gatekeeper behaviour on a clean Mac.
+- Intel Macs and macOS 14, the minimum supported version.
+- The native folder picker and the smart-quote fix (issue #8) have no
+  recorded macOS check.
+- Notifications, which need a bundled build to judge.
+- Snapshots with full-screen, protected or multi-display windows, Secure
+  Input, and clipboard copy end to end.
+- Live re-theming of the Terminal and Browser chrome in every theme.
+
+### Both platforms
+
+Not done: assistive-technology testing, large-history performance, provider
+versions other than those listed, Claude sub-agent text, Codex questions
+(unsupported), and sessions past the 15-minute idle stop.
+
+## Release acceptance
+
+Before publishing a release, on each platform, with the release build:
+
+1. Install on a clean machine or account; confirm the unsigned-build prompt
+   matches the README.
+2. First run shows no projects and detects the installed agents.
+3. Add a project with the native folder picker.
+4. Run a real Claude Code chat and a real Codex chat: approve an action,
+   stop a turn, send a follow-up.
+5. Start a chat in a new worktree and confirm the branch and folder.
+6. Open a Terminal, the Browser, a file and Review beside a chat; switch
+   Single and Tiles; close and reopen panes while a turn runs.
+7. Search for a phrase from a chat and open the result.
+8. Change a theme and a General setting; Quit, relaunch and confirm that
+   history, settings and the chats' resume all hold.
+9. Upgrade from the previous build's data and confirm nothing is lost.
+10. Compare the downloaded installers against `SHA256SUMS.txt`.
+
+## Performance
+
+No performance target is claimed. One measurement exists: a Windows release
+build with one project and no chat open used 0.05 s of CPU over 60 s idle
+(0.08% of one core), with 209 MB private and 372 MB working set across the app
+and its six WebView2 processes, and no provider, Git or shell process running.
+Startup time has not been measured, and nothing has been measured on macOS.
+
+To measure:
+
+- Use release builds, a fixed machine, window size and corpus, and five cold
+  plus five warm launches. Record the runtime's startup timestamp and the
+  frontend's `jam-bootstrap` to workspace-loaded mark; report median and p95
+  with the OS, build, corpus size and WebView version.
+- Measure the private working set or RSS of the app and all its WebView
+  child processes together, then CPU after 60 seconds idle and while
+  streaming a bounded turn. One executable's RSS is not the app's footprint.
+- For search, seed a disposable synthetic corpus of 10,000 conversations and
+  100,000 messages outside the repository, and record median and p95 query
+  latency by query type with the result cap.
+- For Git, run the `observe_large_repository_costs` test above.
+
+Transcript pagination and virtualization are required before large histories
+are imported; a conversation currently returns its latest 500 messages.
