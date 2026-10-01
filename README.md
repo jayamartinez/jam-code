@@ -54,10 +54,10 @@ for an interactive preview.
 | ------------------------------------------------------------- | -------------------------- |
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | Supported                  |
 | [Codex](https://github.com/openai/codex)                      | Supported                  |
-| Cursor                                                        | Planned, not supported yet |
-| Gemini CLI                                                    | Planned, not supported yet |
-| Grok                                                          | Planned, not supported yet |
-| OpenCode                                                      | Planned, not supported yet |
+| [Cursor](https://cursor.com/cli)                              | Planned, not supported yet |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli)     | Planned, not supported yet |
+| [Grok Build](https://x.ai/build)                              | Planned, not supported yet |
+| [OpenCode](https://opencode.ai)                               | Planned, not supported yet |
 
 You need Claude Code or Codex installed and signed in; JAM Code works with
 either or both. More agents will be added over time. Until an agent is
