@@ -1,6 +1,6 @@
 [package]
 name = "jam-desktop"
-description = "JAM Code, a local-first desktop workspace for coding agents"
+description = "JAM Code, a desktop workspace for coding agents"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

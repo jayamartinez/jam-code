@@ -32,18 +32,18 @@ Snapshots start off. Turning them on shows one setup step, Screen Recording,
 and Snapshots stay off until it is allowed: the header toggle shows the
 effective state, and the desktop host refuses to start a listener without it.
 If it is revoked later, Settings shows the same step as "paused". Its state is
-re-read when JAM regains focus, not polled. Allow asks ScreenCaptureKit for
-shareable content, which registers JAM in the Screen Recording list, and opens
+re-read when JAM Code regains focus, not polled. Allow asks ScreenCaptureKit for
+shareable content, which registers JAM Code in the Screen Recording list, and opens
 that list if access is still off; it runs only from an explicit Settings action,
 never from a background capture.
 
-Screen Recording is the only permission. JAM never listens to key events, so it
+Screen Recording is the only permission. JAM Code never listens to key events, so it
 never needs Input Monitoring. An earlier build detected a double-tap of Shift
 with a listen-only event tap; that required Input Monitoring and was removed.
 Stored settings that chose it now read as both Shift keys.
 
 - **Both Shift keys (default).** Left and right Shift held together, the same
-  default T3 Code uses. JAM reads the current modifier state
+  default T3 Code uses. JAM Code reads the current modifier state
   (`CGEventSourceFlagsState`), which macOS does not gate. This means sampling:
   a 50 ms `dispatch_source` timer on a utility queue, with 10 ms leeway so
   macOS can coalesce wakeups. It is a deliberate exception to "idle should not
@@ -53,7 +53,7 @@ Stored settings that chose it now read as both Shift keys.
 - **⌘⇧2, ⌃⇧2 or ⌥⇧2.** Ordinary global hotkeys through
   `RegisterEventHotKey`, delivered by the system without seeing other keys and
   with no timer. The list is fixed and avoids macOS's own ⌘⇧3/4/5. If another
-  app already holds the combination, Settings says so; JAM never replaces a
+  app already holds the combination, Settings says so; JAM Code never replaces a
   registration.
 
 Exactly one listener runs at a time. Disabling, changing the shortcut or quitting
@@ -65,7 +65,7 @@ binding on both Shift keys could also fire.
 The macOS 14+ backend uses `NSWorkspace` and the on-screen window list once per
 invocation to pin the frontmost application's foremost normal window. It resolves
 that window through ScreenCaptureKit and invokes `SCScreenshotManager` once. It
-never activates JAM, requests a picker, starts a stream or polls windows/screens.
+never activates JAM Code, requests a picker, starts a stream or polls windows/screens.
 Protected content or a disappearing window can fail with an unavailable status.
 The Windows backend explicitly reports unavailable and has not been tested.
 Region and full-screen modes are reserved but rejected in V0.
@@ -89,7 +89,7 @@ bring-to-front) stay visible and marked planned.
 
 ## Storage, retention and privacy
 
-Assets live in `snapshots/` beside the runtime database in JAM app data, never in
+Assets live in `snapshots/` beside the runtime database in JAM Code app data, never in
 the source project. UUID-based JPEG names are generated internally; no request
 accepts a path. macOS encoding uses sRGB JPEG quality 0.88 with a 4096 px longest
 edge; thumbnails use quality 0.72 and at most 400 px. Bounds are 8 MiB per image,
@@ -137,4 +137,4 @@ branches' QA databases upgrade without a reset; a runtime test covers each path.
 Actual overlapping Appearance files at final review: desktop `main.tsx`; runtime
 `lib.rs`, `runtime.rs`, `storage.rs`; client `JamApp.tsx`, `SettingsPanel.tsx`,
 `index.ts`, `styles/index.css`; protocol `index.ts`, `preview.ts`, `types.ts`,
-`validation.ts`; `ARCHITECTURE.md` and `PRODUCT.md`. No concurrent worktree was edited.
+`validation.ts`; `ARCHITECTURE.md` and `PRODUCT.md` (since removed). No concurrent worktree was edited.

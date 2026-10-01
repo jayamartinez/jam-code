@@ -1,146 +1,178 @@
-# JAM Code
+<p align="center">
+  <img src="assets/brand/jam-code.svg" width="96" height="96" alt="JAM Code">
+</p>
 
-JAM Code (`jam`) is a free, open-source, local-first desktop workspace for
-coding agents. It runs the **Claude Code** and **Codex** CLIs you already have
-installed and signed in to, and gives their work a home: projects, searchable
-conversations, terminals, a browser, files and Git review, in tabs or tiles.
+<h1 align="center">JAM Code</h1>
 
-JAM Code is not a hosted service, an inference reseller or a JAM account. It
-has no server. Your history stays in a SQLite database on your computer, and
-the only content that leaves it is what you send to the agent you chose.
+<p align="center">
+  <strong>Use the coding agents you already pay for, in one workspace.</strong>
+</p>
 
-> **Alpha.** v0.1.0-alpha is for technical early adopters. Expect rough edges
-> and occasional breaking changes. Back up anything you care about.
+<p align="center">
+  <a href="https://code.jaym.tech">Website</a> ·
+  <a href="https://github.com/jayamartinez/jam-code/releases">Download</a> ·
+  <a href="#documentation">Docs</a>
+</p>
 
-<!-- Screenshots: add once the alpha build is captured. -->
+JAM Code is a free, open-source desktop app that gives coding agents such as
+**Claude Code** and **Codex** a proper workspace. Your projects, agent
+conversations, Git worktrees, files, terminal, browser and code review sit side
+by side in one window, so you can follow and steer an agent's work without
+juggling a terminal, an editor and a browser.
 
-## What it does today
+To see what it looks like, visit **[code.jaym.tech](https://code.jaym.tech)**
+for an interactive preview.
 
-- **Projects** are folders on your computer, chosen with the system folder
-  picker. Git is optional. Removing a project never touches its files.
-- **Agent chats** with Claude Code (`claude` stream-json) and Codex
-  (`codex app-server`): streaming replies, tool activity, approvals and
-  questions answered inline, interrupt, resume after restart, model, effort
-  and access choices, context usage and compaction.
-- **New-chat workspaces**: work in the current checkout or a new Git worktree
-  with its own `jam/…` branch, created on first Send. JAM never deletes or
-  resets a worktree or branch.
-- **Search** across every conversation (SQLite FTS5).
-- **Terminal**: a real shell in a runtime-owned PTY. `claude` and `codex` typed
-  there are ordinary commands.
-- **Browser**: the system web view (WebView2 / WKWebView) in a pane, with
-  element and region annotations you can stage into a chat.
-- **Files and Review**: a read-only file browser and editor, and Git status,
-  diffs and stage/unstage.
-- **Tabs and tiles**: any resource in any pane; closing a pane never stops
-  work.
-- **Appearance**: themes, accents, fonts and backgrounds.
-- **Snapshots** (macOS 14+): capture a window into a chat's composer.
+> **Alpha.** v0.1.0-alpha is for technical early adopters. It works, it has
+> rough edges, and it may change in incompatible ways.
+
+## What you get
+
+- **Agent chats you can read.** Streaming replies, tool activity and diffs as
+  structured cards rather than terminal scrollback. Approve or deny actions and
+  answer an agent's questions inline. Stop a turn, pick the model, effort and
+  access level, watch context usage, and resume a chat after a restart.
+- **Projects and history.** Any folder is a project; Git is optional. Every
+  conversation is kept and full-text searchable.
+- **Parallel work with worktrees.** Start a chat in the current checkout or in
+  a new Git worktree on its own branch, so two chats never edit the same files.
+- **Tabs and tiled panes.** Put any chat, terminal, file, browser or review in
+  any pane. Closing a pane never stops the work behind it.
+- **Terminal.** A real shell beside your chats.
+- **Browser.** Preview a local server or any site, annotate elements and
+  regions, and attach those annotations to a chat.
+- **Files.** A file browser, a syntax-highlighted viewer and rendered Markdown
+  preview. File links in an agent's reply open at the right line.
+- **Git review.** Status, diffs and stage/unstage for what the agent changed.
+- **Make it yours.** Built-in and editor-style themes, imported VS Code
+  themes, accents, fonts, backgrounds and customizable keybindings.
+- **Snapshots** (macOS). Capture a window straight into a chat's composer.
+
+## Supported agents
+
+| Agent                                                         | Status                     |
+| ------------------------------------------------------------- | -------------------------- |
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | Supported                  |
+| [Codex](https://github.com/openai/codex)                      | Supported                  |
+| [Cursor](https://cursor.com/cli)                              | Planned, not supported yet |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli)     | Planned, not supported yet |
+| [Grok Build](https://x.ai/build)                              | Planned, not supported yet |
+| [OpenCode](https://opencode.ai)                               | Planned, not supported yet |
+
+You need Claude Code or Codex installed and signed in; JAM Code works with
+either or both. More agents will be added over time. Until an agent is
+supported, its CLI still runs as an ordinary command in the Terminal, without
+the structured chat view.
 
 ## Platforms
 
-| Platform                     | Status                                    |
-| ---------------------------- | ----------------------------------------- |
-| Windows 11 x64 (10 untested) | Supported; unsigned NSIS installer        |
-| macOS 14+ (universal build)  | Supported; unsigned, ad-hoc signed `.dmg` |
-| Linux                        | Not supported yet                         |
+| Platform              | Status                              |
+| --------------------- | ----------------------------------- |
+| Windows 11 (x64)      | Supported. Windows 10 is untested.  |
+| macOS 14+ (universal) | Supported. Intel Macs are untested. |
+| Linux                 | Not supported yet.                  |
 
 ## Install
 
-Download the installer for your platform from
-[GitHub Releases](https://github.com/jayamartinez/jam-code/releases) and check
-it against `SHA256SUMS.txt`. The builds are not code-signed yet:
+1. Download the installer for your platform from
+   [Releases](https://github.com/jayamartinez/jam-code/releases). You can check
+   it against `SHA256SUMS.txt`.
+2. Install and sign in to [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+   (`claude`), [Codex](https://github.com/openai/codex) (`codex`), or both.
+3. Open JAM Code and choose **New project…** to add a folder.
 
-- **Windows:** SmartScreen warns; choose _More info → Run anyway_.
-- **macOS:** right-click _JAM Code_ → _Open_ the first time, or run
+Alpha builds are not code-signed yet, so your system asks before the first
+launch:
+
+- **Windows:** SmartScreen shows "Windows protected your PC". Choose
+  _More info → Run anyway_.
+- **macOS:** the app is not notarized. Open it once, then go to _System
+  Settings → Privacy & Security_ and choose _Open Anyway_ (on macOS 14,
+  right-click the app → _Open_). If macOS says the app is damaged, run
   `xattr -dr com.apple.quarantine "/Applications/JAM Code.app"`.
 
-Then install and sign in to at least one agent with its own CLI:
+There is no auto-update yet; new versions are published on the Releases page.
 
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code): `claude`
-- [Codex](https://github.com/openai/codex): `codex`
+## Provider sign-in and privacy
 
-JAM Code finds them on your `PATH` (Settings → Providers shows what it found,
-their versions and whether they are signed in, and lets you point at another
-executable). It never installs them and never asks for credentials.
+- JAM Code uses the Claude Code and Codex installations already on your
+  machine. It finds them on your `PATH`; Settings → Providers shows what it
+  found and lets you point at a different executable.
+- Authentication stays with each provider's CLI. JAM Code never asks for,
+  reads or stores provider credentials. It shows only the sign-in state and
+  plan the CLI reports.
+- A chat sends your message, and the context you explicitly attached, to the
+  CLI of the agent you chose. Nothing is attached or sent automatically.
+- JAM Code has no account and no telemetry. In this alpha, its history and
+  settings are stored on your computer.
 
-## Privacy and provider sign-in
+How each integration works, and what applies to provider plans:
+[docs/PROVIDERS.md](docs/PROVIDERS.md).
 
-- JAM Code has no account, telemetry or network service of its own.
-- Authentication stays with each CLI. JAM Code reads only whether it is signed
-  in and the plan it reports; it never reads, copies or stores credentials.
-- A chat sends your message and the context you explicitly attached to the
-  provider's CLI, which talks to its provider as it normally would.
-- Whether a Claude subscription may be used through a third-party app is
-  unresolved, and JAM Code does not claim it is supported. It runs the
-  unmodified `claude` CLI with its own sign-in. See
-  [providers](docs/PROVIDERS.md).
-- Data lives in your application-data folder (`dev.jamcode.desktop`):
-  `jam.sqlite`, snapshots and the Browser's separate web profile.
+## Alpha limitations
 
-## Known limitations
-
-- Files are read-only in JAM Code; agents edit them.
-- No auto-update, no import of history from the providers' own apps, no remote
-  access, no Linux build.
-- Browser is a prototype: no devtools or agent control.
+- Files open read-only in JAM Code; agents make the edits.
+- No auto-update, and no import of history created in the providers' own apps.
+- The Browser has no devtools and agents cannot control it.
 - Snapshots are macOS-only.
-- Explicit Quit interrupts running chats; they resume later from the
-  provider's session.
-- Large histories are not paginated yet (a conversation shows its latest 500
-  messages).
+- Quitting interrupts running chats; they can be resumed afterwards.
+- A conversation shows its latest 500 messages; older ones stay searchable.
+- No Linux build.
+
+Found a bug? Use _Help → Report a bug_ in the app, or open an
+[issue](https://github.com/jayamartinez/jam-code/issues).
 
 ## Build from source
 
-Requirements: Node 22.13+ (22 LTS or newer LTS), pnpm 12.6, stable Rust
-(1.97+) with rustfmt and clippy, and the
-[Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) — MSVC C++
-build tools and WebView2 on Windows, Xcode command-line tools on macOS.
+Requirements: Node 22.13+, pnpm 12.6, stable Rust (1.97+) with rustfmt and
+clippy, and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)
+(MSVC C++ build tools and WebView2 on Windows, Xcode command-line tools on
+macOS).
 
 ```sh
 pnpm install
 pnpm desktop        # run the app in development
 ```
 
-`JAM_DEMO=1 pnpm desktop` opens a separate demo database with sample projects
-and a deterministic demo provider, for development. It never touches your real
-history. `pnpm dev` serves a browser-only preview at `http://127.0.0.1:1420`
-with in-memory sample data; it has no access to your machine.
+- `JAM_DEMO=1 pnpm desktop` opens a separate demo database with sample
+  projects and a scripted demo provider. It never touches your real history.
+- `pnpm dev` serves a browser-only preview at `http://127.0.0.1:1420` with
+  in-memory sample data and no access to your machine.
+- If your pnpm launcher is broken, prefix commands with
+  `npm exec --yes --package=pnpm@12.6.0 --`.
 
-If your pnpm launcher is broken, prefix commands with
-`npm exec --yes --package=pnpm@12.6.0 --`.
+Installers and the release process: [docs/RELEASING.md](docs/RELEASING.md).
 
-Release builds and the release process: [docs/RELEASING.md](docs/RELEASING.md).
-
-## Develop
+## Development
 
 ```sh
 pnpm check        # format, lint, types, tests, production frontend build
-pnpm check:rust   # rustfmt, clippy -D warnings (includes cargo check), tests
+pnpm check:rust   # rustfmt, clippy -D warnings, tests
 ```
-
-CI runs `pnpm check` once on Linux and the Rust checks on Windows and macOS for every pull request; a pull request that changes no Rust skips the Rust checks.
 
 | Path                | Responsibility                                                   |
 | ------------------- | ---------------------------------------------------------------- |
 | `apps/desktop`      | Tauri host: window, tray, native services, transport, Vite entry |
 | `packages/client`   | Shared React product UI, semantic design tokens, view state      |
 | `packages/protocol` | Platform-neutral types, validation, preview fixtures             |
-| `crates/runtime`    | Rust domain: providers, sessions, SQLite/FTS5, terminal, Git     |
-| `docs`              | Product, architecture, design, providers, validation, ADRs       |
+| `crates/runtime`    | Rust domain: providers, sessions, storage, search, terminal, Git |
 
-Start with [AGENTS.md](AGENTS.md) (the working rules for people and agents),
-[product](docs/PRODUCT.md), [architecture](docs/ARCHITECTURE.md),
-[design](docs/DESIGN.md) and [providers](docs/PROVIDERS.md). Decisions are in
-[docs/adr](docs/adr). [Validation](docs/VALIDATION.md) records what has been
-tested, how, and what has not.
+### Documentation
 
-Contributions are welcome as issues and pull requests. Keep changes small,
-follow the existing architecture and run both checks before opening a PR.
+- [AGENTS.md](AGENTS.md): working rules for people and coding agents.
+- [Architecture](docs/ARCHITECTURE.md): boundaries, ownership and lifecycle.
+- [Providers](docs/PROVIDERS.md): how the Claude Code and Codex integrations
+  work.
+- [Validation](docs/VALIDATION.md): what is tested, on which platforms, and
+  what is not.
+- [Releasing](docs/RELEASING.md): versions, installers and the release
+  checklist.
+- [Decision records](docs/adr): why the main architecture decisions were made.
 
 ## License
 
 [MIT](LICENSE) © 2026 Jay Martinez. Third-party components and their licenses
-are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Claude Code and
-Codex are products and trademarks of Anthropic and OpenAI; JAM Code is an
-independent project not affiliated with either.
+are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+Claude Code and Codex are products and trademarks of Anthropic and OpenAI. JAM
+Code is an independent project and is not affiliated with either.

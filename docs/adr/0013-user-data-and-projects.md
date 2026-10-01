@@ -59,7 +59,7 @@ replaces; a failed migration rolls back and leaves the previous version.
 **Projects come from folders.** `project.create { path }` takes a folder the
 person chose, normally from `DesktopServices.pickDirectory()` — the native
 Windows folder picker or macOS open panel, owned by the desktop host
-(`rfd`, parented to JAM's window). Shared client code never imports Tauri; a
+(`rfd`, parented to JAM Code's window). Shared client code never imports Tauri; a
 host without local folders (the browser preview, a future remote client)
 omits `pickDirectory`, and the UI says adding a folder needs the desktop app.
 The runtime checks that the path is absolute, exists, is a directory and can

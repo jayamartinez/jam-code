@@ -6,9 +6,9 @@ Status: accepted for the Browser prototype. Validated on macOS 26 (WKWebView) in
 
 Browser has to handle localhost previews, arbitrary HTTPS sites, sign-ins,
 several independent pages, annotations and eventually agent control. An
-`<iframe>` in JAM's interface cannot do this. `X-Frame-Options` and CSP
+`<iframe>` in JAM Code's interface cannot do this. `X-Frame-Options` and CSP
 `frame-ancestors` block most real sites. Cookies become third-party. The page
-shares JAM's process and CSP, and JAM's own policy is `frame-src 'none'`.
+shares JAM Code's process and CSP, and JAM Code's own policy is `frame-src 'none'`.
 Bundling Chromium (Electron or CEF) would add a full browser build to every
 installation.
 
@@ -26,7 +26,7 @@ through `DesktopServices` and does three things: reports the rectangle where its
 pane wants the page, forwards typed commands, and renders the state the host
 sends back.
 
-- **Lifetime follows JAM's view rules.** Attaching a pane creates no webview;
+- **Lifetime follows JAM Code's view rules.** Attaching a pane creates no webview;
   the first navigation does, so an empty Browser costs no web content
   process. Unmounting a pane, switching tabs, or opening Settings hides the
   view (`setBounds(null)`). Only the explicit `browser_close` command (the
@@ -41,7 +41,7 @@ sends back.
   re-render panes), ResizeObserver on the slot and the document, and window
   resize. Nothing polls while idle.
 - **Overlays.** A native view paints above the whole HTML document. Every
-  floating JAM surface (dialogs, context and pane menus, the launcher)
+  floating JAM Code surface (dialogs, context and pane menus, the launcher)
   registers with `native-occlusion`, and native views hide while any is open.
 - **One place per view.** If a resource is shown in two panes, the most
   recently mounted pane presents it and the other says so.
@@ -55,11 +55,11 @@ sends back.
   downloads. Browsing data lives in a separate profile:
   `data_store_identifier` on macOS 14+ and a `browser-profile` data directory
   on Windows.
-- **No page-to-host channel.** Everything JAM learns from a page's contents
+- **No page-to-host channel.** Everything JAM Code learns from a page's contents
   comes from host-initiated `eval_with_callback`: history availability,
   console ring, annotations. It is labelled as page data. Finished
   annotations are collected by asking the page every 200 ms, at most 16 per
-  poll. The page can replace JAM's script, so the host parses each
+  poll. The page can replace JAM Code's script, so the host parses each
   annotation into a fixed shape with bounded fields and drops anything else
   before it reaches the interface. This runs only while the reader has
   annotate mode on, with a 30-minute cap. URL, title and load state
@@ -77,7 +77,7 @@ sends back.
   inspection, history introspection, snapshots and devtools.
 - Native views cannot be clipped by CSS, rounded or drawn over. The page is
   square-cornered inside its 12px well, and menus hide pages while open.
-- With `unstable`, every webview, JAM's own included, is built as a child
+- With `unstable`, every webview, JAM Code's own included, is built as a child
   view. The per-webview `traffic_light_position` is then ignored on macOS, so
   the main window is built from a `WindowConfig`, whose traffic-light
   position is applied by the window (tao) and survives resizes. On Windows
@@ -86,7 +86,7 @@ sends back.
 - `get_webview_window("main")` stops finding the main window once a child
   webview exists, so the host uses `get_window("main")`. The global
   `on_page_load` hook sees Browser pages too and only reacts to `main`.
-- Keyboard focus inside a page belongs to that page. JAM's shortcuts do not
+- Keyboard focus inside a page belongs to that page. JAM Code's shortcuts do not
   fire while a browsed page has focus. Fixing this needs native menu
   accelerators or a page-to-host channel, and both are deferred.
 - Region capture and screenshots need `WKWebView.takeSnapshot` or WebView2
@@ -100,7 +100,7 @@ sends back.
 ## Alternatives
 
 - **iframe**: rejected for the reasons above.
-- **Separate native browser window**: works everywhere but abandons JAM's pane
+- **Separate native browser window**: works everywhere but abandons JAM Code's pane
   model. Kept as a fallback only if a platform cannot embed children.
 - **Bundled Chromium/CEF**: better automation parity (CDP) at a large install
   and update cost. The `BrowserHost` interface is the seam where such a

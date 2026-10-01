@@ -4,11 +4,9 @@ name: Release
 # build also creates a *draft* prerelease with the artifacts and checksums;
 # nothing is published until a maintainer reviews and publishes the draft.
 #
-# Signing is optional. Without the secrets below the builds are unsigned
-# (macOS: ad-hoc signed). See docs/RELEASING.md.
-#   macOS: APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY,
-#          APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID (notarization)
-#   Windows: none wired yet; see docs/RELEASING.md.
+# Alpha builds are unsigned (macOS: ad-hoc signed, not notarized); see
+# docs/RELEASING.md. The APPLE_* secrets below are not set. They are the seam
+# for Developer ID signing and notarization later; Windows has none wired.
 
 on:
   push:
@@ -92,4 +90,4 @@ jobs:
           gh release create "$GITHUB_REF_NAME" artifacts/*
           --draft --prerelease --verify-tag
           --title "JAM Code $GITHUB_REF_NAME"
-          --notes-file docs/release-notes/$GITHUB_REF_NAME.md
+          --notes-file .github/release-notes/$GITHUB_REF_NAME.md

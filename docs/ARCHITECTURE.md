@@ -2,12 +2,12 @@
 
 ## Decision
 
-Use Tauri 2, React/TypeScript/Vite with pnpm, and a Cargo workspace. Keep a framework-independent Rust runtime and reusable frontend product package. SQLite is the source of truth; FTS5 indexes searchable projections. Start with one runtime crate containing coherent modules rather than separate crates for each noun.
+Use Tauri 2, React/TypeScript/Vite with pnpm, and a Cargo workspace. Keep a framework-independent Rust runtime and reusable frontend product package. SQLite is the source of truth; FTS5 indexes searchable projections. One runtime crate contains coherent modules rather than a separate crate for each noun.
 
 ```mermaid
 flowchart LR
   Desktop[Desktop entry and native chrome] --> UI[Shared React client]
-  UI --> Contract[JAM protocol / JamTransport]
+  UI --> Contract[JAM Code protocol / JamTransport]
   Contract --> Local[Tauri local transport]
   Local --> Host[Tauri host: trusted main window]
   Host --> Core[Rust runtime]
@@ -22,6 +22,21 @@ flowchart LR
 
 The dashed path is a reserved boundary, not implemented software. No server, WebSocket listener, remote authentication or web application is scaffolded now. The Tauri bridge converts IPC to typed runtime calls and scoped subscriptions. Product components never import Tauri APIs.
 
+## Domain language
+
+| Concept       | Meaning                                                                             | Lifetime                     |
+| ------------- | ----------------------------------------------------------------------------------- | ---------------------------- |
+| Project       | A folder (or several) on a machine, with a name and icon; Git is optional           | Durable                      |
+| Resource      | Addressable conversation, terminal, browser, file, file browser, review or Settings | Independent of presentation  |
+| View          | One visible presentation of a resource                                              | Client-owned                 |
+| Layout        | Tabs, each tab's split tree of views, Single/Tiles and focus                        | Client-owned presentation    |
+| Conversation  | Searchable transcript and context history                                           | Durable                      |
+| Agent session | Runtime-owned execution state and the provider's session reference                  | Independent of views         |
+| Turn          | One explicit user submission and the agent activity that follows                    | Durable outcome              |
+| Context item  | A file, selection, diff, browser annotation, terminal excerpt, message or snapshot  | Staged, then explicitly sent |
+
+Visible and focused are different states, and closing a view leaves its resource available in history. A terminal is a resource with a real PTY, never the rendering mechanism for conversations.
+
 ## Ownership
 
 | State                                                  | Authority        | Client responsibility                   |
@@ -30,11 +45,11 @@ The dashed path is a reserved boundary, not implemented software. No server, Web
 | Choosing a project folder (native picker)              | Desktop host     | `DesktopServices.pickDirectory`         |
 | Sessions, in-flight turns, task handles, subscribers   | Runtime          | Render normalized state                 |
 | Provider installation/auth/capabilities                | Runtime adapters | Display unknown faithfully              |
-| Provider processes, pending approvals/questions        | Runtime adapters | Answer by JAM interaction ID            |
+| Provider processes, pending approvals/questions        | Runtime adapters | Answer by JAM Code interaction ID       |
 | Provider session/thread IDs (`provider_bindings`)      | Runtime / SQLite | Never sees them                         |
 | Open views, layout tree, focus, Single/Tiles, drafts   | Client           | Never use view cleanup to stop work     |
 | Project files and directory listings                   | Runtime          | Address by project ID and relative path |
-| Worktrees JAM created (`worktrees`)                    | Runtime / SQLite | Address by worktree ID, never by path   |
+| Worktrees JAM Code created (`worktrees`)               | Runtime / SQLite | Address by worktree ID, never by path   |
 | Search index                                           | Runtime storage  | Query and paginate/bound                |
 | Appearance settings and wallpaper copy                 | Runtime / SQLite | Apply as tokens; first-paint cache only |
 | Native window/menu/tray                                | Desktop host     | Access via injected desktop services    |
@@ -130,7 +145,7 @@ Runtime modules own numbered transactional migrations, foreign keys and FTS5. Us
 
 Persistent product settings live in the `settings` table, one validated JSON record per key; appearance and its wallpaper copy are separate keys so saving a font size never rewrites image data. Ephemeral view state (layout, Markdown Preview/Source, drafts) stays in the client. Schema evolution must keep stable resource/message IDs, include migration failure reporting and prohibit destructive resets as a migration strategy. Backups and retention policy precede real user data import. Do not log complete transcripts by default.
 
-### Foundation bounds
+### Current bounds
 
 The user database, `jam.sqlite` in the platform application-data folder, preserves all recorded messages; it has no demo seed, and `JAM_DEMO=1` opens a separate `demo/demo.sqlite` instead (ADR 0013). A conversation read returns its latest 500 messages; older rows remain searchable, but transcript pagination is not implemented. Search returns at most 50 distinct conversations, ranked before applying that limit; a blank or punctuation-only query returns no results. Native FTS search uses plain token/prefix matching. These constraints must be revisited before importing real provider history.
 
@@ -140,28 +155,28 @@ Request limits match the TypeScript contract in UTF-16 units: identifiers 128, p
 
 ## Providers
 
-The runtime's `ProviderManager` holds the adapters (Claude Code, Codex, demo), the saved provider settings and the last check. Checks run on first need, never at launch and never on a timer. A turn is a runtime task that drives the adapter's future; the adapter owns its processes, speaks its provider's wire protocol, and reports normalized blocks, interactions, model, usage and the provider's own session ID. Approvals and questions wait in a runtime broker keyed by JAM interaction ID. Interrupting asks the provider to stop the turn and lets it settle (bounded) before another turn starts; processes end on Quit or after 15 idle minutes and resume by provider ID. See [PROVIDERS.md](PROVIDERS.md) and [ADR 0011](adr/0011-live-providers.md).
+The runtime's `ProviderManager` holds the adapters (Claude Code, Codex, demo), the saved provider settings and the last check. Checks run on first need, never at launch and never on a timer. A turn is a runtime task that drives the adapter's future; the adapter owns its processes, speaks its provider's wire protocol, and reports normalized blocks, interactions, model, usage and the provider's own session ID. Approvals and questions wait in a runtime broker keyed by JAM Code interaction ID. Interrupting asks the provider to stop the turn and lets it settle (bounded) before another turn starts; processes end on Quit or after 15 idle minutes and resume by provider ID. See [PROVIDERS.md](PROVIDERS.md) and [ADR 0011](adr/0011-live-providers.md).
 
 ## Native services and platform differences
 
 - Terminal: runtime-owned PTYs (`portable-pty`), a bounded replay buffer, resize/attach/detach and acknowledged flow control, with xterm loaded only by a mounted terminal pane. Output streams per attachment, outside workspace events. Process exit is never coupled to component unmount. See ADR 0006.
-- Editor: CodeMirror 6, loaded only by a File pane that is actually rendered, with language modes in per-language chunks chosen from the runtime's file-name language (see DESIGN.md → Code). Markdown files render in a lazily loaded preview built from markdown-it tokens without an HTML string (ADR 0008). Merely opening a file resource, or leaving one open in a hidden tab, constructs no editor. Writing still needs a filesystem service and explicit save conflicts, so the File resource is read-only and says so.
+- Editor: CodeMirror 6, loaded only by a File pane that is actually rendered, with language modes in per-language chunks chosen from the runtime's file-name language (`language_for`). Markdown files render in a lazily loaded preview built from markdown-it tokens without an HTML string (ADR 0008). Merely opening a file resource, or leaving one open in a hidden tab, constructs no editor. Writing still needs a filesystem service and explicit save conflicts, so the File resource is read-only and says so.
 - Git: runtime-owned `GitManager`, user's installed CLI and typed `git.status`, `git.branches`, `git.diff`, `git.setStaged` requests. Porcelain v2 status, lazy structured patches and explicit file staging; focus/activation/manual refresh with no idle polling. See [ADR 0010](adr/0010-git-review.md) for bounds, scope and safety.
-- New chat workspaces: a new chat's first Send may switch the project's checkout to another branch (only when no work can be lost) or create a worktree with its own `jam/<name>` branch and folder. Worktrees are runtime records; the chat and the Review, files and terminals opened from it carry a `worktreeId`, and the runtime resolves and verifies the folder on every use. JAM never deletes or resets a worktree or branch. See [ADR 0012](adr/0012-new-chat-worktrees.md).
-- Browser: one native child webview per Browser resource (WKWebView / WebView2), owned by the desktop host and placed over its pane; see [ADR 0007](adr/0007-native-browser.md). Pages are unprivileged: they match no capability, have no page-to-host channel, may only load http(s), and keep cookies in a profile separate from JAM's interface. WebView2 and WKWebView differ; devtools/automation parity is not promised.
-- Terminal and Browser deliberately have different owners. A shell is a machine capability, so the runtime owns it and a client (local now, remote later) drives it through `JamTransport`. A native webview is a piece of the local window, so the desktop host owns it and the shared client reaches it only through the optional `DesktopServices.browser`; a remote client would present browsing differently. Both follow the same view rules: a pane attaches and detaches, only an explicit command ends the shell or page, and a reload of JAM's own webview detaches both without ending either.
+- New chat workspaces: a new chat's first Send may switch the project's checkout to another branch (only when no work can be lost) or create a worktree with its own `jam/<name>` branch and folder. Worktrees are runtime records; the chat and the Review, files and terminals opened from it carry a `worktreeId`, and the runtime resolves and verifies the folder on every use. JAM Code never deletes or resets a worktree or branch. See [ADR 0012](adr/0012-new-chat-worktrees.md).
+- Browser: one native child webview per Browser resource (WKWebView / WebView2), owned by the desktop host and placed over its pane; see [ADR 0007](adr/0007-native-browser.md). Pages are unprivileged: they match no capability, have no page-to-host channel, may only load http(s), and keep cookies in a profile separate from JAM Code's interface. WebView2 and WKWebView differ; devtools/automation parity is not promised.
+- Terminal and Browser deliberately have different owners. A shell is a machine capability, so the runtime owns it and a client (local now, remote later) drives it through `JamTransport`. A native webview is a piece of the local window, so the desktop host owns it and the shared client reaches it only through the optional `DesktopServices.browser`; a remote client would present browsing differently. Both follow the same view rules: a pane attaches and detaches, only an explicit command ends the shell or page, and a reload of JAM Code's own webview detaches both without ending either.
 - Snapshots: runtime-owned `SnapshotManager` stores metadata, settings and JPEG assets; the desktop host owns the shortcut listener (a modifier-state sampler for both Shift keys or a system hotkey; neither needs Input Monitoring), the Screen Recording check, one-shot platform capture and nonactivating feedback. Last-focused conversation is explicit runtime metadata, independent of file/terminal focus. See [ADR 0009](adr/0009-snapshots.md).
 - Context: typed provenance/selection and opaque asset references. Snapshots reuse `ContextItem.kind = snapshot`; no binary payload lives in the workspace state. Capturing stages context and never invokes Send. Remote clients cannot submit arbitrary local paths as capability grants.
 - Windows uses right-side native-style controls; macOS uses left-side traffic lights and Cmd shortcuts. Host supplies the platform and window actions. Titlebar drag areas exclude interactive controls.
 
 ## Trust boundaries
 
-General Tauri permissions are restricted to local main UI; the local Snapshot toast has a separate narrow allowlist without turn submission. Main capabilities are scoped to the `main` _webview_ rather than the window, because Browser pages are child webviews of that window. Declare application IPC commands through `AppManifest::commands` so capabilities actually gate them. Validate the envelope and per-command inputs in Rust. No generic shell/filesystem plugin capability, remote URLs, external scripts or provider credentials in the frontend. Content security policy permits bundled resources and native IPC; development-server allowances stay development-only. Render agent content as text/structured blocks; raw HTML is not trusted. Repository Markdown is rendered as allow-listed React elements with raw HTML disabled; its links open only in-document anchors, project files or a Browser resource, never JAM's own window (ADR 0008).
+General Tauri permissions are restricted to local main UI; the local Snapshot toast has a separate narrow allowlist without turn submission. Main capabilities are scoped to the `main` _webview_ rather than the window, because Browser pages are child webviews of that window. Declare application IPC commands through `AppManifest::commands` so capabilities actually gate them. Validate the envelope and per-command inputs in Rust. No generic shell/filesystem plugin capability, remote URLs, external scripts or provider credentials in the frontend. Content security policy permits bundled resources and native IPC; development-server allowances stay development-only. Render agent content as text/structured blocks; raw HTML is not trusted. Repository Markdown is rendered as allow-listed React elements with raw HTML disabled; its links open only in-document anchors, project files or a Browser resource, never JAM Code's own window (ADR 0008).
 
 A future remote host needs explicit pairing, transport encryption, revocable device credentials, per-project authorization, origin checking, CSRF/replay protection, rate/resource limits, audit and reconnection semantics. Authentication alone is not authorization to execute local commands. Remote clients receive opaque project/asset IDs; the runtime resolves paths. These are requirements, not implemented claims.
 
 ## Performance and risks
 
-No idle polling or eager agent processes. The one exception is the both-Shift-keys Snapshot shortcut, which samples modifier state every 50 ms while Snapshots is on (ADR 0009). Scope subscriptions, batch normalized updates, bound queries and lazily render expensive surfaces. Transcript pagination/virtualization is required before importing large histories; the foundation uses small bounded demo records. Measure native process plus WebView child memory, not only one executable. Establish startup marks from client bootstrap to workspace loaded, FTS query timings and release startup/RSS/idle CPU procedures in `docs/VALIDATION.md`.
+No idle polling or eager agent processes. The one exception is the both-Shift-keys Snapshot shortcut, which samples modifier state every 50 ms while Snapshots is on (ADR 0009). Scope subscriptions, batch normalized updates, bound queries and lazily render expensive surfaces. Transcript pagination/virtualization is required before importing large histories. Measure native process plus WebView child memory, not only one executable. Establish startup marks from client bootstrap to workspace loaded, FTS query timings and release startup/RSS/idle CPU procedures in `docs/VALIDATION.md`.
 
 The largest uncertainties are provider subscription eligibility, changing provider protocols, WebView browser automation parity, modifier-only global capture, platform-specific background lifetime, and remote authorization. None require an Electron fallback now.
