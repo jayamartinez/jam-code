@@ -24,8 +24,8 @@
     "copyright": "Copyright (c) 2026 Jay Martinez",
     "license": "MIT",
     "category": "DeveloperTool",
-    "shortDescription": "A local-first desktop workspace for coding agents",
-    "longDescription": "JAM Code is a local-first desktop workspace for Claude Code and Codex: projects, searchable conversations, terminals, a browser, files and Git review in one window.",
+    "shortDescription": "A desktop workspace for coding agents",
+    "longDescription": "JAM Code is a desktop workspace for Claude Code and Codex: projects, searchable conversations, worktrees, terminals, a browser, files and Git review in one window.",
     "icon": ["icons/icon.png", "icons/icon.icns", "icons/icon.ico"],
     "resources": {
       "../../../LICENSE": "LICENSE",
