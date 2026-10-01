@@ -50,14 +50,19 @@ for an interactive preview.
 
 ## Supported agents
 
-| Agent                                                         | Status    |
-| ------------------------------------------------------------- | --------- |
-| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | Supported |
-| [Codex](https://github.com/openai/codex)                      | Supported |
+| Agent                                                         | Status                     |
+| ------------------------------------------------------------- | -------------------------- |
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | Supported                  |
+| [Codex](https://github.com/openai/codex)                      | Supported                  |
+| Cursor                                                        | Planned, not supported yet |
+| Gemini CLI                                                    | Planned, not supported yet |
+| Grok                                                          | Planned, not supported yet |
+| OpenCode                                                      | Planned, not supported yet |
 
-You need at least one of them installed and signed in. JAM Code works with
-either or both. Any other CLI agent still runs as an ordinary command in the
-Terminal.
+You need Claude Code or Codex installed and signed in; JAM Code works with
+either or both. More agents will be added over time. Until an agent is
+supported, its CLI still runs as an ordinary command in the Terminal, without
+the structured chat view.
 
 ## Platforms
 
