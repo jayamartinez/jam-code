@@ -4,12 +4,12 @@ Status: accepted.
 
 ## Context
 
-JAM's customization (theme, accent, type, background) had been a few editor
+JAM Code's customization (theme, accent, type, background) had been a few editor
 font preferences kept in the WebView's `localStorage`. That store belongs to
 one browser profile, is invisible to the runtime and to any future client, and
 is where a wallpaper image would have ended up as megabytes of string.
 Separately, agents write reports, plans and research as Markdown, and a
-repository's Markdown is untrusted content that JAM's own window now renders.
+repository's Markdown is untrusted content that JAM Code's own window now renders.
 
 ## Decision
 
@@ -70,7 +70,7 @@ repository's Markdown is untrusted content that JAM's own window now renders.
   the same document (scrolled to), an `http(s)` page (opened in a new Browser
   resource, the isolated native view with its own profile), a path inside the
   same project (opened as a File resource; paths that climb out of the project
-  are refused), or nothing. The real destination is never an `href`, so JAM's
+  are refused), or nothing. The real destination is never an `href`, so JAM Code's
   own window cannot navigate on any kind of click. `javascript:`, `data:`
   documents, `file:`, custom schemes and malformed input render as text.
 - **Images.** Only inline raster `data:` images load. Remote images are not

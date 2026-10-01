@@ -20,7 +20,7 @@ records the chat. A draft that is never sent leaves the repository untouched.
   `--force`, `--discard-changes` or `reset`. Untracked files do not block a
   switch; Git itself refuses rather than overwrite one.
 - **New worktree.** The runtime creates `jam/<name>` from the chosen base (a
-  local branch, or a remote-tracking branch as Git last fetched it; JAM does
+  local branch, or a remote-tracking branch as Git last fetched it; JAM Code does
   not fetch) in `<main checkout's parent>/<repository>-worktrees/<name>`, with
   `git worktree add --no-track -b <branch> --end-of-options <path> <ref>`.
   `<name>` is a lowercase slug of the first message; taken branch or folder
@@ -36,17 +36,17 @@ Terminal resources opened from that chat's tab, its file links and its Review
 button. Git, file and terminal requests accept `worktreeId` and never a path;
 the runtime resolves the folder and checks, on every use, that it still exists
 and is the top of a Git checkout. A missing worktree is a `not_found` error
-naming its folder; JAM never silently falls back to the project's folder.
+naming its folder; JAM Code never silently falls back to the project's folder.
 Refusals use the codes the desktop transport already shows (`conflict`,
 `not_found`, `unavailable`), so their explanations reach the reader.
 The chat's agent runs with that folder as its working directory.
 
-JAM never deletes or resets a worktree or a branch. Removing one is left to
+JAM Code never deletes or resets a worktree or a branch. Removing one is left to
 the reader's own Git tools; the record then reports the folder missing.
 
 ## Validation and safety
 
-Branch names pass JAM's own rules before Git sees them (no leading `-`, `/` or
+Branch names pass JAM Code's own rules before Git sees them (no leading `-`, `/` or
 `.`; no `..`, `//`, `@{`, `/.`, whitespace, control characters or
 `\ ~ ^ : ? * [`; not `HEAD`; not ending in `/`, `.` or `.lock`; at most 200
 bytes), then `git check-ref-format --branch`. A name to switch to or start from
