@@ -70,8 +70,25 @@ export class RuntimeClient {
           listeners.forEach((listener) => listener());
       }
   }
-  clearError = () => this.update({ error: null });
-  reportError = (error: unknown) => this.update({ error: errorMessage(error) });
+  /** The chat the shown error is about, when its next Send can settle it. */
+  private errorAbout: string | undefined;
+  clearError = () => {
+    this.errorAbout = undefined;
+    this.update({ error: null });
+  };
+  /**
+   * `about` is the chat a refused Send or attachment belongs to: that chat's
+   * next successful Send takes the error down (`settle`). Any other error
+   * stays until it is dismissed or replaced.
+   */
+  reportError = (error: unknown, about?: string) => {
+    this.errorAbout = typeof about === 'string' ? about : undefined;
+    this.update({ error: errorMessage(error) });
+  };
+  /** A Send went through: an error about that chat is no longer current. */
+  settle(...chats: string[]) {
+    if (this.errorAbout !== undefined && chats.includes(this.errorAbout)) this.clearError();
+  }
 
   async connect() {
     const generation = ++this.generation;
