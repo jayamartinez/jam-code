@@ -186,6 +186,31 @@ impl AssetDir {
         Ok(data)
     }
 
+    /// Reads at most the first `limit` bytes of a regular file, for a preview
+    /// of something larger. Never follows a link.
+    pub fn read_prefix(&self, name: &str, limit: usize) -> Result<Vec<u8>, JamError> {
+        let path = self.path(name)?;
+        let meta = fs::symlink_metadata(&path).map_err(|_| self.unavailable())?;
+        if !meta.is_file() || meta.file_type().is_symlink() {
+            return Err(JamError::invalid(format!("Invalid {} asset.", self.label)));
+        }
+        let mut options = OpenOptions::new();
+        options.read(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.custom_flags(libc::O_NOFOLLOW);
+        }
+        let mut data = Vec::new();
+        options
+            .open(path)
+            .map_err(|_| self.unavailable())?
+            .take(limit as u64)
+            .read_to_end(&mut data)
+            .map_err(|_| self.unavailable())?;
+        Ok(data)
+    }
+
     /// Removes one file. `unlink` removes a link itself, never its target,
     /// and nothing is ever removed recursively. A missing file is fine.
     pub fn remove(&self, name: &str) -> Result<(), JamError> {

@@ -266,6 +266,27 @@
   max-width: 100%;
   object-fit: contain;
 }
+.attachment-preview-text {
+  max-height: 56vh;
+  margin: 0;
+  padding: 12px 14px;
+  overflow: auto;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-base);
+  color: var(--color-text-body);
+  font-family: var(--font-mono), monospace;
+  font-size: calc(12px * var(--ui-scale));
+  line-height: calc(18px * var(--ui-scale));
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.attachment-preview-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
 .new-chat-body {
   flex: 1;
   display: flex;

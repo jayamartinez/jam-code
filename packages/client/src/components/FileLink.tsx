@@ -1,5 +1,5 @@
 import type { MouseEvent, ReactNode } from 'react';
-import { ArrowUpRight, File } from 'lucide-react';
+import { ArrowUpRight, File, Paperclip } from 'lucide-react';
 import type { FileReference } from '../markdown/file-refs';
 
 export interface FileLinkActions {
@@ -51,6 +51,30 @@ export function FileLink({
         <ArrowUpRight className="file-link-arrow" size={12} strokeWidth={1.8} />
       </span>
       <span className="file-link-label">{children ?? file.path}</span>
+    </button>
+  );
+}
+
+/**
+ * A file attached in this chat, named in a reply. It looks like a file link
+ * with a paperclip, and opens the attachment's preview rather than a pane.
+ */
+export function AttachmentLink({ name, onOpen }: { name: string; onOpen(): void }) {
+  return (
+    <button
+      type="button"
+      className="file-link"
+      title={`${name}\nAttached in this chat · click to preview`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onOpen();
+      }}
+    >
+      <span className="file-link-glyph" aria-hidden="true">
+        <Paperclip className="file-link-icon" size={12} strokeWidth={1.8} />
+        <ArrowUpRight className="file-link-arrow" size={12} strokeWidth={1.8} />
+      </span>
+      <span className="file-link-label">{name}</span>
     </button>
   );
 }

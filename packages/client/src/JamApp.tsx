@@ -2051,6 +2051,13 @@ export function JamApp({ transport, desktop }: JamAppProps) {
               item={(previewSent ?? previewContext)!}
               sent={!!previewSent}
               transport={transport}
+              revealLabel={desktop.platform === 'windows' ? 'Show in Explorer' : 'Reveal in Finder'}
+              onReveal={(item) => {
+                if (item.assetId)
+                  void transport
+                    .request('attachment.reveal', { id: item.assetId })
+                    .catch(client.reportError);
+              }}
               onClose={() => {
                 setPreviewSent(null);
                 setPreviewContext(null);

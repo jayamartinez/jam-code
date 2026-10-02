@@ -61,6 +61,9 @@ pub struct AttachmentLimits {
     pub unsent_hours: i64,
 }
 
+/// How much of a text attachment its preview shows.
+const TEXT_PREVIEW_BYTES: usize = 64 * 1024;
+
 pub fn limits() -> &'static AttachmentLimits {
     static LIMITS: std::sync::OnceLock<AttachmentLimits> = std::sync::OnceLock::new();
     LIMITS.get_or_init(|| {
@@ -162,6 +165,30 @@ impl AttachmentStore {
     pub(crate) fn read(&self, attachment: &Attachment) -> Result<Vec<u8>, JamError> {
         self.home(attachment)?
             .read(&attachment.file_name(), attachment.bytes as usize)
+    }
+
+    /// The start of the copy as text, when it is text: UTF-8 without a NUL.
+    /// The second value says whether the file continues past what is shown.
+    fn text_preview(&self, attachment: &Attachment) -> Result<Option<(String, bool)>, JamError> {
+        let head = self
+            .home(attachment)?
+            .read_prefix(&attachment.file_name(), TEXT_PREVIEW_BYTES)?;
+        let truncated = attachment.bytes > head.len() as u64;
+        let text = match std::str::from_utf8(&head) {
+            Ok(text) => text,
+            // A character cut in half by the limit is not a sign of binary.
+            Err(error) if truncated && error.error_len().is_none() => {
+                std::str::from_utf8(&head[..error.valid_up_to()]).unwrap_or_default()
+            }
+            Err(_) => return Ok(None),
+        };
+        Ok((!text.contains('\0')).then(|| (text.to_owned(), truncated)))
+    }
+
+    /// The copy's folder and file name, to show it in the file manager.
+    fn location(&self, attachment: &Attachment) -> Result<(PathBuf, String), JamError> {
+        let home = self.home(attachment)?;
+        Ok((home.root().to_path_buf(), attachment.file_name()))
     }
 
     pub(crate) fn path(&self, attachment: &Attachment) -> Result<PathBuf, JamError> {
@@ -477,6 +504,32 @@ impl Runtime {
                 Ok(json!({
                     "dataUrl": format!("data:{};base64,{}", attachment.media_type, STANDARD.encode(bytes))
                 }))
+            }
+            // The start of a text attachment, for its preview. Anything that
+            // is not text has none; the file manager can still show it.
+            "attachment.text" => {
+                let attachment = state
+                    .store
+                    .attachment(&input.id)?
+                    .ok_or_else(|| JamError::new("not_found", "Attachment not found."))?;
+                match self.attachments.text_preview(&attachment)? {
+                    Some((text, truncated)) => Ok(json!({"text": text, "truncated": truncated})),
+                    None => Err(JamError::invalid(
+                        "This attachment is not text and has no preview here.",
+                    )),
+                }
+            }
+            // Shows JAM's own copy in Finder or Explorer, after an explicit
+            // click. It selects the file; it never opens or runs it.
+            "attachment.reveal" => {
+                let attachment = state
+                    .store
+                    .attachment(&input.id)?
+                    .ok_or_else(|| JamError::new("not_found", "Attachment not found."))?;
+                let (folder, name) = self.attachments.location(&attachment)?;
+                drop(state);
+                crate::system_open::reveal(&folder, &name)?;
+                Ok(json!({"revealed": true}))
             }
             _ => Err(JamError::new(
                 "unknown_method",

@@ -213,3 +213,39 @@ describe('file links in agent replies', () => {
     expect(links('[the guide](https://example.com/src/a.ts)')).toEqual([]);
   });
 });
+
+describe('inline code a caller recognises', () => {
+  const render = (source: string) =>
+    renderToStaticMarkup(
+      createElement(
+        'article',
+        null,
+        renderMarkdown(source, {
+          directory: '',
+          onLink: vi.fn(),
+          code: (content: string, _info: string, key: number): ReactNode =>
+            createElement('pre', { key }, content),
+          fileLink: (file, label, key) =>
+            createElement('a', { key, 'data-file': file.path }, label),
+          inlineCode: (content, key) =>
+            content === 'My Resume.pdf'
+              ? createElement('button', { key, 'data-attachment': content }, content)
+              : undefined,
+        }),
+      ),
+    );
+
+  it('replaces the span it claims and leaves the rest to the usual rules', () => {
+    const html = render('Read `My Resume.pdf`, then `src/a.ts` and `pty.kill`.');
+    expect(html).toContain('<button data-attachment="My Resume.pdf">My Resume.pdf</button>');
+    expect(html).toContain('data-file="src/a.ts"');
+    expect(html).toContain('<code>pty.kill</code>');
+  });
+
+  it('is not asked about code inside a link, a code block or plain prose', () => {
+    const html = render(
+      '[`My Resume.pdf`](https://example.com) and My Resume.pdf\n\n```\nMy Resume.pdf\n```',
+    );
+    expect(html).not.toContain('data-attachment');
+  });
+});

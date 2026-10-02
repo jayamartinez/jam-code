@@ -981,3 +981,57 @@ async fn the_demo_provider_keeps_an_attachment_without_reading_it() {
         vec![format!("conv-layout/{}.txt", id_of(&attached))]
     );
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_text_attachment_previews_its_start_and_other_types_do_not() {
+    let temp = Temp::new();
+    let agent = Scripted::new("supported");
+    let runtime = open(&temp, agent.clone());
+    let preview = |id: &str| request(&runtime, "attachment.text", json!({"id": id}));
+
+    // A short text file is shown whole, staged and after it is sent.
+    let log = item(
+        &runtime,
+        &temp.chosen("build.log", "ok ✓\nwarning: unused\n".as_bytes()),
+    );
+    let shown = preview(id_of(&log)).unwrap();
+    assert_eq!(
+        shown,
+        json!({"text":"ok ✓\nwarning: unused\n","truncated":false})
+    );
+    let resource = chat(&runtime, "preview-chat");
+    let mut events = runtime.subscribe(SubscriptionScope::default()).unwrap();
+    send(
+        &runtime,
+        &resource,
+        "read it",
+        std::slice::from_ref(&log),
+        "preview-send",
+    )
+    .unwrap();
+    settled(&mut events.receiver).await;
+    assert_eq!(preview(id_of(&log)).unwrap(), shown);
+
+    // A long one shows only its start, cut on a whole character.
+    let long = "é".repeat(40_000);
+    let big = item(&runtime, &temp.chosen("long.txt", long.as_bytes()));
+    let start = preview(id_of(&big)).unwrap();
+    assert_eq!(start["truncated"], json!(true));
+    let text = start["text"].as_str().unwrap();
+    assert!(text.len() <= 64 * 1024 && text.len() > 60 * 1024);
+    assert!(long.starts_with(text));
+
+    // Anything that is not text has no text preview, whatever it is called.
+    for (name, bytes) in [
+        ("report.pdf", PDF),
+        ("shot.png", PNG),
+        ("notes.txt", b"a\0b".as_slice()),
+    ] {
+        let binary = item(&runtime, &temp.chosen(name, bytes));
+        assert_eq!(code(preview(id_of(&binary))), "invalid_request", "{name}");
+    }
+    assert_eq!(
+        code(preview("attachment-00000000-0000-4000-8000-000000000000")),
+        "not_found"
+    );
+}

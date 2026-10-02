@@ -1,4 +1,4 @@
-import type { ContextItem, ProviderDescriptor } from '@jam/protocol';
+import type { ContextItem, Message, ProviderDescriptor } from '@jam/protocol';
 
 /** A file size as people read it: 512 B, 18 KB, 1.4 MB. */
 export function formatBytes(bytes: number): string {
@@ -52,4 +52,32 @@ export function imagesRefused(
 /** One sentence for the files the chooser would not attach. */
 export function refusalMessage(refused: readonly { name: string; reason: string }[]): string {
   return refused.map(({ name, reason }) => `${name} was not attached: ${reason}`).join(' ');
+}
+
+/** The files sent in a conversation, oldest first. */
+export function sentAttachments(messages: readonly Message[]): ContextItem[] {
+  return messages.flatMap((message) =>
+    message.role === 'user'
+      ? message.blocks.flatMap((block) =>
+          block.type === 'context' ? block.items.filter((item) => item.attachment) : [],
+        )
+      : [],
+  );
+}
+
+/**
+ * The attachment a reply's inline code refers to: its file name exactly, or
+ * the path of JAM Code's copy, which ends in the attachment's ID. When two
+ * share a name, the one sent last.
+ */
+export function attachmentNamed(
+  code: string,
+  attachments: readonly ContextItem[],
+): ContextItem | undefined {
+  const named = code.trim();
+  if (!named || !attachments.length) return undefined;
+  const copy = /(attachment-[0-9a-f-]{36})(?:\.[A-Za-z0-9]{1,16})?$/.exec(named)?.[1];
+  return [...attachments]
+    .reverse()
+    .find((item) => (copy ? item.assetId === copy : item.attachment?.name === named));
 }

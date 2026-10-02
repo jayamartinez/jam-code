@@ -108,4 +108,11 @@ characters; at most 64 attachments waiting to be sent.
   through the same host import.
 - Closing a new chat that has staged attachments leaves their copies until
   the retention limit or the next start removes them.
-- Image previews are served as data URLs of the raster types above, by ID.
+- Previews are served by ID from JAM Code's copy: an image as a data URL of
+  the raster types above, and the first 64 KB of a file that is UTF-8 text.
+  Nothing else is rendered: JAM Code has no PDF or document viewer, and it
+  never opens an attachment with another program. Any attachment can be shown
+  in Finder or Explorer, which selects the copy without opening it.
+- A reply that names an attached file in inline code, by its name or by the
+  path of the copy, links to that preview. Matching is exact and happens in
+  the interface; nothing is added to what the agent wrote.

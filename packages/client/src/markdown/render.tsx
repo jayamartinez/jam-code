@@ -45,6 +45,11 @@ export interface MarkdownOptions {
    * inline code that names a project file (`src/a.ts:18`) becomes one too.
    */
   fileLink?(file: FileReference, label: ReactNode, key: number): ReactNode;
+  /**
+   * Asked first about each inline code span outside a link; a node it returns
+   * replaces the span. For names only the caller knows, such as attachments.
+   */
+  inlineCode?(content: string, key: number): ReactNode | undefined;
 }
 
 interface Context extends MarkdownOptions {
@@ -195,6 +200,8 @@ function leaf(token: Token, context: Context, inLink = false): ReactNode {
     case 'hardbreak':
       return <br key={key} />;
     case 'code_inline': {
+      const custom = inLink ? undefined : context.inlineCode?.(token.content, key);
+      if (custom !== undefined) return custom;
       const file = context.fileLink && !inLink ? fileReference(token.content) : null;
       const path = file && resolveProjectPath(context.directory, file.path);
       if (file && path && context.fileLink)

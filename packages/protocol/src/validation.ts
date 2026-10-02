@@ -761,6 +761,8 @@ const params: Record<RequestMethod, Check> = {
   'conversation.delete': (value) => shape(value, { resourceId: id }),
   'attachment.remove': (value) => shape(value, { id }),
   'attachment.asset': (value) => shape(value, { id }),
+  'attachment.text': (value) => shape(value, { id }),
+  'attachment.reveal': (value) => shape(value, { id }),
   'session.compact': (value) => shape(value, { resourceId: id, requestId: id }),
   'provider.list': (value) => shape(value, {}, { refresh: boolean }),
   'provider.configure': (value) =>
@@ -905,6 +907,9 @@ const responses: Record<RequestMethod, Check> = {
   'conversation.create': (value) => shape(value, { resource, session, conversation }, { worktree }),
   'conversation.delete': (value) => shape(value, { resourceId: id }),
   'attachment.remove': accepted,
+  // At most the preview's 64 KB of UTF-8.
+  'attachment.text': (value) => shape(value, { text: text(70_000), truncated: boolean }),
+  'attachment.reveal': (value) => shape(value, { revealed: oneOf(true) }),
   'attachment.asset': (value) =>
     shape(value, {
       dataUrl: (data) => {
