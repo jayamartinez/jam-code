@@ -705,9 +705,14 @@ button.thread-group-label {
   align-items: center;
   gap: 6px;
   padding: 0 9px;
-  color: var(--color-text-muted);
-  border: 1px solid transparent;
+  /* Paper, "23 · Tab strip over a wallpaper": over a custom background each
+     tab is a chip on the sidebar's surface; otherwise these are transparent. */
+  color: var(--color-tab-text);
+  border: 1px solid var(--color-tab-border);
   border-radius: 7px;
+  background: var(--color-tab-surface);
+  -webkit-backdrop-filter: var(--tab-backdrop);
+  backdrop-filter: var(--tab-backdrop);
   max-width: 230px;
   font-size: calc(12px * var(--ui-scale));
   cursor: pointer;
@@ -715,11 +720,12 @@ button.thread-group-label {
 .resource-tab.active {
   color: var(--color-text-primary);
   border-color: var(--color-border-strong);
-  background: var(--color-fill-strong);
+  background: var(--color-tab-active-surface);
   font-weight: 500;
 }
 .resource-tab.visible:not(.active) {
-  background: var(--color-fill-subtle);
+  background:
+    linear-gradient(var(--color-fill-subtle), var(--color-fill-subtle)), var(--color-tab-surface);
 }
 .resource-tab .tab-close {
   width: 12px;

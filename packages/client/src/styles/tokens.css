@@ -123,6 +123,12 @@
   --wallpaper-scale: 1;
   --pane-backdrop: none;
   --sidebar-backdrop: none;
+  /* Tabs carry their own surface only over a custom background. */
+  --color-tab-surface: transparent;
+  --color-tab-border: transparent;
+  --color-tab-text: var(--color-text-muted);
+  --color-tab-active-surface: var(--color-fill-strong);
+  --tab-backdrop: none;
   --wallpaper-effects: none;
   --wallpaper-effects-size: auto;
   /*
