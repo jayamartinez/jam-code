@@ -160,11 +160,12 @@ pnpm desktop:isolated          # the app in development: its own data and port
 - The stable copy uses your real history and stays as built until you quit it
   and run `pnpm desktop:stable` again. It is a release build with the interface
   built in, so it needs no development server or port.
-- `pnpm desktop:isolated` is the copy under test. It picks a free port and
-  keeps its own data and identity per checkout
-  (`dev.jamcode.desktop.isolated.<folder>`), so it runs beside the stable copy
-  and beside the isolated copies of other worktrees, and cannot touch your real
-  history.
+- `pnpm desktop:isolated` is the copy under test. It keeps its own data and
+  identity per checkout (`dev.jamcode.desktop.isolated.<folder>`) and serves on
+  a port of the checkout's own, derived from its path: the same on every run,
+  between 14200 and 17199, or the next free one when that port is taken. So it
+  runs beside the stable copy and beside the isolated copies of other
+  worktrees, and cannot touch your real history.
 - `pnpm desktop` uses port 1420 and your real history, so it cannot run beside
   the stable copy: the second one only brings the first to the front.
 
