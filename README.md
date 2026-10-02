@@ -145,6 +145,29 @@ pnpm desktop        # run the app in development
 
 Installers and the release process: [docs/RELEASING.md](docs/RELEASING.md).
 
+### Working on JAM Code in JAM Code
+
+`pnpm desktop` rebuilds and restarts the app whenever a Rust file in its
+checkout changes, which ends every chat running in it. To let agents edit this
+repository from inside JAM Code, work in a copy that nothing rebuilds:
+
+```sh
+pnpm desktop:stable            # build this checkout into target/stable and open it
+pnpm desktop:stable --open     # open the last build again without rebuilding
+pnpm desktop:isolated          # the app in development: its own data and port
+```
+
+- The stable copy uses your real history and stays as built until you quit it
+  and run `pnpm desktop:stable` again. It is a release build with the interface
+  built in, so it needs no development server or port.
+- `pnpm desktop:isolated` is the copy under test. It picks a free port and
+  keeps its own data and identity per checkout
+  (`dev.jamcode.desktop.isolated.<folder>`), so it runs beside the stable copy
+  and beside the isolated copies of other worktrees, and cannot touch your real
+  history.
+- `pnpm desktop` uses port 1420 and your real history, so it cannot run beside
+  the stable copy: the second one only brings the first to the front.
+
 ## Development
 
 ```sh
