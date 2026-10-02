@@ -275,3 +275,62 @@ it('ignores conversation events from a different runtime epoch', () => {
     }),
   ).toBe(conversation);
 });
+
+describe('a deleted conversation', () => {
+  it('leaves the projection and is not restored by a read or event already on its way', async () => {
+    const h = harness();
+    const client = new RuntimeClient(h.transport);
+    await client.connect();
+    await client.loadConversation(h.resourceId);
+    const sessionId = client.getConversation(h.resourceId)!.sessionId;
+    const others = client.getSnapshot().workspace!.resources.length - 1;
+
+    // A metadata read that started before the deletion still lists it.
+    const stale = deferred<RequestMap['workspace.get']['result']>();
+    h.delayWorkspace(stale.promise);
+    h.emit({
+      protocolVersion: 1,
+      resourceId: h.resourceId,
+      cursor: { runtimeId: h.fixture.workspace.runtimeId, sequence: 1 },
+      type: 'session.updated',
+      session: { ...h.fixture.workspace.sessions.find((item) => item.id === sessionId)! },
+    });
+
+    const changed = vi.fn();
+    client.subscribeConversation(h.resourceId, changed);
+    client.removeConversation(h.resourceId);
+    const gone = () => {
+      const workspace = client.getSnapshot().workspace!;
+      expect(workspace.resources.some((item) => item.id === h.resourceId)).toBe(false);
+      expect(workspace.sessions.some((item) => item.id === sessionId)).toBe(false);
+      expect(workspace.resources).toHaveLength(others);
+      expect(client.getConversation(h.resourceId)).toBeUndefined();
+    };
+    gone();
+    expect(changed).toHaveBeenCalled();
+
+    stale.resolve(structuredClone(h.fixture.workspace));
+    await flush();
+    gone();
+
+    // A late event for it changes nothing, and its transcript is never re-read.
+    h.emit({
+      protocolVersion: 1,
+      resourceId: h.resourceId,
+      cursor: { runtimeId: h.fixture.workspace.runtimeId, sequence: 2 },
+      type: 'session.updated',
+      session: {
+        ...h.fixture.workspace.sessions.find((item) => item.id === sessionId)!,
+        status: 'running',
+      },
+    });
+    gone();
+    const reads = h.calls.filter((call) => call === 'conversation.get').length;
+    await client.loadConversation(h.resourceId);
+    expect(h.calls.filter((call) => call === 'conversation.get')).toHaveLength(reads);
+
+    // A full reread (reconnect) that still lists it is filtered too.
+    await client.reload();
+    gone();
+  });
+});

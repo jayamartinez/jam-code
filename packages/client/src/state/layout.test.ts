@@ -268,3 +268,96 @@ describe('reopening closed tabs', () => {
     expect(run(state, { type: 'reopenTab' }).tabs[0]?.resourceId).toBe('chat-29');
   });
 });
+
+describe('a deleted resource', () => {
+  const assign = (resourceId: string, paneId: string): LayoutAction => ({
+    type: 'assignPane',
+    resourceId,
+    paneId,
+  });
+
+  it('loses its tab, and the tab that takes its place comes forward', () => {
+    const state = run(initialLayout, openTab('chat-a'), openTab('chat-b'), openTab('chat-c'));
+    const middle = run(state, openTab('chat-b'), { type: 'removeResource', resourceId: 'chat-b' });
+    expect(middle.tabs.map((tab) => tab.resourceId)).toEqual(['chat-a', 'chat-c']);
+    expect(middle.activeTabId).toBe('tab:chat-c');
+    // The last tab falls back to the one before it; an inactive one changes nothing.
+    const last = run(state, { type: 'removeResource', resourceId: 'chat-c' });
+    expect(last.activeTabId).toBe('tab:chat-b');
+    const inactive = run(state, { type: 'removeResource', resourceId: 'chat-a' });
+    expect(inactive.activeTabId).toBe('tab:chat-c');
+    const only = run(initialLayout, openTab('chat-a'), {
+      type: 'removeResource',
+      resourceId: 'chat-a',
+    });
+    expect(only.tabs).toEqual([]);
+    expect(only.activeTabId).toBeNull();
+    expect(activeResourceId(only)).toBe('');
+  });
+
+  it('leaves no tree, focus or draft behind for its own tab', () => {
+    const state = run(
+      workspace(),
+      split('row', 'x'),
+      assign('terminal-1', 'pane:x'),
+      { type: 'draft', resourceId: 'chat-a', text: 'unsent' },
+      { type: 'removeResource', resourceId: 'chat-a' },
+    );
+    expect(state.trees).toEqual({});
+    expect(state.focused).toEqual({});
+    expect(state.drafts).toEqual({});
+    expect(JSON.stringify(state)).not.toContain('chat-a');
+  });
+
+  it('is removed from panes of other tabs, collapsing their splits', () => {
+    // chat-b is shown beside chat-a, and beside a terminal under that.
+    const state = run(
+      workspace(),
+      split('row', 'x'),
+      assign('chat-b', 'pane:x'),
+      split('column', 'y', 'pane:x'),
+      assign('terminal-1', 'pane:y'),
+      { type: 'focusPane', paneId: 'pane:x' },
+      { type: 'removeResource', resourceId: 'chat-b' },
+    );
+    expect(state.tabs.map((tab) => tab.resourceId)).toEqual(['chat-a']);
+    expect(leaves(activeTree(state)).map((pane) => pane.resourceId)).toEqual([
+      'chat-a',
+      'terminal-1',
+    ]);
+    // Focus was on the pane that went; it moves to a pane that exists.
+    expect(findLeaf(activeTree(state), state.focused['tab:chat-a']!)).toBeDefined();
+    expect(JSON.stringify(state)).not.toContain('chat-b');
+  });
+
+  it('empties the pane of a tab that showed only it', () => {
+    // Another tab's single pane was given the resource that is now deleted.
+    const state = run(workspace(), assign('chat-b', 'tab:chat-a/root'), {
+      type: 'removeResource',
+      resourceId: 'chat-b',
+    });
+    expect(leaves(activeTree(state))).toEqual([
+      { type: 'leaf', id: 'tab:chat-a/root', resourceId: null },
+    ]);
+  });
+
+  it('can never be brought back by Reopen closed tab', () => {
+    const closed = run(
+      workspace(),
+      // chat-b's own tab is closed; chat-a's closed tab showed chat-b in a pane.
+      { type: 'closeTab', tabId: 'tab:chat-b' },
+      split('row', 'x'),
+      assign('chat-b', 'pane:x'),
+      { type: 'closeTab', tabId: 'tab:chat-a' },
+    );
+    expect(closed.closed).toHaveLength(2);
+    const removed = run(closed, { type: 'removeResource', resourceId: 'chat-b' });
+    expect(removed.closed.map((entry) => entry.tab.resourceId)).toEqual(['chat-a']);
+    expect(JSON.stringify(removed)).not.toContain('chat-b');
+    // What reopens is chat-a, without the pane that showed the deleted chat.
+    const reopened = run(removed, { type: 'reopenTab' });
+    expect(reopened.tabs.map((tab) => tab.resourceId)).toEqual(['chat-a']);
+    expect(leaves(activeTree(reopened)).map((pane) => pane.resourceId)).toEqual(['chat-a']);
+    expect(run(reopened, { type: 'reopenTab' })).toBe(reopened);
+  });
+});

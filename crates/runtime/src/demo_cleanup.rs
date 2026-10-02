@@ -68,7 +68,7 @@ pub(crate) fn remove_demo_seed(tx: &Transaction<'_>) -> Result<(), JamError> {
             )
             .optional()?;
         if mock == Some(true) {
-            delete_conversation(tx, id)?;
+            crate::storage::delete_conversation_rows(tx, id)?;
             removed_conversations.push(id);
         }
     }
@@ -131,19 +131,6 @@ pub(crate) fn remove_demo_seed(tx: &Transaction<'_>) -> Result<(), JamError> {
         "INSERT OR REPLACE INTO metadata(key,value) VALUES ('demo_seed_removed',?1)",
         [crate::runtime::now()],
     )?;
-    Ok(())
-}
-
-fn delete_conversation(tx: &Transaction<'_>, id: &str) -> Result<(), JamError> {
-    tx.execute(
-        "DELETE FROM provider_bindings WHERE session_id IN (SELECT id FROM sessions WHERE conversation_id=?1)",
-        [id],
-    )?;
-    tx.execute("DELETE FROM search_documents WHERE resource_id=?1", [id])?;
-    tx.execute("DELETE FROM messages WHERE conversation_id=?1", [id])?;
-    tx.execute("DELETE FROM sessions WHERE conversation_id=?1", [id])?;
-    tx.execute("DELETE FROM conversations WHERE id=?1", [id])?;
-    tx.execute("DELETE FROM resources WHERE id=?1", [id])?;
     Ok(())
 }
 

@@ -115,6 +115,8 @@ export class BrowserPreviewTransport implements JamTransport {
         return { ...this.getConversation(request.params.resourceId), cursor: this.cursor() };
       case 'conversation.create':
         return this.createConversation(request.params);
+      case 'conversation.delete':
+        return this.deleteConversation(request.params.resourceId);
       case 'session.compact':
         throw new JamError('unsupported', 'The demo provider has no context to compact.');
       case 'file.reveal':
@@ -429,6 +431,30 @@ export class BrowserPreviewTransport implements JamTransport {
     this.conversations.set(resource.id, conversation);
     this.publish({ type: 'session.updated', session });
     return { resource, session, conversation: { ...conversation, cursor: this.cursor() } };
+  }
+
+  /** Mirrors the runtime: refused while the agent works or waits. */
+  private deleteConversation(resourceId: string): RequestMap['conversation.delete']['result'] {
+    const resource = this.workspace.resources.find((item) => item.id === resourceId);
+    if (!resource) throw new JamError('not_found', 'Resource not found.');
+    if (resource.kind !== 'conversation' || !resource.sessionId)
+      throw new JamError('invalid_request', 'Only a conversation can be deleted.');
+    const session = this.getSession(resource.sessionId);
+    if (session.status === 'running' || session.needsInput || this.active.has(session.id))
+      throw new JamError(
+        'conflict',
+        'Stop the agent or answer its request before deleting this chat.',
+      );
+    const without = <T extends { id: string }>(list: T[], id: string) => {
+      const at = list.findIndex((item) => item.id === id);
+      if (at >= 0) list.splice(at, 1);
+    };
+    without(this.workspace.resources, resourceId);
+    without(this.workspace.sessions, session.id);
+    this.conversations.delete(resourceId);
+    for (const [requestId, receipt] of this.receipts)
+      if (receipt.result.sessionId === session.id) this.receipts.delete(requestId);
+    return { resourceId };
   }
 
   private startTurn(

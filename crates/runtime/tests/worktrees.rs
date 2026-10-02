@@ -490,6 +490,78 @@ async fn a_new_worktree_is_created_on_send_and_everything_in_the_chat_uses_it() 
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn deleting_a_worktree_chat_keeps_its_worktree_branch_and_files() {
+    let temp = Temp::new();
+    let runtime = runtime(&temp, Arc::default()).await;
+    let created = call(
+        &runtime,
+        "conversation.create",
+        chat(json!({"kind":"worktree","nameHint":"Delete this chat"})),
+    )
+    .await
+    .unwrap();
+    let resource = created["resource"]["id"].as_str().unwrap().to_owned();
+    let worktree = created["worktree"].clone();
+    let folder = PathBuf::from(worktree["path"].as_str().unwrap());
+    call(
+        &runtime,
+        "turn.start",
+        json!({"resourceId":resource,"text":"Work here","context":[],"requestId":"work"}),
+    )
+    .await
+    .unwrap();
+    finish(&runtime, &resource).await;
+    std::fs::write(folder.join("made-by-agent.txt"), "kept\n").unwrap();
+    // The interrupted or finished turn's task may take a moment to end.
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while let Err(error) = call(
+            &runtime,
+            "conversation.delete",
+            json!({"resourceId":resource}),
+        )
+        .await
+        {
+            assert!(error.starts_with("conflict"), "{error}");
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+    })
+    .await
+    .expect("the chat is deleted");
+
+    // JAM's record of the chat is gone; the worktree it made is not.
+    let workspace = call(&runtime, "workspace.get", json!({})).await.unwrap();
+    assert!(
+        !workspace["resources"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["id"] == json!(resource))
+    );
+    assert_eq!(workspace["worktrees"], json!([worktree]));
+    assert_eq!(temp.worktree_count(), 2);
+    assert!(
+        temp.git(&["branch", "--list", worktree["branch"].as_str().unwrap()])
+            .contains(worktree["branch"].as_str().unwrap())
+    );
+    assert_eq!(
+        std::fs::read_to_string(folder.join("made-by-agent.txt")).unwrap(),
+        "kept\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(temp.repo().join("a.txt")).unwrap(),
+        "one\n"
+    );
+    // The worktree is still usable from JAM: a Review of it opens.
+    call(
+        &runtime,
+        "resource.open",
+        json!({"projectId":"project-jam","kind":"diff","worktreeId":worktree["id"]}),
+    )
+    .await
+    .unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn unsafe_names_unknown_targets_and_demo_chats_are_refused_before_git() {
     let temp = Temp::new();
     let runtime = runtime(&temp, Arc::default()).await;

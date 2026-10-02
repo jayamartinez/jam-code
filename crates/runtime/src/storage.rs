@@ -583,6 +583,22 @@ impl Store {
     }
 }
 
+/// Removes a conversation's rows in foreign-key order: its provider binding,
+/// search documents (triggers keep the FTS index in step), messages, sessions,
+/// conversation record and resource. The caller holds the transaction.
+pub(crate) fn delete_conversation_rows(connection: &Connection, id: &str) -> Result<(), JamError> {
+    connection.execute(
+        "DELETE FROM provider_bindings WHERE session_id IN (SELECT id FROM sessions WHERE conversation_id=?1)",
+        [id],
+    )?;
+    connection.execute("DELETE FROM search_documents WHERE resource_id=?1", [id])?;
+    connection.execute("DELETE FROM messages WHERE conversation_id=?1", [id])?;
+    connection.execute("DELETE FROM sessions WHERE conversation_id=?1", [id])?;
+    connection.execute("DELETE FROM conversations WHERE id=?1", [id])?;
+    connection.execute("DELETE FROM resources WHERE id=?1", [id])?;
+    Ok(())
+}
+
 enum Migration {
     Sql(&'static str),
     Code(fn(&rusqlite::Transaction<'_>) -> Result<(), JamError>),

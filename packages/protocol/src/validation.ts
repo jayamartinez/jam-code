@@ -748,6 +748,7 @@ const params: Record<RequestMethod, Check> = {
       { projectId: id, presentation },
       { providerId, options: optionMap, workspace: newWorkspace, requestId: id },
     ),
+  'conversation.delete': (value) => shape(value, { resourceId: id }),
   'session.compact': (value) => shape(value, { resourceId: id, requestId: id }),
   'provider.list': (value) => shape(value, {}, { refresh: boolean }),
   'provider.configure': (value) =>
@@ -889,6 +890,7 @@ const responses: Record<RequestMethod, Check> = {
   'workspace.get': workspace,
   'conversation.get': conversation,
   'conversation.create': (value) => shape(value, { resource, session, conversation }, { worktree }),
+  'conversation.delete': (value) => shape(value, { resourceId: id }),
   'turn.start': (value) => shape(value, { accepted: oneOf(true), sessionId: id, requestId: id }),
   'session.compact': (value) =>
     shape(value, { accepted: oneOf(true), sessionId: id, requestId: id }),

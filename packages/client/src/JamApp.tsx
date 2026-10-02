@@ -12,6 +12,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { Folder, Plus, X } from 'lucide-react';
+import { JamError } from '@jam/protocol';
 import type {
   ContextItem,
   JamTransport,
@@ -77,7 +78,8 @@ import { ConversationResource } from './components/ConversationResource';
 import { SearchDialog } from './components/SearchDialog';
 import { SnapshotPreview } from './components/SnapshotPreview';
 import { useSnapshots, snapshotFocus } from './state/snapshots';
-import { archiveBlocked, isArchived } from './state/threads';
+import { archiveBlocked, deleteBlocked, isArchived } from './state/threads';
+import { DeleteChatDialog } from './components/DeleteChatDialog';
 import { SettingsPanel } from './components/SettingsPanel';
 import { NewResourceLauncher } from './components/NewResourceLauncher';
 import { NewChat } from './components/NewChat';
@@ -608,6 +610,63 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       onSelect: () => setThreadArchived(resource.id, true),
       ...(blocked ? { unavailable: blocked } : {}),
     };
+  };
+
+  /** The chat the Delete dialog is asking about. */
+  const [deleting, setDeleting] = useState<{
+    resource: Resource;
+    busy?: boolean;
+    error?: string;
+  } | null>(null);
+  /** Delete, as a menu item. It only opens the dialog; nothing is removed yet. */
+  const deleteAction = (resource: Resource) => {
+    const blocked = deleteBlocked(
+      workspace?.sessions.find((session) => session.id === resource.sessionId),
+    );
+    return {
+      label: 'Delete chat…',
+      danger: true,
+      separated: true,
+      onSelect: () => setDeleting({ resource }),
+      ...(blocked ? { unavailable: blocked } : {}),
+    };
+  };
+  /** Everything the client held for a conversation the runtime no longer has. */
+  const forgetConversation = (resourceId: string) => {
+    client.removeConversation(resourceId);
+    // Its tabs, its panes in other tabs and its closed-tab entries all go.
+    dispatch({ type: 'removeResource', resourceId });
+    const without = <T,>(current: Record<string, T>) => {
+      if (!(resourceId in current)) return current;
+      const rest = { ...current };
+      delete rest[resourceId];
+      return rest;
+    };
+    setContext(without);
+    setPendingOptions(without);
+    requests.current.delete(resourceId);
+    if (lastConversation.current === resourceId) lastConversation.current = null;
+    // A capture that was staged for it is back in the inbox.
+    snapshots.refresh();
+  };
+  const confirmDelete = async () => {
+    if (!deleting || deleting.busy) return;
+    const { resource } = deleting;
+    setDeleting({ resource, busy: true });
+    try {
+      await transport.request('conversation.delete', { resourceId: resource.id });
+    } catch (cause) {
+      // Already gone (an answer was lost and this is the retry) is success.
+      if (!(cause instanceof JamError && cause.code === 'not_found')) {
+        setDeleting({
+          resource,
+          error: cause instanceof Error ? cause.message : 'JAM Code could not delete this chat.',
+        });
+        return;
+      }
+    }
+    forgetConversation(resource.id);
+    setDeleting(null);
   };
 
   const updateProject = useCallback(
@@ -1461,20 +1520,18 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     switch (resource.kind) {
       case 'conversation': {
         const session = workspace.sessions.find((item) => item.id === resource.sessionId);
-        const archive = archiveAction(resource);
+        // Disabled with their reason while the agent works or waits.
+        const chatActions = [
+          { ...archiveAction(resource), separated: true },
+          { ...deleteAction(resource), separated: false },
+        ].map(({ unavailable, onSelect, ...item }) => ({
+          ...item,
+          onSelect: unavailable ? undefined : onSelect,
+          unavailable,
+        }));
         const conversationChrome = {
           ...chrome,
-          menu: [
-            ...chrome.menu.slice(0, -1),
-            {
-              label: archive.label,
-              // Disabled with its reason while the agent works or waits.
-              onSelect: archive.unavailable ? undefined : archive.onSelect,
-              unavailable: archive.unavailable,
-              separated: true,
-            },
-            ...chrome.menu.slice(-1),
-          ],
+          menu: [...chrome.menu.slice(0, -1), ...chatActions, ...chrome.menu.slice(-1)],
         };
         return (
           <ConversationResource
@@ -1694,6 +1751,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                     items: [
                       { label: 'Open', onSelect: () => openResource(resource.id) },
                       archiveAction(resource),
+                      deleteAction(resource),
                     ],
                   })
                 }
@@ -1966,6 +2024,15 @@ export function JamApp({ transport, desktop }: JamAppProps) {
               </button>
             </footer>
           </Dialog>
+        )}
+        {deleting && (
+          <DeleteChatDialog
+            title={deleting.resource.title}
+            busy={!!deleting.busy}
+            {...(deleting.error ? { error: deleting.error } : {})}
+            onCancel={() => setDeleting(null)}
+            onConfirm={() => void confirmDelete()}
+          />
         )}
         {contextMenu && <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} />}
         {creatingProject && (

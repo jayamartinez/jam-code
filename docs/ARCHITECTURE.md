@@ -103,6 +103,21 @@ project; search still finds them. When to suggest archiving is a client
 preference computed from those timestamps; no timer runs. `project.update` also
 accepts `pinned`.
 
+Deleting a conversation (`conversation.delete`) is a separate, permanent
+lifecycle command, asked for through a confirmation. In one transaction the
+runtime removes what only that conversation owns: its resource, conversation
+and session rows, messages, search documents (and with them its FTS entries),
+provider binding, request receipts and the snapshots sent in it; a snapshot
+still staged for it returns to the inbox. It never touches the project's
+folder or files, Git branches or worktrees (the `worktrees` record stays), the
+provider's own history, or any other conversation. It is refused while the
+agent is working, waiting for an answer or still stopping an interrupted turn,
+so the database never changes under a live provider task, and a conversation
+that is already gone is `not_found`, which a retrying client treats as done.
+Afterwards the adapter releases any process it kept for that session. The
+client then drops every view of it: its tabs, its panes in other tabs and its
+entries in the reopen-closed-tab history, so nothing can bring it back.
+
 Menus anchored to a control (the composer's pickers, every `MenuSelect`, the
 project and branch pickers, Help) render into one overlay host at the end of
 the document and are positioned from their trigger's rectangle in the window.
