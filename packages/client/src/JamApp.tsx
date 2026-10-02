@@ -1092,6 +1092,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         new Error(
           `Send at most ${MAX_CONTEXT} context items at once. Remove some attachments, or move snapshots to the inbox.`,
         ),
+        sendId,
       );
       return;
     }
@@ -1181,8 +1182,10 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       });
       dispatch({ type: 'draft', resourceId, text: '' });
       setContext((current) => ({ ...current, [resourceId]: [] }));
+      // What was refused for this chat before has been overtaken.
+      client.settle(sendId, resourceId);
     } catch (cause) {
-      client.reportError(cause);
+      client.reportError(cause, resourceId);
     } finally {
       busyRef.current.delete(sendId);
       busyRef.current.delete(resourceId);
@@ -1200,13 +1203,14 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     if (room <= 0) {
       client.reportError(
         new Error(`A message carries at most ${MAX_CONTEXT} context items. Remove some first.`),
+        resourceId,
       );
       return;
     }
     try {
       stageAttachments(resourceId, await desktop.attachFiles(room));
     } catch (cause) {
-      client.reportError(cause);
+      client.reportError(cause, resourceId);
     }
   }
   /**
@@ -1250,7 +1254,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         [resourceId]: [...(current[resourceId] ?? emptyContext), ...attached],
       }));
     // A file that was not attached is named with its reason, never dropped quietly.
-    if (refused.length) client.reportError(new Error(refusalMessage(refused)));
+    if (refused.length) client.reportError(new Error(refusalMessage(refused)), resourceId);
   }
   /** Lets the runtime delete its copy of an attachment that will not be sent. */
   const releaseAttachment = (item: ContextItem) => {

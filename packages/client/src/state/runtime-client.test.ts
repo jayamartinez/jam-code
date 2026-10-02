@@ -334,3 +334,31 @@ describe('a deleted conversation', () => {
     gone();
   });
 });
+
+describe('the reported error', () => {
+  it('about a chat is taken down by that chat’s next successful Send, and only then', () => {
+    const client = new RuntimeClient(harness().transport);
+    const shown = () => client.getSnapshot().error;
+
+    client.reportError(new Error('Git refused to switch.'), 'chat-a');
+    // Another chat's Send says nothing about this one.
+    client.settle('chat-b');
+    expect(shown()).toBe('Git refused to switch.');
+    // A draft's Send settles under both its draft and its conversation ID.
+    client.settle('draft-a', 'chat-a');
+    expect(shown()).toBeNull();
+
+    // An error that is about no chat stays until dismissed.
+    client.reportError(new Error('The file could not be opened.'));
+    client.settle('chat-a');
+    expect(shown()).toBe('The file could not be opened.');
+
+    // A newer error replaces what the banner is about.
+    client.reportError(new Error('first'), 'chat-a');
+    client.reportError(new Error('second'));
+    client.settle('chat-a');
+    expect(shown()).toBe('second');
+    client.clearError();
+    expect(shown()).toBeNull();
+  });
+});
