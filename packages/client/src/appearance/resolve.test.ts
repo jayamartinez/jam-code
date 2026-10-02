@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { APPEARANCE, DEFAULT_APPEARANCE, type AppearanceSettings } from '@jam/protocol';
-import { contrast, mix } from './color';
+import {
+  APPEARANCE,
+  DEFAULT_APPEARANCE,
+  type AppearanceSettings,
+  type CustomThemeColors,
+  customThemeRef,
+} from '@jam/protocol';
+import { contrast, luminance, mix, toHex, toHsl } from './color';
+import { coloursFromDefinition } from './custom';
 import { extractPalette } from './palette';
 import {
   backgroundTokens,
@@ -263,6 +270,50 @@ describe('match colours to image', () => {
     expect(colorTokens({ ...on, autoColors: false }, { present: true, palette })).toEqual(
       colorTokens({ ...on, autoColors: false }),
     );
+  });
+  it('gives every surface the image tone at its own lightness, a grey theme included', () => {
+    const grey: CustomThemeColors = {
+      ...coloursFromDefinition(THEMES.nightglass),
+      canvas: '#424242',
+      sidebar: '#090a0f',
+      raised: '#4d5150',
+    };
+    const on = settings({
+      background: 'image',
+      autoColors: true,
+      theme: customThemeRef('grey', 'dark'),
+      customThemes: [{ id: 'grey', name: 'Grey', dark: grey }],
+    });
+    const plain = colorTokens({ ...on, autoColors: false }, { present: true, palette });
+    const matched = colorTokens(on, { present: true, palette });
+    const hex = (value: string) => {
+      const [r, g, b] = value.match(/\d+/g)!.slice(0, 3).map(Number);
+      return value.startsWith('#') ? value : toHex([r!, g!, b!]);
+    };
+    const [toneHue] = toHsl(palette.groundDark);
+    for (const role of [
+      '--color-surface-pane',
+      '--color-surface-sidebar',
+      '--color-surface-raised',
+      '--color-surface-overlay',
+      '--color-bg-base',
+    ]) {
+      const before = hex(plain[role]!);
+      const after = hex(matched[role]!);
+      const [hue, saturation] = toHsl(after);
+      // Within rounding: a near-black surface has few 8-bit steps to hold a hue.
+      expect(Math.abs(hue - toneHue), role).toBeLessThan(12);
+      expect(saturation, role).toBeGreaterThan(0.15);
+      // Same lightness to the eye, so text on it reads exactly as before.
+      expect(Math.abs(luminance(after) - luminance(before)), role).toBeLessThan(0.004);
+      expect(
+        Math.abs(
+          contrast(matched['--color-text-body']!, after) -
+            contrast(plain['--color-text-body']!, before),
+        ),
+        role,
+      ).toBeLessThan(0.25);
+    }
   });
   it('gives tabs their own surface only over a custom background', () => {
     const tab = (tokens: Record<string, string>) => [

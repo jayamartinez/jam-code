@@ -327,7 +327,7 @@ function BackgroundSection({
         {appearance.background === 'image' && wallpaper && (
           <Row
             title="Match colours to image"
-            sub="Accent from the image's most vivid colour; surfaces tinted with its dark tone."
+            sub="Accent from the image's most vivid colour. The canvas, sidebar and raised surfaces take its dark tone."
           >
             <Toggle
               label="Match colours to image"
