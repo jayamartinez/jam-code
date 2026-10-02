@@ -4,29 +4,29 @@
 // copies of other checkouts, so agents in separate worktrees can each try the
 // build they are working on.
 //
-// `pnpm desktop` always uses port 1420 and your real history; this picks a
-// free port and never touches that history.
+// `pnpm desktop` always uses port 1420 and your real history; this uses a
+// port of the checkout's own, the same on every run, and never touches that
+// history.
 // Usage: node scripts/isolated-desktop.mjs [arguments for `tauri dev`]
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { choosePort } from './isolated-port.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const desktop = join(root, 'apps', 'desktop');
 const base = JSON.parse(readFileSync(join(desktop, 'src-tauri', 'tauri.conf.json'), 'utf8'));
 const basePort = new URL(base.build.devUrl).port;
 
-/** A port nothing is listening on, chosen by the operating system. */
-const freePort = () =>
-  new Promise((resolve, reject) => {
+/** Whether the development server could listen on this port now. */
+const isFree = (port) =>
+  new Promise((resolve) => {
     const probe = createServer();
-    probe.once('error', reject);
-    probe.listen(0, '127.0.0.1', () => {
-      const { port } = probe.address();
-      probe.close(() => resolve(port));
-    });
+    // In use, or reserved by the operating system: either way, not ours.
+    probe.once('error', () => resolve(false));
+    probe.listen(port, '127.0.0.1', () => probe.close(() => resolve(true)));
   });
 
 // One identity per checkout: an identifier takes letters, digits, hyphens and
@@ -37,7 +37,7 @@ const checkout =
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '') || 'checkout';
 const identifier = `${base.identifier}.isolated.${checkout}`;
-const port = await freePort();
+const port = await choosePort(root, isFree);
 
 // Tauri merges this over tauri.conf.json. The development content security
 // policy names the port, so it moves with it.
