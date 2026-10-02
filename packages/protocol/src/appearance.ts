@@ -57,6 +57,10 @@ export type ThemeRef = ThemeId | CustomThemeRef;
  * borders, fills, diff and terminal colors) is derived the same way and the
  * same contrast floors apply.
  */
+/** The surface anchors of a theme: what the Appearance page edits directly. */
+export const SURFACE_ROLES = ['canvas', 'sidebar', 'raised'] as const;
+export type SurfaceRole = (typeof SURFACE_ROLES)[number];
+
 export type CustomThemeRole =
   | 'canvas'
   | 'sidebar'
@@ -141,6 +145,11 @@ export interface AppearanceSettings {
   sidebarBlur: number;
   /** Take the accent and a surface tint from the wallpaper image. */
   autoColors: boolean;
+  /**
+   * Surfaces the reader set by hand. `autoColors` leaves these alone and
+   * recolors the rest.
+   */
+  ownSurfaces: SurfaceRole[];
   /** The reader's own themes, at most `limits.customThemes`. */
   customThemes: CustomTheme[];
 }

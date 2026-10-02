@@ -2,8 +2,10 @@ import {
   APPEARANCE,
   customThemeRef,
   parseCustomThemeRef,
+  type AppearanceSettings,
   type CustomTheme,
   type CustomThemeColors,
+  type CustomThemeRole,
   type ThemeRef,
 } from '@jam/protocol';
 import { editorTheme } from './palettes';
@@ -119,4 +121,61 @@ export function newCustomThemeId(name: string, existing: readonly CustomTheme[])
 /** Whether another custom theme may be added. */
 export function canAddCustomTheme(existing: readonly CustomTheme[]): boolean {
   return existing.length < APPEARANCE.limits.customThemes;
+}
+
+/** The part of the appearance that choosing or changing a theme touches. */
+type ThemeChoice = Pick<AppearanceSettings, 'theme' | 'customThemes'> &
+  Partial<Pick<AppearanceSettings, 'paneOpacity' | 'sidebarOpacity'>>;
+
+/** The name JAM gives the copy it saves when a built-in theme's color is changed. */
+export const ownCopyName = (theme: ThemeDefinition) => `${theme.family} (custom)`;
+
+/**
+ * Sets one color of the theme in use, for the Appearance page, where nothing
+ * is saved by pressing a button. One of the reader's themes is changed in
+ * place. A built-in theme is never changed: its colors are saved as a theme
+ * of the reader's own, reused if it is already there, and that becomes the
+ * theme in use. A built-in may draw translucent surfaces and a theme of the
+ * reader's own is opaque, so the copy comes with the built-in's opacities
+ * unless the reader has set their own: changing one color changes nothing
+ * else. Returns null when a copy is needed and there is no room.
+ */
+export function withThemeColor(
+  appearance: ThemeChoice,
+  role: CustomThemeRole,
+  value: string,
+): ThemeChoice | null {
+  const { customThemes } = appearance;
+  const active = parseCustomThemeRef(appearance.theme);
+  const current = themeFor(appearance.theme, customThemes);
+  const scheme = current.scheme;
+  const write = (theme: CustomTheme): CustomTheme => ({
+    ...theme,
+    [scheme]: { ...(theme[scheme] ?? colorsFromDefinition(current)), [role]: value },
+  });
+  const mine = active && customThemes.find((item) => item.id === active.id);
+  if (mine)
+    return {
+      theme: appearance.theme,
+      customThemes: customThemes.map((item) => (item === mine ? write(item) : item)),
+    };
+  const opacities = {
+    paneOpacity: appearance.paneOpacity ?? current.surfaces.pane[1],
+    sidebarOpacity: appearance.sidebarOpacity ?? current.surfaces.sidebar[1],
+  };
+  const name = ownCopyName(current);
+  const copy = customThemes.find((item) => item.name === name);
+  if (copy)
+    return {
+      ...opacities,
+      theme: customThemeRef(copy.id, scheme),
+      customThemes: customThemes.map((item) => (item === copy ? write(item) : item)),
+    };
+  if (!canAddCustomTheme(customThemes)) return null;
+  const id = newCustomThemeId(name, customThemes);
+  return {
+    ...opacities,
+    theme: customThemeRef(id, scheme),
+    customThemes: [...customThemes, write({ id, name })],
+  };
 }

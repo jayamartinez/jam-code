@@ -95,6 +95,8 @@ pub struct Appearance {
     pub sidebar_opacity: Option<u32>,
     pub sidebar_blur: u32,
     pub auto_colors: bool,
+    /// Surfaces the reader set by hand, which `auto_colors` leaves alone.
+    pub own_surfaces: Vec<String>,
     pub custom_themes: Vec<CustomTheme>,
 }
 
@@ -281,6 +283,15 @@ impl Appearance {
         {
             return Err(JamError::invalid("Colors must be #rrggbb."));
         }
+        let surfaces = ["canvas", "sidebar", "raised"];
+        if self.own_surfaces.len() > surfaces.len()
+            || !self
+                .own_surfaces
+                .iter()
+                .all(|role| surfaces.contains(&role.as_str()))
+        {
+            return Err(JamError::invalid("Unknown surface."));
+        }
         if ![&self.ui_font, &self.code_font, &self.terminal_font]
             .iter()
             .all(|font| is_font_family(font))
@@ -399,6 +410,9 @@ mod tests {
         assert!(appearance(json!({ "backgroundPattern": "plasma" })).is_err());
         assert!(appearance(json!({ "sidebarOpacity": 101 })).is_err());
         assert!(appearance(json!({ "autoColors": "yes" })).is_err());
+        assert!(appearance(json!({ "ownSurfaces": ["canvas", "raised"] })).is_ok());
+        assert!(appearance(json!({ "ownSurfaces": ["text"] })).is_err());
+        assert!(appearance(json!({ "ownSurfaces": "canvas" })).is_err());
         assert!(appearance(json!({ "theme": "github-dark-dimmed", "paneOpacity": 0 })).is_ok());
         assert!(appearance(json!({ "codeFont": "JetBrains Mono" })).is_ok());
     }
@@ -411,6 +425,7 @@ mod tests {
             "backgroundPattern",
             "sidebarBlur",
             "autoColors",
+            "ownSurfaces",
             "backgroundFade",
             "customThemes",
         ] {

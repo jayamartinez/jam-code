@@ -7,6 +7,7 @@ import {
   APPEARANCE_RANGES,
   FONT_FAMILY,
   HEX_COLOR,
+  SURFACE_ROLES,
   WALLPAPER_PREFIX,
   appearanceThemeProblem,
 } from './appearance';
@@ -709,6 +710,7 @@ const appearanceSettings: Check = (value) => {
       background: oneOf(...APPEARANCE.backgrounds),
       backgroundPattern: oneOf(...APPEARANCE.patterns),
       autoColors: boolean,
+      ownSurfaces: array(oneOf(...SURFACE_ROLES), SURFACE_ROLES.length),
       backgroundColor: hexColor,
       gradientFrom: hexColor,
       gradientTo: hexColor,

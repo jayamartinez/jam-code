@@ -45,6 +45,17 @@ repository's Markdown is untrusted content that JAM Code's own window now render
   is drawn; the stored colors are never rewritten. Import and export are
   files the reader chooses (bytes in, a downloaded JSON out); no path is
   stored. Resetting appearance keeps the reader's themes.
+- **Colors change without a Save.** The Appearance page edits the surface
+  anchors (canvas, sidebar, raised) of the theme in use. A built-in theme is
+  never changed: its colors are saved as a theme of the reader's own, named
+  "<family> (custom)" and reused if it exists, and that becomes the theme in
+  use, with the built-in's opacities so nothing else changes. One of the
+  reader's own themes is changed in place. The editor remains for every role.
+- **Matching an image.** With `autoColors` on and an image shown, the accent
+  comes from the image and each surface takes the image tone's hue at its own
+  luminance, so text contrast on it is unchanged. `ownSurfaces` lists the
+  surfaces the reader set by hand while matching; those are drawn as the theme
+  has them. The sampled palette is derived in the client and never stored.
 - **Tokens, not components.** Settings resolve to semantic custom properties
   (`appearance/resolve.ts`), written into one `<style>` element. Components,
   CodeMirror (through class names) and xterm (through the pane's roles) read

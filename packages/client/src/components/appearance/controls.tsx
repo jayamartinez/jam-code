@@ -158,19 +158,22 @@ export function ColorInput({
   label,
   value,
   onChange,
+  disabled,
 }: {
   label: string;
   value: string;
   onChange(value: string): void;
+  disabled?: boolean;
 }) {
   return (
-    <label className="ap-color">
+    <label className={`ap-color ${disabled ? 'disabled' : ''}`}>
       <span className="ap-color-swatch" style={{ background: value }} aria-hidden="true" />
       <span className="ap-color-hex">{value.toUpperCase()}</span>
       <input
         type="color"
         aria-label={label}
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value.toLowerCase())}
       />
     </label>
