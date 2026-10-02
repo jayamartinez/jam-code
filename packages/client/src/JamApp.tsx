@@ -20,6 +20,7 @@ import type {
   ProjectIcon,
   ProviderId,
   RequestMap,
+  Resource,
   TerminalSession,
 } from '@jam/protocol';
 import {
@@ -76,6 +77,7 @@ import { ConversationResource } from './components/ConversationResource';
 import { SearchDialog } from './components/SearchDialog';
 import { SnapshotPreview } from './components/SnapshotPreview';
 import { useSnapshots, snapshotFocus } from './state/snapshots';
+import { archiveBlocked, isArchived } from './state/threads';
 import { SettingsPanel } from './components/SettingsPanel';
 import { NewResourceLauncher } from './components/NewResourceLauncher';
 import { NewChat } from './components/NewChat';
@@ -576,10 +578,11 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     [projectId],
   );
 
-  const setThreadClosed = useCallback(
-    (resourceId: string, closed: boolean) =>
+  /** Archiving is the runtime's `closedAt`; it never stops or deletes anything. */
+  const setThreadArchived = useCallback(
+    (resourceId: string, archived: boolean) =>
       void transport
-        .request('thread.setClosed', { resourceId, closed })
+        .request('thread.setClosed', { resourceId, closed: archived })
         .then(({ resource }) => client.updateResource(resource))
         .catch(client.reportError),
     [client, transport],
@@ -592,6 +595,20 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         .catch(client.reportError),
     [client, transport],
   );
+
+  /** Archive or reopen, as a menu item; the same action wherever a chat is listed. */
+  const archiveAction = (resource: Resource) => {
+    if (isArchived(resource))
+      return { label: 'Reopen chat', onSelect: () => setThreadArchived(resource.id, false) };
+    const blocked = archiveBlocked(
+      workspace?.sessions.find((session) => session.id === resource.sessionId),
+    );
+    return {
+      label: 'Archive chat',
+      onSelect: () => setThreadArchived(resource.id, true),
+      ...(blocked ? { unavailable: blocked } : {}),
+    };
+  };
 
   const updateProject = useCallback(
     async (
@@ -1444,10 +1461,25 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     switch (resource.kind) {
       case 'conversation': {
         const session = workspace.sessions.find((item) => item.id === resource.sessionId);
+        const archive = archiveAction(resource);
+        const conversationChrome = {
+          ...chrome,
+          menu: [
+            ...chrome.menu.slice(0, -1),
+            {
+              label: archive.label,
+              // Disabled with its reason while the agent works or waits.
+              onSelect: archive.unavailable ? undefined : archive.onSelect,
+              unavailable: archive.unavailable,
+              separated: true,
+            },
+            ...chrome.menu.slice(-1),
+          ],
+        };
         return (
           <ConversationResource
             client={client}
-            chrome={chrome}
+            chrome={conversationChrome}
             resource={resource}
             project={workspace.projects.find((item) => item.id === resource.projectId)}
             session={session}
@@ -1654,22 +1686,14 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                 onNewThread={(id) => newChat(undefined, undefined, id)}
                 expandedProjectIds={expandedProjects ?? [projectId]}
                 idleThreadDays={idleThreadDays}
-                onCloseThread={(id) => setThreadClosed(id, true)}
+                onArchiveThread={(id) => setThreadArchived(id, true)}
                 onKeepThreadOpen={keepThreadOpen}
                 onThreadMenu={(resource, event) =>
                   setContextMenu({
                     ...menuPoint(event),
                     items: [
                       { label: 'Open', onSelect: () => openResource(resource.id) },
-                      resource.closedAt
-                        ? {
-                            label: 'Reopen thread',
-                            onSelect: () => setThreadClosed(resource.id, false),
-                          }
-                        : {
-                            label: 'Close thread',
-                            onSelect: () => setThreadClosed(resource.id, true),
-                          },
+                      archiveAction(resource),
                     ],
                   })
                 }

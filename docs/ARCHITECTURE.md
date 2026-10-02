@@ -91,12 +91,26 @@ Resource identity for non-conversation resources belongs to the runtime.
 `resource.open` is keyed by project, kind and path, so reopening the same file
 returns the record that already exists instead of duplicating it.
 
-A conversation's open or closed state is runtime data on its resource:
-`closedAt` and `closeSuggestionDismissedAt`. `thread.setClosed` and
-`thread.keepOpen` change them only on an explicit request, and `turn.start`
-clears `closedAt`, so continuing a thread reopens it. When to suggest closing
-is a client preference computed from those timestamps; no timer runs.
-`project.update` also accepts `pinned`.
+Archiving a conversation is runtime data on its resource: `closedAt` (the
+field keeps its earlier name; the interface says Archived) and
+`closeSuggestionDismissedAt`. `thread.setClosed` and `thread.keepOpen` change
+them only on an explicit request, and `turn.start` clears `closedAt`, so
+continuing a thread reopens it. Archiving changes nothing else: the transcript,
+session, provider binding, worktree and pin stay, and it is refused while the
+agent is working or waiting for an answer, because it never stops one. Clients
+leave archived conversations out of Recent and Pinned and list them under their
+project; search still finds them. When to suggest archiving is a client
+preference computed from those timestamps; no timer runs. `project.update` also
+accepts `pinned`.
+
+Menus anchored to a control (the composer's pickers, every `MenuSelect`, the
+project and branch pickers, Help) render into one overlay host at the end of
+the document and are positioned from their trigger's rectangle in the window.
+A pane or the sidebar may carry a backdrop filter, which makes it the
+containing block and stacking context for anything fixed inside it, so a menu
+is never drawn inside the surface that opens it. A menu opened from a modal
+dialog uses a host inside that dialog, since the rest of the document is inert.
+Any open menu hides native Browser pages, like dialogs and the launcher do.
 
 ## Project files
 

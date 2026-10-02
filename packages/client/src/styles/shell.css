@@ -55,13 +55,31 @@
   -webkit-backdrop-filter: var(--sidebar-backdrop);
   backdrop-filter: var(--sidebar-backdrop);
 }
+/*
+ * The overlay host (overlay-host.ts): the one layer anchored menus are drawn
+ * in, at the end of the document or of an open dialog. It covers its
+ * containing block, so a menu inside it is placed against a rectangle that
+ * can be measured, and it sits above every pane without any surface's
+ * stacking context or backdrop filter applying to it.
+ */
+.overlay-host {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+}
+.overlay-host > * {
+  pointer-events: auto;
+}
 /* Navigation chrome: WebKit selects the word under a right-click otherwise. */
 .sidebar,
+.overlay-host,
 .context-menu {
   -webkit-user-select: none;
   user-select: none;
 }
-.sidebar input {
+.sidebar input,
+.overlay-host input {
   -webkit-user-select: text;
   user-select: text;
 }
@@ -233,6 +251,7 @@
 .thread-group-label {
   height: 24px;
   width: 100%;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -242,20 +261,25 @@
   color: var(--color-text-subtle);
   text-align: left;
 }
-.thread-group-label.toggle {
+/* Archived: the same lanes as Open, with a chevron after the label. */
+button.thread-group-label {
   margin-top: 4px;
+  border-radius: 7px;
 }
-.thread-group-label.toggle > span:first-child {
+.thread-group-name {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  margin-left: -14px;
+  gap: 5px;
 }
 .thread-group-label .count {
   font-family: 'Geist Mono Variable', monospace;
   font-size: var(--text-label);
   font-weight: 400;
   color: var(--color-text-faint);
+}
+/* Rows keep their height; a long list scrolls instead of squeezing them. */
+.thread-item {
+  flex-shrink: 0;
 }
 .thread-row {
   height: 28px;
@@ -275,18 +299,24 @@
   background: var(--color-fill);
   color: var(--color-text-primary);
 }
-.thread-row.closed {
+.thread-row.archived {
   color: var(--color-text-subtle);
 }
-.thread-row.closed .icon-slot {
+.thread-row.archived.active {
+  color: var(--color-text-secondary);
+}
+.thread-row.archived .icon-slot {
   opacity: 0.55;
 }
 .thread-title {
   flex: 1;
   min-width: 0;
 }
+/* A fixed slot, so a title is cut at the same place in every row. */
 .thread-age {
   flex-shrink: 0;
+  min-width: 24px;
+  text-align: right;
   font-size: var(--text-label);
   color: var(--color-text-faint);
 }
@@ -294,6 +324,7 @@
   color: var(--color-warning);
 }
 .close-suggestion {
+  flex-shrink: 0;
   margin: 2px 0 6px 35px;
   padding: 8px 10px 10px;
   display: flex;
@@ -328,6 +359,7 @@
 .thread-more,
 .thread-empty {
   height: 24px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   padding: 0 8px 0 60px;
@@ -788,13 +820,17 @@
 .platform-macos.focus-mode .titlebar {
   padding-left: 78px;
 }
+/*
+ * The workspace keeps the tile gutter on its left as well, so the sidebar and
+ * the panes read as separate surfaces with the wallpaper between them.
+ */
 .workspace {
   display: flex;
   flex: 1;
   min-height: 0;
   min-width: 0;
-  padding: 0 8px 8px 0;
-  gap: 6px;
+  padding: 0 8px 8px var(--spacing-gutter);
+  gap: var(--spacing-gutter);
 }
 .pane {
   background: var(--color-surface-pane);
@@ -1190,8 +1226,7 @@
   flex-shrink: 0;
 }
 .help-menu {
-  position: fixed;
-  z-index: 60;
+  position: absolute;
   min-width: 200px;
   padding: 4px;
   border-radius: var(--radius-lg);

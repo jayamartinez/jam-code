@@ -69,9 +69,11 @@ export interface Resource {
   pinned: boolean;
   updatedAt: string;
   /**
-   * When the reader closed this thread. Closing is always explicit: JAM may
-   * suggest it for an idle thread, but never closes one by itself. Sending
-   * into a closed thread reopens it.
+   * When the reader archived this thread (shown as Archived; the field keeps
+   * its earlier name). Archiving is always explicit: JAM may suggest it for an
+   * idle thread, but never archives one by itself. It changes nothing else:
+   * the transcript, session, pin and worktree stay, and sending into an
+   * archived thread reopens it.
    */
   closedAt?: string;
   /** When the reader last answered "Keep open" to an idle suggestion. */
@@ -563,6 +565,7 @@ export interface RequestMap
     };
     result: { project: Project };
   };
+  /** Archives (`closed: true`) or reopens a thread. Refused while its agent works or waits. */
   'thread.setClosed': {
     params: { resourceId: string; closed: boolean };
     result: { resource: Resource };

@@ -40,10 +40,10 @@ const ROWS: SettingsEntry[] = [
   {
     page: 'General',
     section: 'Threads',
-    title: 'Suggest closing idle threads',
-    keywords: 'close old',
+    title: 'Suggest archiving idle threads',
+    keywords: 'archive close old',
   },
-  { page: 'General', section: 'Threads', title: 'Sending reopens a closed thread' },
+  { page: 'General', section: 'Threads', title: 'Sending reopens an archived thread' },
   {
     page: 'General',
     section: 'Notifications',

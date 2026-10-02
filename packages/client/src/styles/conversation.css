@@ -1307,9 +1307,9 @@
 .access-icon {
   flex-shrink: 0;
 }
+/* Drawn in the overlay host (shell.css), placed from its trigger's rectangle. */
 .choice-menu {
-  position: fixed;
-  z-index: 60;
+  position: absolute;
   width: calc(300px * var(--ui-scale));
   display: flex;
   flex-direction: column;
@@ -1320,7 +1320,7 @@
   box-shadow: 0 16px 40px rgb(0 0 0 / 45%);
   overflow-y: auto;
 }
-.choice.effort .choice-menu {
+.choice-menu.effort-menu {
   width: calc(200px * var(--ui-scale));
 }
 .choice-option {
@@ -1988,7 +1988,7 @@ button.project-menu-new:not(:disabled) strong {
   flex: 1;
   max-width: none;
 }
-.menu-select-root .choice-menu {
+.choice-menu.select-menu {
   width: auto;
   min-width: calc(200px * var(--ui-scale));
   max-width: calc(360px * var(--ui-scale));

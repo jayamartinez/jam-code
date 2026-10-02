@@ -17,7 +17,16 @@ import { ProjectBadge } from './ProjectBadge';
 import { MenuSelect } from './MenuSelect';
 import { HelpMenu, type FeedbackKind } from './HelpMenu';
 import { SessionDot } from './SessionDot';
-import { compactAge, daysSince, orderProjects, suggestsClosing, threadsOf } from '../state/threads';
+import {
+  compactAge,
+  currentChats,
+  daysSince,
+  orderProjects,
+  pinnedChats,
+  recentChats,
+  suggestsArchiving,
+  threadsOf,
+} from '../state/threads';
 import { useShortcutHint } from '../state/keybindings';
 
 export { ProjectBadge };
@@ -40,10 +49,11 @@ export interface SidebarProps {
   onNewThread(projectId: string): void;
   /** Projects whose threads are listed under them; several can be open. */
   expandedProjectIds: string[];
-  /** Days idle before suggesting a thread be closed; null never suggests. */
+  /** Days idle before suggesting a thread be archived; null never suggests. */
   idleThreadDays: number | null;
-  onCloseThread(resourceId: string): void;
+  onArchiveThread(resourceId: string): void;
   onKeepThreadOpen(resourceId: string): void;
+  /** Right-click (or the context-menu key) on any chat row. */
   onThreadMenu(resource: Resource, event: React.MouseEvent): void;
   onProjectFilter(id: string): void;
   onProviderFilter(id: string): void;
@@ -69,18 +79,15 @@ export function Sidebar(props: SidebarProps) {
   // On macOS the native traffic lights occupy the sidebar header's left inset;
   // the brand follows them there, and yields to them on the narrow rail.
   const mac = props.platform === 'macos';
-  const conversations = workspace.resources.filter((resource) => resource.kind === 'conversation');
   const sessionFor = (resource: Resource) =>
     workspace.sessions.find((session) => session.id === resource.sessionId);
   const projects = orderProjects(workspace.projects);
-  const history = conversations
-    .filter(
-      (resource) =>
-        !resource.pinned &&
-        (!props.projectFilter || resource.projectId === props.projectFilter) &&
-        (!props.providerFilter || sessionFor(resource)?.providerId === props.providerFilter),
-    )
-    .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt));
+  // Archived chats are found under their project and in search, not here.
+  const pinned = pinnedChats(workspace.resources);
+  const history = recentChats(workspace.resources, workspace.sessions, {
+    projectId: props.projectFilter,
+    providerId: props.providerFilter,
+  });
   if (collapsed)
     return (
       <aside className="sidebar rail" aria-label="Workspace navigation">
@@ -198,7 +205,7 @@ export function Sidebar(props: SidebarProps) {
                   activeResourceId={activeResourceId}
                   idleThreadDays={props.idleThreadDays}
                   onOpen={props.onOpen}
-                  onClose={props.onCloseThread}
+                  onArchive={props.onArchiveThread}
                   onKeepOpen={props.onKeepThreadOpen}
                   onMenu={props.onThreadMenu}
                 />
@@ -210,28 +217,26 @@ export function Sidebar(props: SidebarProps) {
       <section className="sidebar-section">
         <div className="section-label">
           Pinned
-          <span className="count">
-            {conversations.filter((resource) => resource.pinned).length}
-          </span>
+          <span className="count">{pinned.length}</span>
         </div>
-        {conversations
-          .filter((resource) => resource.pinned)
-          .map((resource) => (
-            <ChatRow
-              key={resource.id}
-              resource={resource}
-              session={sessionFor(resource)}
-              project={workspace.projects.find((project) => project.id === resource.projectId)}
-              active={resource.id === activeResourceId}
-              finished={props.finishedSessions.has(resource.sessionId ?? '')}
-              pinned
-              onOpen={props.onOpen}
-            />
-          ))}
+        {pinned.map((resource) => (
+          <ChatRow
+            key={resource.id}
+            resource={resource}
+            session={sessionFor(resource)}
+            project={workspace.projects.find((project) => project.id === resource.projectId)}
+            active={resource.id === activeResourceId}
+            finished={props.finishedSessions.has(resource.sessionId ?? '')}
+            pinned
+            onOpen={props.onOpen}
+            onMenu={props.onThreadMenu}
+          />
+        ))}
       </section>
       <section className="sidebar-section history-section">
         <div className="section-label">
-          History<span className="count">{conversations.length} chats</span>
+          History
+          <span className="count">{currentChats(workspace.resources).length} chats</span>
         </div>
         <div className="history-filters">
           <MenuSelect
@@ -268,6 +273,7 @@ export function Sidebar(props: SidebarProps) {
               active={resource.id === activeResourceId}
               finished={props.finishedSessions.has(resource.sessionId ?? '')}
               onOpen={props.onOpen}
+              onMenu={props.onThreadMenu}
             />
           ))}
           {!history.length && <p className="history-group">No conversations match.</p>}
@@ -295,6 +301,7 @@ function ChatRow({
   finished,
   pinned,
   onOpen,
+  onMenu,
 }: {
   resource: Resource;
   session?: Session;
@@ -303,11 +310,16 @@ function ChatRow({
   finished: boolean;
   pinned?: boolean;
   onOpen(id: string): void;
+  onMenu(resource: Resource, event: React.MouseEvent): void;
 }) {
   return (
     <button
       className={`chat-row ${active ? 'active' : ''} ${pinned ? 'pinned' : ''}`}
       onClick={() => onOpen(resource.id)}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onMenu(resource, event);
+      }}
       title={resource.title}
       aria-current={active ? 'page' : undefined}
     >
@@ -343,8 +355,8 @@ function ChatRow({
   );
 }
 
-/** How many closed threads show before "Show more". */
-const CLOSED_PREVIEW = 3;
+/** How many archived threads show before "Show more". */
+const ARCHIVED_PREVIEW = 3;
 
 function ProjectThreads({
   resources,
@@ -354,7 +366,7 @@ function ProjectThreads({
   activeResourceId,
   idleThreadDays,
   onOpen,
-  onClose,
+  onArchive,
   onKeepOpen,
   onMenu,
 }: {
@@ -365,30 +377,32 @@ function ProjectThreads({
   activeResourceId: string | null;
   idleThreadDays: number | null;
   onOpen(id: string): void;
-  onClose(id: string): void;
+  onArchive(id: string): void;
   onKeepOpen(id: string): void;
   onMenu(resource: Resource, event: React.MouseEvent): void;
 }) {
-  const [closedOpen, setClosedOpen] = useState(false);
-  const [showAllClosed, setShowAllClosed] = useState(false);
-  const { open, closed } = threadsOf(resources, projectId);
+  // Archived threads are put away: the group starts collapsed.
+  const [archivedOpen, setArchivedOpen] = useState(false);
+  const [showAllArchived, setShowAllArchived] = useState(false);
+  const { open, archived } = threadsOf(resources, projectId);
   // Ages are read at render; the list re-renders on any activity, and an idle
   // workspace has nothing new to show, so no timer polls.
   const now = Date.now();
-  const visibleClosed = showAllClosed ? closed : closed.slice(0, CLOSED_PREVIEW);
+  const visibleArchived = showAllArchived ? archived : archived.slice(0, ARCHIVED_PREVIEW);
   // Only the longest-idle thread asks at a time; the rest just show an amber age.
   const idleIds = new Set(
     open
-      .filter((thread) => suggestsClosing(thread, sessionFor(thread), now, idleThreadDays))
+      .filter((thread) => suggestsArchiving(thread, sessionFor(thread), now, idleThreadDays))
       .map((thread) => thread.id),
   );
   const asking = [...open].reverse().find((thread) => idleIds.has(thread.id))?.id;
-  const row = (thread: Resource, isClosed: boolean) => {
-    const idle = !isClosed && idleIds.has(thread.id);
+  const row = (thread: Resource, isArchived: boolean) => {
+    const idle = !isArchived && idleIds.has(thread.id);
+    const age = compactAge(isArchived ? thread.closedAt! : thread.updatedAt, now);
     return (
       <div key={thread.id} className="thread-item">
         <button
-          className={`thread-row ${thread.id === activeResourceId ? 'active' : ''} ${isClosed ? 'closed' : ''}`}
+          className={`thread-row ${thread.id === activeResourceId ? 'active' : ''} ${isArchived ? 'archived' : ''}`}
           title={thread.title}
           aria-current={thread.id === activeResourceId ? 'page' : undefined}
           onClick={() => onOpen(thread.id)}
@@ -402,27 +416,28 @@ function ProjectThreads({
             providerId={sessionFor(thread)?.providerId}
           />
           <span className="thread-title truncate">{thread.title}</span>
-          {!isClosed && (
+          {!isArchived && (
             <SessionDot
               session={sessionFor(thread)}
               finished={finishedSessions.has(thread.sessionId ?? '')}
             />
           )}
-          <span className={`thread-age mono ${idle ? 'idle' : ''}`}>
-            {isClosed
-              ? `closed ${compactAge(thread.closedAt!, now)}`
-              : compactAge(thread.updatedAt, now)}
+          <span
+            className={`thread-age mono ${idle ? 'idle' : ''}`}
+            title={isArchived ? `Archived ${age} ago` : undefined}
+          >
+            {age}
           </span>
         </button>
         {thread.id === asking && (
-          <div className="close-suggestion" role="group" aria-label={`Close ${thread.title}?`}>
+          <div className="close-suggestion" role="group" aria-label={`Archive ${thread.title}?`}>
             <p>
               Idle for {daysSince(thread.updatedAt, now)}{' '}
-              {daysSince(thread.updatedAt, now) === 1 ? 'day' : 'days'} — close it?
+              {daysSince(thread.updatedAt, now) === 1 ? 'day' : 'days'} — archive it?
             </p>
             <div>
-              <button className="button" onClick={() => onClose(thread.id)}>
-                Close thread
+              <button className="button" onClick={() => onArchive(thread.id)}>
+                Archive
               </button>
               <button className="button quiet" onClick={() => onKeepOpen(thread.id)}>
                 Keep open
@@ -440,23 +455,28 @@ function ProjectThreads({
       </div>
       {open.map((thread) => row(thread, false))}
       {!open.length && <p className="thread-empty">No open threads.</p>}
-      {closed.length > 0 && (
+      {archived.length > 0 && (
         <>
           <button
-            className="thread-group-label toggle"
-            aria-expanded={closedOpen}
-            onClick={() => setClosedOpen((value) => !value)}
+            type="button"
+            className="thread-group-label"
+            aria-expanded={archivedOpen}
+            onClick={() => setArchivedOpen((value) => !value)}
           >
-            <span>
-              {closedOpen ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
-              Closed
+            <span className="thread-group-name">
+              Archived
+              {archivedOpen ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
             </span>
-            <span className="count">{closed.length}</span>
+            <span className="count">{archived.length}</span>
           </button>
-          {closedOpen && visibleClosed.map((thread) => row(thread, true))}
-          {closedOpen && closed.length > CLOSED_PREVIEW && (
-            <button className="thread-more" onClick={() => setShowAllClosed((value) => !value)}>
-              {showAllClosed ? 'Show fewer' : `Show ${closed.length - CLOSED_PREVIEW} more`}
+          {archivedOpen && visibleArchived.map((thread) => row(thread, true))}
+          {archivedOpen && archived.length > ARCHIVED_PREVIEW && (
+            <button
+              type="button"
+              className="thread-more"
+              onClick={() => setShowAllArchived((value) => !value)}
+            >
+              {showAllArchived ? 'Show fewer' : `Show ${archived.length - ARCHIVED_PREVIEW} more`}
             </button>
           )}
         </>

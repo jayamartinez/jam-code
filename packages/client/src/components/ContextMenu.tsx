@@ -16,6 +16,8 @@ export interface ContextMenuItem {
   hint?: string;
   /** Starts a new group, drawn with a rule above it. */
   separated?: boolean;
+  /** Why the item cannot be chosen right now; it is shown disabled. */
+  unavailable?: string;
 }
 
 export interface ContextMenuState {
@@ -36,7 +38,7 @@ export function ContextMenu({ menu, onClose }: { menu: ContextMenuState; onClose
       left: Math.max(4, Math.min(menu.x, window.innerWidth - box.width - 4)),
       top: Math.max(4, Math.min(menu.y, window.innerHeight - box.height - 4)),
     });
-    element.current?.querySelector<HTMLElement>('button')?.focus();
+    element.current?.querySelector<HTMLElement>('button:not(:disabled)')?.focus();
   }, [menu]);
 
   useEffect(() => {
@@ -69,7 +71,9 @@ export function ContextMenu({ menu, onClose }: { menu: ContextMenuState; onClose
       onKeyDown={(event) => {
         if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
         event.preventDefault();
-        const buttons = [...(element.current?.querySelectorAll('button') ?? [])];
+        const buttons = [
+          ...(element.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? []),
+        ];
         const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
         const next = event.key === 'ArrowDown' ? index + 1 : index - 1;
         buttons[(next + buttons.length) % buttons.length]?.focus();
@@ -82,6 +86,8 @@ export function ContextMenu({ menu, onClose }: { menu: ContextMenuState; onClose
             type="button"
             role="menuitem"
             className={item.danger ? 'danger' : ''}
+            disabled={!!item.unavailable}
+            title={item.unavailable}
             onClick={() => {
               onClose();
               item.onSelect();

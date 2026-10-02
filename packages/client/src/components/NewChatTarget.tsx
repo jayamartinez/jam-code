@@ -28,7 +28,7 @@ export function ProjectSwitcher({
   /** Opens the folder picker; absent where the host has none. */
   onAddProject?(): Promise<Project | null>;
 }) {
-  const { open, place, root, trigger, menu, toggle, close } = useAnchoredMenu({
+  const { open, place, root, trigger, menu, layer, toggle, close, tabOut } = useAnchoredMenu({
     compact: true,
     onOpened: (element) =>
       (
@@ -55,73 +55,74 @@ export function ProjectSwitcher({
         {project?.name}
         <ChevronDown size={14} className="composer-chevron" />
       </button>
-      {open && (
-        <div
-          ref={menu}
-          className="choice-menu project-menu"
-          role="menu"
-          aria-label="Projects"
-          style={place}
-          onKeyDown={(event) => {
-            if (moveMenuFocus(event, items())) return;
-            if (event.key === 'Escape') {
-              event.preventDefault();
-              close(true);
-            } else if (event.key === 'Tab') close(false);
-          }}
-        >
-          <span className="choice-section-label">Projects</span>
-          {projects.map((item) => {
-            const selected = item.id === project?.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                role="menuitemradio"
-                aria-checked={selected}
-                className={`choice-option project-option ${selected ? 'selected' : ''}`}
-                onClick={() => {
-                  close(true);
-                  if (!selected) onChange(item.id);
-                }}
-              >
-                <ProjectBadge project={item} />
-                <span className="choice-option-copy">
-                  <strong>{item.name}</strong>
-                </span>
-                {item.folderMissing ? (
-                  <small className="project-option-note">folder missing</small>
-                ) : (
-                  !item.paths?.length && <small className="project-option-note">no folder</small>
-                )}
-                <span className="choice-option-check">
-                  {selected && <Check size={12} strokeWidth={2} />}
-                </span>
-              </button>
-            );
-          })}
-          <button
-            type="button"
-            role="menuitem"
-            className="choice-option project-menu-new"
-            disabled={!onAddProject}
-            title={onAddProject ? undefined : 'Adding a folder needs the desktop app'}
-            onClick={() => {
-              close(true);
-              void onAddProject?.().then((added) => {
-                if (added && added.id !== project?.id) onChange(added.id);
-              });
+      {open &&
+        layer(
+          <div
+            ref={menu}
+            className="choice-menu project-menu"
+            role="menu"
+            aria-label="Projects"
+            style={place}
+            onKeyDown={(event) => {
+              if (moveMenuFocus(event, items())) return;
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                close(true);
+              } else if (event.key === 'Tab') tabOut();
             }}
           >
-            <span className="project-menu-new-badge" aria-hidden="true">
-              +
-            </span>
-            <span className="choice-option-copy">
-              <strong>New project…</strong>
-            </span>
-          </button>
-        </div>
-      )}
+            <span className="choice-section-label">Projects</span>
+            {projects.map((item) => {
+              const selected = item.id === project?.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={selected}
+                  className={`choice-option project-option ${selected ? 'selected' : ''}`}
+                  onClick={() => {
+                    close(true);
+                    if (!selected) onChange(item.id);
+                  }}
+                >
+                  <ProjectBadge project={item} />
+                  <span className="choice-option-copy">
+                    <strong>{item.name}</strong>
+                  </span>
+                  {item.folderMissing ? (
+                    <small className="project-option-note">folder missing</small>
+                  ) : (
+                    !item.paths?.length && <small className="project-option-note">no folder</small>
+                  )}
+                  <span className="choice-option-check">
+                    {selected && <Check size={12} strokeWidth={2} />}
+                  </span>
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              role="menuitem"
+              className="choice-option project-menu-new"
+              disabled={!onAddProject}
+              title={onAddProject ? undefined : 'Adding a folder needs the desktop app'}
+              onClick={() => {
+                close(true);
+                void onAddProject?.().then((added) => {
+                  if (added && added.id !== project?.id) onChange(added.id);
+                });
+              }}
+            >
+              <span className="project-menu-new-badge" aria-hidden="true">
+                +
+              </span>
+              <span className="choice-option-copy">
+                <strong>New project…</strong>
+              </span>
+            </button>
+          </div>,
+        )}
     </span>
   );
 }
@@ -264,7 +265,7 @@ function BranchPicker({
   onWorktree(): void;
 }) {
   const [query, setQuery] = useState('');
-  const { open, place, root, trigger, menu, toggle, close } = useAnchoredMenu({
+  const { open, place, root, trigger, menu, layer, toggle, close, tabOut } = useAnchoredMenu({
     compact: true,
     onOpened: (element) => element.querySelector<HTMLInputElement>('input')?.focus(),
   });
@@ -345,80 +346,83 @@ function BranchPicker({
         <span className="choice-pill-value mono">{label}</span>
         <ChevronDown size={10} className="composer-chevron" />
       </button>
-      {open && (
-        <div
-          ref={menu}
-          className="choice-menu model-menu branch-menu"
-          role="menu"
-          aria-label={worktree ? 'Base branch' : 'Branch'}
-          style={place}
-          onKeyDown={(event) => {
-            if (moveMenuFocus(event, items())) return;
-            if (event.key === 'Escape') {
-              event.preventDefault();
-              finish();
-            } else if (event.key === 'Tab') close(false);
-          }}
-        >
-          <label className="model-search">
-            <Search size={13} />
-            <input
-              aria-label="Search branches"
-              placeholder="Search branches"
-              value={query}
-              maxLength={120}
-              onChange={(event) => setQuery(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  items()[0]?.click();
-                }
-              }}
-            />
-          </label>
-          {problem && (
-            <div className="branch-notice" role="note">
-              <TriangleAlert size={12} />
-              <span>
-                {problem}
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="branch-notice-action"
-                  onClick={() => {
-                    finish();
-                    onWorktree();
-                  }}
-                >
-                  Start in a new worktree instead
-                </button>
-              </span>
+      {open &&
+        layer(
+          <div
+            ref={menu}
+            className="choice-menu model-menu branch-menu"
+            role="menu"
+            aria-label={worktree ? 'Base branch' : 'Branch'}
+            style={place}
+            onKeyDown={(event) => {
+              if (moveMenuFocus(event, items())) return;
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                finish();
+              } else if (event.key === 'Tab') tabOut();
+            }}
+          >
+            <label className="model-search">
+              <Search size={13} />
+              <input
+                aria-label="Search branches"
+                placeholder="Search branches"
+                value={query}
+                maxLength={120}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    items()[0]?.click();
+                  }
+                }}
+              />
+            </label>
+            {problem && (
+              <div className="branch-notice" role="note">
+                <TriangleAlert size={12} />
+                <span>
+                  {problem}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="branch-notice-action"
+                    onClick={() => {
+                      finish();
+                      onWorktree();
+                    }}
+                  >
+                    Start in a new worktree instead
+                  </button>
+                </span>
+              </div>
+            )}
+            <div className="model-list">
+              {!branches && <p className="model-empty">Reading branches…</p>}
+              {!!groups.local.length && (
+                <div className="choice-section" role="group" aria-label="Branches">
+                  {worktree && <span className="choice-section-label">Start from</span>}
+                  {groups.local.map(option)}
+                </div>
+              )}
+              {!!groups.remote.length && (
+                <div className="choice-section" role="group" aria-label="Remote branches">
+                  <span className="choice-section-label">Remote</span>
+                  {groups.remote.map(option)}
+                </div>
+              )}
+              {branches && !groups.local.length && !groups.remote.length && (
+                <p className="model-empty">No branches match “{query.trim()}”.</p>
+              )}
             </div>
-          )}
-          <div className="model-list">
-            {!branches && <p className="model-empty">Reading branches…</p>}
-            {!!groups.local.length && (
-              <div className="choice-section" role="group" aria-label="Branches">
-                {worktree && <span className="choice-section-label">Start from</span>}
-                {groups.local.map(option)}
-              </div>
+            {worktree && (
+              <p className="branch-footnote">Remote branches as last fetched by your Git</p>
             )}
-            {!!groups.remote.length && (
-              <div className="choice-section" role="group" aria-label="Remote branches">
-                <span className="choice-section-label">Remote</span>
-                {groups.remote.map(option)}
-              </div>
+            {branches?.truncated && (
+              <p className="branch-footnote">Showing the first 500 branches</p>
             )}
-            {branches && !groups.local.length && !groups.remote.length && (
-              <p className="model-empty">No branches match “{query.trim()}”.</p>
-            )}
-          </div>
-          {worktree && (
-            <p className="branch-footnote">Remote branches as last fetched by your Git</p>
-          )}
-          {branches?.truncated && <p className="branch-footnote">Showing the first 500 branches</p>}
-        </div>
-      )}
+          </div>,
+        )}
     </div>
   );
 }

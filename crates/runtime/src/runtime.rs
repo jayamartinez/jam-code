@@ -411,7 +411,20 @@ impl Runtime {
                 let state = self.lock()?;
                 let mut resource = state.store.resource(&input.resource_id)?;
                 if resource.kind != "conversation" {
-                    return Err(JamError::invalid("Only a conversation can be closed."));
+                    return Err(JamError::invalid("Only a conversation can be archived."));
+                }
+                // Archiving never stops an agent, so a chat that is working
+                // or waiting for an answer is settled before it is put away.
+                if input.closed
+                    && let Some(session_id) = &resource.session_id
+                {
+                    let session = state.store.session(session_id)?;
+                    if session.status == SessionStatus::Running || session.needs_input {
+                        return Err(JamError::new(
+                            "conflict",
+                            "Stop the agent or answer its request before archiving this chat.",
+                        ));
+                    }
                 }
                 resource.closed_at = input.closed.then(now);
                 state.store.save_resource(&resource)?;
