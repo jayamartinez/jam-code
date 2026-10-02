@@ -8,7 +8,8 @@ Browser has to handle localhost previews, arbitrary HTTPS sites, sign-ins,
 several independent pages, annotations and eventually agent control. An
 `<iframe>` in JAM Code's interface cannot do this. `X-Frame-Options` and CSP
 `frame-ancestors` block most real sites. Cookies become third-party. The page
-shares JAM Code's process and CSP, and JAM Code's own policy is `frame-src 'none'`.
+shares JAM Code's process and CSP, and JAM Code's own policy allows no frame
+but the attachment PDF viewer's `blob:` (ADR 0014).
 Bundling Chromium (Electron or CEF) would add a full browser build to every
 installation.
 

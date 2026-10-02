@@ -1013,12 +1013,12 @@ async fn a_text_attachment_previews_its_start_and_other_types_do_not() {
     assert_eq!(preview(id_of(&log)).unwrap(), shown);
 
     // A long one shows only its start, cut on a whole character.
-    let long = "é".repeat(40_000);
+    let long = "é".repeat(200_000);
     let big = item(&runtime, &temp.chosen("long.txt", long.as_bytes()));
     let start = preview(id_of(&big)).unwrap();
     assert_eq!(start["truncated"], json!(true));
     let text = start["text"].as_str().unwrap();
-    assert!(text.len() <= 64 * 1024 && text.len() > 60 * 1024);
+    assert!(text.len() <= 256 * 1024 && text.len() > 250 * 1024);
     assert!(long.starts_with(text));
 
     // Anything that is not text has no text preview, whatever it is called.
@@ -1029,6 +1029,27 @@ async fn a_text_attachment_previews_its_start_and_other_types_do_not() {
     ] {
         let binary = item(&runtime, &temp.chosen(name, bytes));
         assert_eq!(code(preview(id_of(&binary))), "invalid_request", "{name}");
+    }
+    // A PDF is served whole, recognized by its content rather than its name.
+    use base64::Engine;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(PDF);
+    let asset = |id: &str| request(&runtime, "attachment.asset", json!({"id": id}));
+    let pdf = item(&runtime, &temp.chosen("misnamed.dat", PDF));
+    assert_eq!(
+        asset(id_of(&pdf)).unwrap()["dataUrl"],
+        json!(format!("data:application/pdf;base64,{encoded}"))
+    );
+    // Text called a PDF, or a page of HTML, is never handed over to render.
+    for (name, bytes) in [
+        ("fake.pdf", b"not a pdf".as_slice()),
+        ("page.html", b"<script>alert(1)</script>".as_slice()),
+        (
+            "drawing.svg",
+            b"<svg xmlns='http://www.w3.org/2000/svg'/>".as_slice(),
+        ),
+    ] {
+        let other = item(&runtime, &temp.chosen(name, bytes));
+        assert_eq!(code(asset(id_of(&other))), "invalid_request", "{name}");
     }
     assert_eq!(
         code(preview("attachment-00000000-0000-4000-8000-000000000000")),

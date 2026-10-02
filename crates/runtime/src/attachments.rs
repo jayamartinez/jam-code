@@ -62,7 +62,7 @@ pub struct AttachmentLimits {
 }
 
 /// How much of a text attachment its preview shows.
-const TEXT_PREVIEW_BYTES: usize = 64 * 1024;
+const TEXT_PREVIEW_BYTES: usize = 256 * 1024;
 
 pub fn limits() -> &'static AttachmentLimits {
     static LIMITS: std::sync::OnceLock<AttachmentLimits> = std::sync::OnceLock::new();
@@ -165,6 +165,17 @@ impl AttachmentStore {
     pub(crate) fn read(&self, attachment: &Attachment) -> Result<Vec<u8>, JamError> {
         self.home(attachment)?
             .read(&attachment.file_name(), attachment.bytes as usize)
+    }
+
+    /// The type the interface may render the whole copy as: a raster image or
+    /// a PDF, by its first bytes.
+    fn viewable_type(&self, attachment: &Attachment) -> Result<Option<&'static str>, JamError> {
+        let head = self
+            .home(attachment)?
+            .read_prefix(&attachment.file_name(), 16)?;
+        Ok(image_type(&head)
+            .map(|(media_type, _)| media_type)
+            .or_else(|| head.starts_with(b"%PDF-").then_some("application/pdf")))
     }
 
     /// The start of the copy as text, when it is text: UTF-8 without a NUL.
@@ -491,18 +502,22 @@ impl Runtime {
                 self.attachments.remove(&attachment)?;
                 Ok(json!({"accepted": true}))
             }
-            // An image attachment, for its preview. Addressed by ID only.
+            // An image or a PDF, whole, for its preview. Addressed by ID only
+            // and decided by content, never by name or by the recorded type:
+            // nothing else is ever handed to the interface to render.
             "attachment.asset" => {
                 let attachment = state
                     .store
                     .attachment(&input.id)?
                     .ok_or_else(|| JamError::new("not_found", "Attachment not found."))?;
-                if attachment.kind != AttachmentKind::Image {
-                    return Err(JamError::invalid("Only an image attachment has a preview."));
-                }
+                let Some(media_type) = self.attachments.viewable_type(&attachment)? else {
+                    return Err(JamError::invalid(
+                        "Only an image or a PDF attachment is shown this way.",
+                    ));
+                };
                 let bytes = self.attachments.read(&attachment)?;
                 Ok(json!({
-                    "dataUrl": format!("data:{};base64,{}", attachment.media_type, STANDARD.encode(bytes))
+                    "dataUrl": format!("data:{media_type};base64,{}", STANDARD.encode(bytes))
                 }))
             }
             // The start of a text attachment, for its preview. Anything that

@@ -16,6 +16,10 @@ const IMAGE_TYPES: Record<string, string> = {
   'image/webp': 'WebP',
 };
 
+/** A type the runtime shows as an image: PNG, JPEG, GIF or WebP. */
+export const isRasterImage = (mediaType: string | undefined) =>
+  !!mediaType && mediaType in IMAGE_TYPES;
+
 /** What a sent attachment was, beside its name: an image's type, a file's size. */
 export function attachmentDetail(item: ContextItem): string {
   const info = item.attachment;

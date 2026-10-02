@@ -568,10 +568,13 @@ export interface RequestMap
    * copy of it. One that was sent belongs to its conversation (`conflict`).
    */
   'attachment.remove': { params: { id: string }; result: { accepted: true } };
-  /** An image attachment as a data URL, for its preview. */
+  /**
+   * A raster image or a PDF attachment, whole, as a data URL for its preview.
+   * The runtime decides by content; anything else is `invalid_request`.
+   */
   'attachment.asset': { params: { id: string }; result: { dataUrl: string } };
   /**
-   * The start of a text attachment, for its preview; `truncated` when the
+   * The first 256 KB of a text attachment, for its preview; `truncated` when the
    * file continues. Refused (`invalid_request`) for anything that is not text.
    */
   'attachment.text': { params: { id: string }; result: { text: string; truncated: boolean } };
