@@ -12,6 +12,8 @@
   "scripts": {
     "dev": "pnpm --filter @jam/desktop dev",
     "desktop": "pnpm --filter @jam/desktop tauri dev",
+    "desktop:isolated": "node scripts/isolated-desktop.mjs",
+    "desktop:stable": "node scripts/stable-desktop.mjs",
     "build": "pnpm --filter @jam/desktop build",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
