@@ -24,16 +24,16 @@ The dashed path is a reserved boundary, not implemented software. No server, Web
 
 ## Domain language
 
-| Concept       | Meaning                                                                             | Lifetime                     |
-| ------------- | ----------------------------------------------------------------------------------- | ---------------------------- |
-| Project       | A folder (or several) on a machine, with a name and icon; Git is optional           | Durable                      |
-| Resource      | Addressable conversation, terminal, browser, file, file browser, review or Settings | Independent of presentation  |
-| View          | One visible presentation of a resource                                              | Client-owned                 |
-| Layout        | Tabs, each tab's split tree of views, Single/Tiles and focus                        | Client-owned presentation    |
-| Conversation  | Searchable transcript and context history                                           | Durable                      |
-| Agent session | Runtime-owned execution state and the provider's session reference                  | Independent of views         |
-| Turn          | One explicit user submission and the agent activity that follows                    | Durable outcome              |
-| Context item  | A file, selection, diff, browser annotation, terminal excerpt, message or snapshot  | Staged, then explicitly sent |
+| Concept       | Meaning                                                                                           | Lifetime                     |
+| ------------- | ------------------------------------------------------------------------------------------------- | ---------------------------- |
+| Project       | A folder (or several) on a machine, with a name and icon; Git is optional                         | Durable                      |
+| Resource      | Addressable conversation, terminal, browser, file, file browser, review or Settings               | Independent of presentation  |
+| View          | One visible presentation of a resource                                                            | Client-owned                 |
+| Layout        | Tabs, each tab's split tree of views, Single/Tiles and focus                                      | Client-owned presentation    |
+| Conversation  | Searchable transcript and context history                                                         | Durable                      |
+| Agent session | Runtime-owned execution state and the provider's session reference                                | Independent of views         |
+| Turn          | One explicit user submission and the agent activity that follows                                  | Durable outcome              |
+| Context item  | A file, selection, diff, browser annotation, terminal excerpt, message, snapshot or attached file | Staged, then explicitly sent |
 
 Visible and focused are different states, and closing a view leaves its resource available in history. A terminal is a resource with a real PTY, never the rendering mechanism for conversations.
 
@@ -43,6 +43,8 @@ Visible and focused are different states, and closing a view leaves its resource
 | ------------------------------------------------------ | ---------------- | --------------------------------------- |
 | Projects, resource identities, conversations, messages | Runtime / SQLite | Cache and render                        |
 | Choosing a project folder (native picker)              | Desktop host     | `DesktopServices.pickDirectory`         |
+| Choosing files to attach (native picker)               | Desktop host     | `DesktopServices.attachFiles`           |
+| Attached files: copies, metadata, lifetime             | Runtime / files  | Address by attachment ID, never a path  |
 | Sessions, in-flight turns, task handles, subscribers   | Runtime          | Render normalized state                 |
 | Provider installation/auth/capabilities                | Runtime adapters | Display unknown faithfully              |
 | Provider processes, pending approvals/questions        | Runtime adapters | Answer by JAM Code interaction ID       |
@@ -107,7 +109,8 @@ Deleting a conversation (`conversation.delete`) is a separate, permanent
 lifecycle command, asked for through a confirmation. In one transaction the
 runtime removes what only that conversation owns: its resource, conversation
 and session rows, messages, search documents (and with them its FTS entries),
-provider binding, request receipts and the snapshots sent in it; a snapshot
+provider binding, request receipts and the snapshots and attachments sent in
+it; a snapshot
 still staged for it returns to the inbox. It never touches the project's
 folder or files, Git branches or worktrees (the `worktrees` record stays), the
 provider's own history, or any other conversation. It is refused while the
@@ -180,7 +183,7 @@ The user database, `jam.sqlite` in the platform application-data folder, preserv
 
 Each subscription has a 256-event FIFO and one coalesced latest event. When a slow client overflows that FIFO, the latest cursor is still delivered after buffered events: skipped sequences trigger the client's authoritative reread, including when the skipped update was the end of a turn. At most 128 subscriptions can coexist. The host clears old subscriptions at page reload and window destruction. The current shared client uses a workspace subscription; resource-scoped subscriptions are available for later scaling. A gap in a resource-scoped global sequence can also reflect activity in another resource, so a conservative reread is safe rather than evidence of data loss.
 
-Request limits match the TypeScript contract in UTF-16 units: identifiers 128, prompt text 20,000, 16 context items, and search queries 256. Context-only sends are allowed. On Send the runtime resolves snapshot assets it owns into images for the provider and composes other context as text with its provenance; it never reads arbitrary source URIs. Most draft context is client-owned until explicit Send. Snapshots are an exception: their staged metadata and assets survive restart in runtime-owned app data. Sending atomically commits the canonical context with the turn receipt and retains the asset with history. The demo provider does not inspect image contents or call a model; a real provider receives a snapshot image only if its model reports image support. Machine access is limited to explicit terminal shells, project-scoped Git CLI commands, bounded file reads and user-triggered snapshot capture by the desktop host.
+Request limits match the TypeScript contract in UTF-16 units: identifiers 128, prompt text 20,000, 16 context items, and search queries 256. Context-only sends are allowed. On Send the runtime resolves snapshot assets it owns into images for the provider and composes other context as text with its provenance; it never reads arbitrary source URIs. Most draft context is client-owned until explicit Send. Snapshots are an exception: their staged metadata and assets survive restart in runtime-owned app data. Sending atomically commits the canonical context with the turn receipt and retains the asset with history. Attached files follow the same rule with a shorter staging life (ADR 0014): the desktop host's file chooser hands each chosen file to the runtime, which copies it unchanged into its own `attachments` folder under an opaque ID; the original is not read again and its location is not recorded. Any file type can be attached, because delivery does not depend on a provider's protocol: every agent is given the path of the copy in the turn's text and opens it with its own tools, and an adapter may additionally send what its provider takes natively (images today). A staged copy is removed with its chip, after 24 hours or at the next start. A sent one moves into its conversation's own folder, the only attachment folder that conversation's agent is pointed at, and goes only when the conversation is deleted. Limits: 16 files per pick, files to 25 MB, native images to 5 MB each and 12 MB per Send, 100 MB of attachments per Send. The demo provider does not inspect image contents or call a model; a real provider receives a snapshot image only if its model reports image support. Machine access is limited to explicit terminal shells, project-scoped Git CLI commands, bounded file reads and user-triggered snapshot capture by the desktop host.
 
 ## Providers
 
@@ -195,7 +198,7 @@ The runtime's `ProviderManager` holds the adapters (Claude Code, Codex, demo), t
 - Browser: one native child webview per Browser resource (WKWebView / WebView2), owned by the desktop host and placed over its pane; see [ADR 0007](adr/0007-native-browser.md). Pages are unprivileged: they match no capability, have no page-to-host channel, may only load http(s), and keep cookies in a profile separate from JAM Code's interface. WebView2 and WKWebView differ; devtools/automation parity is not promised.
 - Terminal and Browser deliberately have different owners. A shell is a machine capability, so the runtime owns it and a client (local now, remote later) drives it through `JamTransport`. A native webview is a piece of the local window, so the desktop host owns it and the shared client reaches it only through the optional `DesktopServices.browser`; a remote client would present browsing differently. Both follow the same view rules: a pane attaches and detaches, only an explicit command ends the shell or page, and a reload of JAM Code's own webview detaches both without ending either.
 - Snapshots: runtime-owned `SnapshotManager` stores metadata, settings and JPEG assets; the desktop host owns the shortcut listener (a modifier-state sampler for both Shift keys or a system hotkey; neither needs Input Monitoring), the Screen Recording check, one-shot platform capture and nonactivating feedback. Last-focused conversation is explicit runtime metadata, independent of file/terminal focus. See [ADR 0009](adr/0009-snapshots.md).
-- Context: typed provenance/selection and opaque asset references. Snapshots reuse `ContextItem.kind = snapshot`; no binary payload lives in the workspace state. Capturing stages context and never invokes Send. Remote clients cannot submit arbitrary local paths as capability grants.
+- Context: typed provenance/selection and opaque asset references. Snapshots reuse `ContextItem.kind = snapshot` and attached files `kind = attachment`; no binary payload lives in the workspace state. Capturing stages context and never invokes Send. Remote clients cannot submit arbitrary local paths as capability grants.
 - Windows uses right-side native-style controls; macOS uses left-side traffic lights and Cmd shortcuts. Host supplies the platform and window actions. Titlebar drag areas exclude interactive controls.
 
 ## Trust boundaries
