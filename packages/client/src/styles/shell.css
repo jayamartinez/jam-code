@@ -636,13 +636,14 @@ button.thread-group-label {
 /*
  * The strip shrinks its labels before it scrolls, so a tab is never hidden
  * behind the layout controls. Past that it scrolls, with a fade marking that
- * there is more to reach.
+ * there is more to reach. Over a custom background the fade is off: a mask
+ * would stop the tabs blurring what is behind them.
  */
 .resource-tabs {
   position: relative;
   scroll-behavior: smooth;
   overscroll-behavior-x: contain;
-  mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 28px), transparent 100%);
+  mask-image: var(--tab-strip-fade);
 }
 .resource-tabs:not(:hover) {
   mask-image: none;
@@ -692,10 +693,16 @@ button.thread-group-label {
   flex-shrink: 0;
   width: 28px;
   height: 28px;
+  border: 1px solid var(--color-tab-border);
   border-radius: var(--radius-md);
+  background: var(--color-tab-surface);
+  color: var(--color-tab-text);
+  -webkit-backdrop-filter: var(--tab-backdrop);
+  backdrop-filter: var(--tab-backdrop);
 }
 .resource-tabs .icon-button.new-resource[aria-expanded='true'] {
-  background: var(--color-fill-strong);
+  background:
+    linear-gradient(var(--color-fill-strong), var(--color-fill-strong)), var(--color-tab-surface);
   color: var(--color-text-primary);
 }
 .resource-tab {
@@ -722,6 +729,14 @@ button.thread-group-label {
   border-color: var(--color-border-strong);
   background: var(--color-tab-active-surface);
   font-weight: 500;
+}
+/* Hover adds its tint over the tab's surface instead of replacing it. */
+.resource-tab:hover:not(:disabled),
+.resource-tabs .icon-button.new-resource:hover:not(:disabled) {
+  background: linear-gradient(var(--color-fill), var(--color-fill)), var(--color-tab-surface);
+}
+.resource-tab.active:hover:not(:disabled) {
+  background: var(--color-tab-active-surface);
 }
 .resource-tab.visible:not(.active) {
   background:
@@ -750,12 +765,16 @@ button.thread-group-label {
   line-height: calc(16px * var(--ui-scale));
   white-space: nowrap;
 }
+/* The layout switch and the window controls share the tabs' surface. */
 .layout-toggle {
   display: flex;
   border: 1px solid var(--color-border);
   padding: 2px;
   border-radius: 7px;
   flex-shrink: 0;
+  background: var(--color-tab-surface);
+  -webkit-backdrop-filter: var(--tab-backdrop);
+  backdrop-filter: var(--tab-backdrop);
 }
 .layout-toggle button {
   display: flex;
@@ -765,7 +784,7 @@ button.thread-group-label {
   padding: 0 7px;
   border-radius: 5px;
   font-size: calc(11px * var(--ui-scale));
-  color: var(--color-text-subtle);
+  color: var(--color-tab-quiet-text);
 }
 .layout-toggle button.active {
   color: var(--color-text-primary);
@@ -777,11 +796,15 @@ button.thread-group-label {
   height: 44px;
   border-left: 1px solid var(--color-border-subtle);
   margin-left: 5px;
+  background: var(--color-tab-surface);
+  -webkit-backdrop-filter: var(--tab-backdrop);
+  backdrop-filter: var(--tab-backdrop);
 }
 .window-controls .icon-button {
   width: 44px;
   height: 44px;
   border-radius: 0;
+  color: var(--color-tab-text);
 }
 .window-controls .icon-button:last-child:hover:not(:disabled) {
   background: var(--color-danger-soft);

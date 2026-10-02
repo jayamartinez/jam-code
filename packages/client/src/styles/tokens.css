@@ -127,8 +127,10 @@
   --color-tab-surface: transparent;
   --color-tab-border: transparent;
   --color-tab-text: var(--color-text-muted);
+  --color-tab-quiet-text: var(--color-text-subtle);
   --color-tab-active-surface: var(--color-fill-strong);
   --tab-backdrop: none;
+  --tab-strip-fade: linear-gradient(to right, #000 0, #000 calc(100% - 28px), transparent 100%);
   --wallpaper-effects: none;
   --wallpaper-effects-size: auto;
   /*

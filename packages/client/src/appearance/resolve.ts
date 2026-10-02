@@ -353,10 +353,15 @@ export function backgroundTokens(
       '--color-tab-surface': custom ? 'var(--color-surface-sidebar)' : 'transparent',
       '--color-tab-border': custom ? 'var(--color-border-subtle)' : 'transparent',
       '--color-tab-text': custom ? 'var(--color-text-secondary)' : 'var(--color-text-muted)',
+      '--color-tab-quiet-text': custom ? 'var(--color-text-secondary)' : 'var(--color-text-subtle)',
       '--color-tab-active-surface': custom
         ? 'var(--color-surface-pane)'
         : 'var(--color-fill-strong)',
       '--tab-backdrop': custom ? 'var(--sidebar-backdrop)' : 'none',
+      // A mask on the strip would cut its tabs off from what they blur.
+      '--tab-strip-fade': custom
+        ? 'none'
+        : 'linear-gradient(to right, #000 0, #000 calc(100% - 28px), transparent 100%)',
       ...effectTokens(appearance),
     },
   };
