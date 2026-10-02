@@ -7,6 +7,7 @@ import type {
   ProviderDescriptor,
   Resource,
   Session,
+  SidebarSection,
   WorkspaceSnapshot,
   Worktree,
 } from '@jam/protocol';
@@ -188,6 +189,12 @@ export class RuntimeClient {
     this.recent.push(event);
     if (this.recent.length > 500) this.recent.shift();
     let workspace = this.state.workspace;
+    // A chat that starts waiting for the reader moves up its lists, which
+    // sort by the resource's own timestamp.
+    const startedWaiting =
+      event.type === 'session.updated' &&
+      !!event.session.needsInput &&
+      !workspace?.sessions.find((session) => session.id === event.session.id)?.needsInput;
     if (workspace && event.type === 'session.updated') {
       const sessions = workspace.sessions.some((session) => session.id === event.session.id)
         ? workspace.sessions.map((session) =>
@@ -203,7 +210,8 @@ export class RuntimeClient {
       this.update({ workspace, ...(conversation ? { conversations } : {}) });
     if (
       (event.type === 'message.upserted' && event.message.role === 'user') ||
-      (event.type === 'session.updated' && event.session.status !== 'running')
+      (event.type === 'session.updated' && event.session.status !== 'running') ||
+      startedWaiting
     )
       this.refreshMetadata();
   }
@@ -352,6 +360,28 @@ export class RuntimeClient {
         projects: workspace.projects.map((item) => (item.id === project.id ? project : item)),
       },
     });
+  }
+
+  /** Reflect the project order the runtime just stored. */
+  reorderProjects(projectIds: readonly string[]) {
+    const workspace = this.state.workspace;
+    if (!workspace) return;
+    const rank = (project: Project) => {
+      const index = projectIds.indexOf(project.id);
+      return index < 0 ? projectIds.length : index;
+    };
+    this.update({
+      workspace: {
+        ...workspace,
+        projects: [...workspace.projects].sort((left, right) => rank(left) - rank(right)),
+      },
+    });
+  }
+
+  /** Reflect the order of sidebar sections the runtime just stored. */
+  reorderSections(sidebarSections: SidebarSection[]) {
+    const workspace = this.state.workspace;
+    if (workspace) this.update({ workspace: { ...workspace, sidebarSections } });
   }
 
   /** Reflect a resource the runtime just changed, such as a closed thread. */

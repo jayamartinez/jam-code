@@ -201,6 +201,20 @@ export class BrowserPreviewTransport implements JamTransport {
         }
         return { project };
       }
+      case 'project.reorder': {
+        const { projectIds } = request.params;
+        projectIds.forEach((id) => this.requireProject(id));
+        const rank = (id: string) => {
+          const index = projectIds.indexOf(id);
+          return index < 0 ? projectIds.length : index;
+        };
+        // A stable sort leaves projects the request did not name after the rest.
+        this.workspace.projects.sort((left, right) => rank(left.id) - rank(right.id));
+        return { projectIds: this.workspace.projects.map((item) => item.id) };
+      }
+      case 'sidebar.reorder':
+        this.workspace.sidebarSections = [...request.params.sections];
+        return { sections: request.params.sections };
       case 'thread.setClosed': {
         const resource = this.getThread(request.params.resourceId);
         if (request.params.closed) {
@@ -396,6 +410,7 @@ export class BrowserPreviewTransport implements JamTransport {
     });
     session.status = 'idle';
     session.needsInput = false;
+    this.touch(session.resourceId);
     this.updateRunningProvider();
     this.publish({ type: 'message.upserted', resourceId: session.resourceId, message });
     this.publish({ type: 'session.updated', session });
@@ -586,7 +601,17 @@ export class BrowserPreviewTransport implements JamTransport {
       { type: 'interaction', interaction },
     ];
     session.needsInput = true;
+    this.touch(session.resourceId);
     this.asking.set(session.id, { interaction, message });
+  }
+
+  /**
+   * Marks a conversation as active just now. Chat lists sort by this, so the
+   * latest to be used, to finish or to ask for the reader is on top.
+   */
+  private touch(resourceId: string) {
+    const resource = this.workspace.resources.find((item) => item.id === resourceId);
+    if (resource) resource.updatedAt = now();
   }
 
   private advanceTurn(sessionId: string, step: number) {
@@ -620,6 +645,7 @@ export class BrowserPreviewTransport implements JamTransport {
           : 'The runtime owns the session; a pane only displays it. Closing a view detaches that view while work continues. This was a simulated response, with no model call or repository changes.',
       });
       session.status = active.fail ? 'failed' : 'idle';
+      this.touch(session.resourceId);
       this.active.delete(sessionId);
       this.updateRunningProvider();
     }
@@ -632,6 +658,7 @@ export class BrowserPreviewTransport implements JamTransport {
   private interrupt(sessionId: string): RequestMap['turn.interrupt']['result'] {
     const session = this.getSession(sessionId);
     const asking = this.asking.get(sessionId);
+    if (asking || this.active.has(sessionId)) this.touch(session.resourceId);
     if (asking) {
       this.asking.delete(sessionId);
       asking.interaction.status = 'cancelled';

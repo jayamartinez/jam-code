@@ -669,6 +669,160 @@ fn editing_a_project_persists_name_paths_and_icon() {
     }
 }
 
+fn project_ids(workspace: &Value) -> Vec<String> {
+    workspace["projects"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|project| project["id"].as_str().unwrap().to_owned())
+        .collect()
+}
+
+#[test]
+fn arranging_the_sidebar_survives_a_restart() {
+    let database = TestDatabase::new();
+    let runtime = database.open();
+    let untouched = request(&runtime, "workspace.get", json!({}));
+    assert_eq!(
+        project_ids(&untouched),
+        [
+            "project-jam",
+            "project-atlas",
+            "project-forge",
+            "project-orbit"
+        ]
+    );
+    // Until the reader arranges the sections, the client's default applies.
+    assert!(untouched.get("sidebarSections").is_none());
+
+    // A project the request leaves out keeps its place after the named ones.
+    let reordered = request(
+        &runtime,
+        "project.reorder",
+        json!({"projectIds":["project-orbit","project-jam","project-forge"]}),
+    );
+    let arranged = [
+        "project-orbit",
+        "project-jam",
+        "project-forge",
+        "project-atlas",
+    ];
+    assert_eq!(reordered["projectIds"], json!(arranged));
+
+    let sections = ["history", "pinned", "projects"];
+    let moved = request(&runtime, "sidebar.reorder", json!({"sections":sections}));
+    assert_eq!(moved["sections"], json!(sections));
+
+    drop(runtime);
+    let reopened = database.open();
+    let workspace = request(&reopened, "workspace.get", json!({}));
+    assert_eq!(project_ids(&workspace), arranged);
+    assert_eq!(workspace["sidebarSections"], json!(sections));
+
+    for (method, bad) in [
+        (
+            "project.reorder",
+            json!({"projectIds":["project-jam","project-jam"]}),
+        ),
+        ("project.reorder", json!({"projectIds":["project-missing"]})),
+        ("project.reorder", json!({"projectIds":"project-jam"})),
+        ("project.reorder", json!({})),
+        // A section left out, repeated, or unknown.
+        ("sidebar.reorder", json!({"sections":["pinned","projects"]})),
+        (
+            "sidebar.reorder",
+            json!({"sections":["pinned","pinned","projects"]}),
+        ),
+        (
+            "sidebar.reorder",
+            json!({"sections":["pinned","projects","history","threads"]}),
+        ),
+        (
+            "sidebar.reorder",
+            json!({"sections":["pinned","projects","recent"]}),
+        ),
+        ("sidebar.reorder", json!({})),
+        // Chats are never arranged by hand.
+        (
+            "project.update",
+            json!({"projectId":"project-jam","threadOrder":["conv-window"]}),
+        ),
+    ] {
+        assert!(
+            reopened
+                .request(Request {
+                    protocol_version: 1,
+                    method: method.into(),
+                    params: bad.clone(),
+                })
+                .is_err(),
+            "{method} {bad} must be rejected"
+        );
+    }
+    // A refused arrangement leaves the stored one alone.
+    let kept = request(&reopened, "workspace.get", json!({}));
+    assert_eq!(project_ids(&kept), arranged);
+    assert_eq!(kept["sidebarSections"], json!(sections));
+}
+
+/// Chat lists are an inbox: whatever was used, finished or asked for the
+/// reader most recently is newest, and nothing else moves a chat.
+#[tokio::test]
+async fn a_chat_is_newest_when_it_is_used_finishes_or_asks() {
+    let database = TestDatabase::new();
+    let runtime = database.open();
+    let mut observer = runtime.subscribe(SubscriptionScope::default()).unwrap();
+    let active = |id: &str| {
+        let workspace = request(&runtime, "workspace.get", json!({}));
+        let stamp = resource_in(&workspace, id)["updatedAt"]
+            .as_str()
+            .unwrap()
+            .trim_end_matches('Z')
+            .to_owned();
+        // UTC timestamps order by their seconds, then by the fraction read
+        // as a number: its digits vary in count.
+        let (seconds, fraction) = stamp.split_once('.').unwrap_or((&stamp, "0"));
+        (seconds.to_owned(), format!("{fraction:0<9}"))
+    };
+
+    let seeded = active("conv-pane-lifetime");
+    request(&runtime, "turn.start", turn("inbox-used", "Hello"));
+    let used = active("conv-pane-lifetime");
+    assert!(used > seeded, "sending is activity");
+    assert_eq!(finished(&mut observer.receiver).await, "idle");
+    let done = active("conv-pane-lifetime");
+    assert!(done > used, "finishing is activity");
+
+    // Another chat that starts waiting for an answer goes above it.
+    request(
+        &runtime,
+        "turn.start",
+        json!({"resourceId":"conv-navigation","text":"/approval","context":[],"requestId":"inbox-asks"}),
+    );
+    let sent = active("conv-navigation");
+    let session_id = tokio::time::timeout(Duration::from_secs(5), async {
+        while let Some(event) = observer.receiver.recv().await {
+            if let EventPayload::SessionUpdated { session } = event.payload
+                && session.needs_input
+            {
+                return session.id;
+            }
+        }
+        panic!("the demo provider never asked")
+    })
+    .await
+    .expect("the approval arrives within the deadline");
+    let asked = active("conv-navigation");
+    assert!(asked > sent, "asking is activity");
+    assert!(asked > done);
+    // The chat that finished earlier did not move.
+    assert_eq!(active("conv-pane-lifetime"), done);
+
+    request(&runtime, "turn.interrupt", json!({"sessionId":session_id}));
+    assert!(active("conv-navigation") > asked, "stopping is activity");
+    runtime.shutdown().await.unwrap();
+}
+
 fn resource_in(workspace: &Value, id: &str) -> Value {
     workspace["resources"]
         .as_array()

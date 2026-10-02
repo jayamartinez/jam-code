@@ -187,6 +187,60 @@ describe('runtime projection lifetime and recovery', () => {
     client.disconnect();
   });
 
+  it('rereads chat order when a chat starts waiting, and not while it keeps waiting', async () => {
+    const h = harness();
+    const client = new RuntimeClient(h.transport);
+    await client.connect();
+    const session = h.fixture.workspace.sessions[0]!;
+    const reads = () => h.calls.filter((call) => call === 'workspace.get').length;
+    const update = (sequence: number, changes: Partial<typeof session>) =>
+      h.emit({
+        protocolVersion: 1,
+        resourceId: h.resourceId,
+        cursor: { runtimeId: h.fixture.workspace.runtimeId, sequence },
+        type: 'session.updated',
+        session: { ...session, status: 'running', ...changes },
+      });
+    update(1, {});
+    await flush();
+    expect(reads()).toBe(1);
+    // The runtime moved the chat up when it asked; its timestamp is read again.
+    h.fixture.workspace.resources.find((item) => item.id === h.resourceId)!.updatedAt =
+      '2030-01-01T00:00:00.000Z';
+    update(2, { needsInput: true });
+    await flush();
+    expect(reads()).toBe(2);
+    expect(
+      client.getSnapshot().workspace?.resources.find((item) => item.id === h.resourceId)?.updatedAt,
+    ).toBe('2030-01-01T00:00:00.000Z');
+    // A later update of the same waiting chat is not another reason to read.
+    update(3, { needsInput: true, model: 'Another model' });
+    await flush();
+    expect(reads()).toBe(2);
+    client.disconnect();
+  });
+
+  it('applies an arrangement of sections and projects to the projection', async () => {
+    const h = harness();
+    const client = new RuntimeClient(h.transport);
+    await client.connect();
+    const ids = client.getSnapshot().workspace!.projects.map((project) => project.id);
+    const reversed = [...ids].reverse();
+    // A project the order does not name stays after the ones it does.
+    client.reorderProjects(reversed.slice(0, 2));
+    expect(client.getSnapshot().workspace!.projects.map((project) => project.id)).toEqual([
+      ...reversed.slice(0, 2),
+      ...ids.filter((id) => !reversed.slice(0, 2).includes(id)),
+    ]);
+    client.reorderSections(['history', 'projects', 'pinned']);
+    expect(client.getSnapshot().workspace!.sidebarSections).toEqual([
+      'history',
+      'projects',
+      'pinned',
+    ]);
+    client.disconnect();
+  });
+
   it('releases a subscription that finishes registering after disposal', async () => {
     const pending = deferred<() => void>();
     const dispose = vi.fn();

@@ -397,6 +397,10 @@ pub struct WorkspaceSnapshot {
     pub providers: Vec<ProviderDescriptor>,
     #[serde(default)]
     pub worktrees: Vec<Worktree>,
+    /// The sidebar's sections, top to bottom, once the reader has arranged
+    /// them; absent means the default order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sidebar_sections: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

@@ -1,5 +1,5 @@
 import { JamError } from './errors';
-import { OPENABLE_KINDS, PROJECT_ICONS, PROVIDER_CAPABILITIES } from './types';
+import { OPENABLE_KINDS, PROJECT_ICONS, PROVIDER_CAPABILITIES, SIDEBAR_SECTIONS } from './types';
 import { TERMINAL_LIMITS } from './terminal';
 import { SNAPSHOT_KEY_COMBINATIONS } from './snapshots';
 import {
@@ -157,6 +157,18 @@ const projectPath: Check = (value) => {
   text(iconLimits.pathUtf16)(value);
   if (!/^(\/|~\/|[A-Za-z]:[\\/]|\\\\)/.test(value as string))
     invalid('A project path must be an absolute folder path.');
+};
+/** A hand-arranged order of projects: bounded, and naming each one once. */
+const projectOrder: Check = (value) => {
+  array(id, 500)(value);
+  if (new Set(value as unknown[]).size !== (value as unknown[]).length)
+    invalid('A project order lists each project once.');
+};
+/** Every sidebar section, exactly once. */
+const sidebarSections: Check = (value) => {
+  array(oneOf(...SIDEBAR_SECTIONS), SIDEBAR_SECTIONS.length)(value);
+  if (new Set(value as unknown[]).size !== SIDEBAR_SECTIONS.length)
+    invalid('A sidebar order lists each section once.');
 };
 const project: Check = (value) =>
   shape(
@@ -478,16 +490,20 @@ const message: Check = (value) =>
 const conversation: Check = (value) =>
   shape(value, { resourceId: id, sessionId: id, messages: array(message), cursor });
 const workspace: Check = (value) =>
-  shape(value, {
-    protocolVersion: oneOf(1),
-    runtimeId: id,
-    sequence: integer,
-    projects: array(project),
-    resources: array(resource),
-    sessions: array(session),
-    providers: array(provider, 20),
-    worktrees: array(worktree),
-  });
+  shape(
+    value,
+    {
+      protocolVersion: oneOf(1),
+      runtimeId: id,
+      sequence: integer,
+      projects: array(project),
+      resources: array(resource),
+      sessions: array(session),
+      providers: array(provider, 20),
+      worktrees: array(worktree),
+    },
+    { sidebarSections },
+  );
 const searchResult: Check = (value) =>
   shape(value, {
     resourceId: id,
@@ -855,6 +871,8 @@ const params: Record<RequestMethod, Check> = {
         pinned: boolean,
       },
     ),
+  'project.reorder': (value) => shape(value, { projectIds: projectOrder }),
+  'sidebar.reorder': (value) => shape(value, { sections: sidebarSections }),
   'thread.setClosed': (value) => shape(value, { resourceId: id, closed: boolean }),
   'thread.keepOpen': (value) => shape(value, { resourceId: id }),
   'thread.setPinned': (value) => shape(value, { resourceId: id, pinned: boolean }),
@@ -951,6 +969,8 @@ const responses: Record<RequestMethod, Check> = {
   'project.create': (value) => shape(value, { project, existing: boolean }),
   'project.remove': (value) => shape(value, { projectId: id }),
   'project.update': (value) => shape(value, { project }),
+  'project.reorder': (value) => shape(value, { projectIds: projectOrder }),
+  'sidebar.reorder': (value) => shape(value, { sections: sidebarSections }),
   'thread.setClosed': (value) => shape(value, { resource }),
   'thread.keepOpen': (value) => shape(value, { resource }),
   'thread.setPinned': (value) => shape(value, { resource }),

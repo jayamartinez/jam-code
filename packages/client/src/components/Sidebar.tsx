@@ -10,8 +10,18 @@ import {
   Search,
   Settings,
 } from 'lucide-react';
-import type { Project, Resource, Session, WorkspaceSnapshot } from '@jam/protocol';
+import {
+  SIDEBAR_SECTIONS,
+  type Project,
+  type Resource,
+  type Session,
+  type SidebarSection,
+  type WorkspaceSnapshot,
+} from '@jam/protocol';
 import { Brand, IconButton, Shortcut, TrafficLightInset } from './Controls';
+import { SortGrip, useSortable, type SortBounds } from './sortable';
+import { HistoryResizeHandle } from './HistoryResizeHandle';
+import { moved, movedAmongShown } from '../state/sidebar-order';
 import { ProviderIcon } from './icons';
 import { ProjectBadge } from './ProjectBadge';
 import { MenuSelect } from './MenuSelect';
@@ -28,6 +38,7 @@ import {
   threadsOf,
 } from '../state/threads';
 import { useShortcutHint } from '../state/keybindings';
+import { useHistoryHeight } from '../state/preferences';
 
 export { ProjectBadge };
 
@@ -64,6 +75,10 @@ export interface SidebarProps {
   onCollapse(): void;
   /** Right-click (or the context-menu key) on a project. */
   onProjectMenu(projectId: string, event: React.MouseEvent): void;
+  /** Every section, top to bottom, after the reader dragged one. */
+  onReorderSections(sections: SidebarSection[]): void;
+  /** Every project in its new order, after the reader dragged one. */
+  onReorderProjects(projectIds: string[]): void;
   /** Opens the folder picker; absent where the host has none. */
   onAddProject?(): void;
   /** JAM Code's GitHub pages; absent where the host cannot open them. */
@@ -88,6 +103,34 @@ export function Sidebar(props: SidebarProps) {
     projectId: props.projectFilter,
     providerId: props.providerFilter,
   });
+  // History is as tall as the reader made it; while its edge is being
+  // dragged the height follows the pointer and is kept on release.
+  const [historyHeight, setHistoryHeight] = useHistoryHeight();
+  const [historyDraft, setHistoryDraft] = useState<number | null>(null);
+  const historyPixels = historyDraft ?? (typeof historyHeight === 'number' ? historyHeight : null);
+  // The reader arranges the sections and the projects by dragging. Chats are
+  // never arranged: every chat list sorts by its latest activity.
+  const sectionOrder = workspace.sidebarSections ?? SIDEBAR_SECTIONS;
+  // Pinned is shown only when something is pinned; an empty heading says nothing.
+  const shownSections = sectionOrder.filter((section) => section !== 'pinned' || pinned.length > 0);
+  const sectionSort = useSortable((from, to) =>
+    props.onReorderSections(movedAmongShown(sectionOrder, shownSections, from, to)),
+  );
+  const projectSort = useSortable((from, to) =>
+    props.onReorderProjects(moved(projects, from, to).map((project) => project.id)),
+  );
+  // Pinned projects stay first, so a project moves among its own kind.
+  const pinnedProjects = projects.filter((project) => project.pinned).length;
+  const projectBounds = (index: number): SortBounds =>
+    index < pinnedProjects ? [0, pinnedProjects - 1] : [pinnedProjects, projects.length - 1];
+  const section = (id: SidebarSection, name: string, own = '') => {
+    const index = shownSections.indexOf(id);
+    const { className, ...item } = sectionSort.item(index);
+    return {
+      props: { ...item, className: `sidebar-section ${own} ${className}` },
+      grip: <SortGrip name={name} {...sectionSort.grip(index)} />,
+    };
+  };
   if (collapsed)
     return (
       <aside className="sidebar rail" aria-label="Workspace navigation">
@@ -121,27 +164,18 @@ export function Sidebar(props: SidebarProps) {
         </IconButton>
       </aside>
     );
-  return (
-    <aside className="sidebar" aria-label="Workspace navigation">
-      <div className="sidebar-header">
-        {mac && <TrafficLightInset />}
-        <Brand />
-        <IconButton label="New chat" onClick={props.onNew}>
-          <Plus size={15} />
-        </IconButton>
-        <IconButton label="Collapse sidebar" onClick={props.onCollapse}>
-          <PanelLeftClose size={15} />
-        </IconButton>
-      </div>
-      <div className="sidebar-search">
-        <button className="search-trigger" onClick={props.onSearch}>
-          <Search size={14} />
-          <span>Search all history</span>
-          {searchHint && <Shortcut>{searchHint}</Shortcut>}
-        </button>
-      </div>
-      <section className="sidebar-section">
+  const projectsSection = section('projects', 'Projects');
+  const pinnedSection = section('pinned', 'Pinned');
+  const historySection = section(
+    'history',
+    'History',
+    `history-section ${historyPixels !== null ? 'sized' : historyHeight === 'all' ? 'all' : ''}`,
+  );
+  const sections: Record<SidebarSection, React.ReactNode> = {
+    projects: (
+      <section key="projects" {...projectsSection.props}>
         <div className="section-label">
+          {projectsSection.grip}
           Projects
           <IconButton
             label={props.onAddProject ? 'Add project' : 'Adding a folder needs the desktop app'}
@@ -159,85 +193,102 @@ export function Sidebar(props: SidebarProps) {
             <span className="name truncate">New project…</span>
           </button>
         )}
-        {projects.map((project) => {
-          const expanded = props.expandedProjectIds.includes(project.id);
-          return (
-            <div key={project.id} className="project-group">
-              <button
-                className={`project-row ${project.id === projectId ? 'selected' : ''} ${expanded ? 'expanded' : ''}`}
-                aria-expanded={expanded}
-                onClick={() => props.onProject(project.id)}
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  props.onProjectMenu(project.id, event);
-                }}
-              >
-                <ProjectBadge project={project} />
-                <span className="name truncate">{project.name}</span>
-                {project.pinned && (
-                  <span className="project-pin" title="Pinned">
-                    <Pin size={11} />
-                  </span>
+        <div
+          className={`project-list ${projectSort.sorting ? 'sorting' : ''}`}
+          ref={projectSort.list}
+        >
+          {projects.map((project, index) => {
+            const expanded = props.expandedProjectIds.includes(project.id);
+            const { className, ...item } = projectSort.item(index);
+            return (
+              <div key={project.id} {...item} className={`project-group ${className}`}>
+                <SortGrip name={project.name} {...projectSort.grip(index, projectBounds(index))} />
+                <button
+                  className={`project-row ${project.id === projectId ? 'selected' : ''} ${expanded ? 'expanded' : ''}`}
+                  aria-expanded={expanded}
+                  onClick={() => props.onProject(project.id)}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    props.onProjectMenu(project.id, event);
+                  }}
+                >
+                  <ProjectBadge project={project} />
+                  <span className="name truncate">{project.name}</span>
+                  {project.pinned && (
+                    <span className="project-pin" title="Pinned">
+                      <Pin size={11} />
+                    </span>
+                  )}
+                  {project.folderMissing ? (
+                    <span className="branch missing" title="This project's folder can't be found">
+                      folder missing
+                    </span>
+                  ) : (
+                    <span className="branch mono">{project.branch}</span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className="project-new-thread"
+                  aria-label={`New thread in ${project.name}`}
+                  title="New thread"
+                  onClick={() => props.onNewThread(project.id)}
+                >
+                  <Plus size={13} />
+                </button>
+                {expanded && (
+                  <ProjectThreads
+                    resources={workspace.resources}
+                    sessionFor={sessionFor}
+                    finishedSessions={props.finishedSessions}
+                    projectId={project.id}
+                    activeResourceId={activeResourceId}
+                    idleThreadDays={props.idleThreadDays}
+                    onOpen={props.onOpen}
+                    onArchive={props.onArchiveThread}
+                    onKeepOpen={props.onKeepThreadOpen}
+                    onMenu={props.onThreadMenu}
+                  />
                 )}
-                {project.folderMissing ? (
-                  <span className="branch missing" title="This project's folder can't be found">
-                    folder missing
-                  </span>
-                ) : (
-                  <span className="branch mono">{project.branch}</span>
-                )}
-              </button>
-              <button
-                type="button"
-                className="project-new-thread"
-                aria-label={`New thread in ${project.name}`}
-                title="New thread"
-                onClick={() => props.onNewThread(project.id)}
-              >
-                <Plus size={13} />
-              </button>
-              {expanded && (
-                <ProjectThreads
-                  resources={workspace.resources}
-                  sessionFor={sessionFor}
-                  finishedSessions={props.finishedSessions}
-                  projectId={project.id}
-                  activeResourceId={activeResourceId}
-                  idleThreadDays={props.idleThreadDays}
-                  onOpen={props.onOpen}
-                  onArchive={props.onArchiveThread}
-                  onKeepOpen={props.onKeepThreadOpen}
-                  onMenu={props.onThreadMenu}
-                />
-              )}
-            </div>
-          );
-        })}
+              </div>
+            );
+          })}
+        </div>
       </section>
-      {/* Shown only when something is pinned; an empty heading says nothing. */}
-      {pinned.length > 0 && (
-        <section className="sidebar-section">
-          <div className="section-label">
-            Pinned
-            <span className="count">{pinned.length}</span>
-          </div>
-          {pinned.map((resource) => (
-            <ChatRow
-              key={resource.id}
-              resource={resource}
-              session={sessionFor(resource)}
-              project={workspace.projects.find((project) => project.id === resource.projectId)}
-              active={resource.id === activeResourceId}
-              finished={props.finishedSessions.has(resource.sessionId ?? '')}
-              pinned
-              onOpen={props.onOpen}
-              onMenu={props.onThreadMenu}
-            />
-          ))}
-        </section>
-      )}
-      <section className="sidebar-section history-section">
+    ),
+    pinned: (
+      <section key="pinned" {...pinnedSection.props}>
         <div className="section-label">
+          {pinnedSection.grip}
+          Pinned
+          <span className="count">{pinned.length}</span>
+        </div>
+        {pinned.map((resource) => (
+          <ChatRow
+            key={resource.id}
+            resource={resource}
+            session={sessionFor(resource)}
+            project={workspace.projects.find((project) => project.id === resource.projectId)}
+            active={resource.id === activeResourceId}
+            finished={props.finishedSessions.has(resource.sessionId ?? '')}
+            pinned
+            onOpen={props.onOpen}
+            onMenu={props.onThreadMenu}
+          />
+        ))}
+      </section>
+    ),
+    history: (
+      <section
+        key="history"
+        {...historySection.props}
+        style={{
+          ...historySection.props.style,
+          ...(historyPixels === null ? {} : { height: historyPixels }),
+        }}
+      >
+        <div className="section-label">
+          {historySection.grip}
           History
           <span className="count">{currentChats(workspace.resources).length} chats</span>
         </div>
@@ -281,7 +332,40 @@ export function Sidebar(props: SidebarProps) {
           ))}
           {!history.length && <p className="history-group">No conversations match.</p>}
         </div>
+        <HistoryResizeHandle
+          height={historyHeight}
+          dragging={historyDraft !== null}
+          onPreview={setHistoryDraft}
+          onChange={setHistoryHeight}
+        />
       </section>
+    ),
+  };
+  return (
+    <aside className="sidebar" aria-label="Workspace navigation">
+      <div className="sidebar-header">
+        {mac && <TrafficLightInset />}
+        <Brand />
+        <IconButton label="New chat" onClick={props.onNew}>
+          <Plus size={15} />
+        </IconButton>
+        <IconButton label="Collapse sidebar" onClick={props.onCollapse}>
+          <PanelLeftClose size={15} />
+        </IconButton>
+      </div>
+      <div className="sidebar-search">
+        <button className="search-trigger" onClick={props.onSearch}>
+          <Search size={14} />
+          <span>Search all history</span>
+          {searchHint && <Shortcut>{searchHint}</Shortcut>}
+        </button>
+      </div>
+      <div
+        className={`sidebar-sections ${sectionSort.sorting ? 'sorting' : ''}`}
+        ref={sectionSort.list}
+      >
+        {shownSections.map((id) => sections[id])}
+      </div>
       <footer className="sidebar-footer">
         <button onClick={props.onSettings}>
           <Settings size={14} />
