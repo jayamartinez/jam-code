@@ -329,6 +329,9 @@ export function backgroundTokens(
   ].filter(Boolean);
   const detailed =
     mode === 'image' || (appearance.backgroundPattern !== 'none' && appearance.patternStrength > 0);
+  // The tab strip has no surface of its own. Over anything but the theme's
+  // own background each tab carries one, so its label never sits on a picture.
+  const custom = mode !== 'theme' || detailed;
   const paneOpaque = (appearance.paneOpacity ?? theme.surfaces.pane[1]) >= 100;
   const sidebarOpaque = (appearance.sidebarOpacity ?? theme.surfaces.sidebar[1]) >= 100;
   return {
@@ -347,6 +350,21 @@ export function backgroundTokens(
         detailed && !sidebarOpaque && appearance.sidebarBlur > 0
           ? `blur(${appearance.sidebarBlur}px)`
           : 'none',
+      '--color-tab-surface': custom ? 'var(--color-surface-sidebar)' : 'transparent',
+      '--color-tab-border': custom ? 'var(--color-border-subtle)' : 'transparent',
+      '--color-tab-text': custom ? 'var(--color-text-secondary)' : 'var(--color-text-muted)',
+      '--color-tab-quiet-text': custom ? 'var(--color-text-secondary)' : 'var(--color-text-subtle)',
+      '--color-tab-active-surface': custom
+        ? 'var(--color-surface-pane)'
+        : 'var(--color-fill-strong)',
+      '--tab-backdrop': custom ? 'var(--sidebar-backdrop)' : 'none',
+      // The window controls keep their full corner hit area; over a custom
+      // background their surface is drawn inset, as a chip like the tabs.
+      '--window-control-inset': custom ? '8px' : '0px',
+      // A mask on the strip would cut its tabs off from what they blur.
+      '--tab-strip-fade': custom
+        ? 'none'
+        : 'linear-gradient(to right, #000 0, #000 calc(100% - 28px), transparent 100%)',
       ...effectTokens(appearance),
     },
   };

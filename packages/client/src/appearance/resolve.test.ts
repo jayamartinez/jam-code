@@ -264,4 +264,44 @@ describe('match colours to image', () => {
       colorTokens({ ...on, autoColors: false }),
     );
   });
+  it('gives tabs their own surface only over a custom background', () => {
+    const tab = (tokens: Record<string, string>) => [
+      tokens['--color-tab-surface'],
+      tokens['--color-tab-text'],
+      tokens['--color-tab-quiet-text'],
+      tokens['--color-tab-active-surface'],
+      tokens['--tab-backdrop'],
+    ];
+    const plain = [
+      'transparent',
+      'var(--color-text-muted)',
+      'var(--color-text-subtle)',
+      'var(--color-fill-strong)',
+      'none',
+    ];
+    const chip = [
+      'var(--color-surface-sidebar)',
+      'var(--color-text-secondary)',
+      'var(--color-text-secondary)',
+      'var(--color-surface-pane)',
+      'var(--sidebar-backdrop)',
+    ];
+    expect(tab(backgroundTokens(settings(), false).tokens)).toEqual(plain);
+    expect(backgroundTokens(settings(), false).tokens['--tab-strip-fade']).toContain('gradient');
+    expect(backgroundTokens(settings(), false).tokens['--window-control-inset']).toBe('0px');
+    expect(
+      backgroundTokens(settings({ background: 'image' }), true).tokens['--window-control-inset'],
+    ).toBe('8px');
+    expect(
+      backgroundTokens(settings({ background: 'image' }), true).tokens['--tab-strip-fade'],
+    ).toBe('none');
+    // An image setting with no stored image is the theme's own background.
+    expect(tab(backgroundTokens(settings({ background: 'image' }), false).tokens)).toEqual(plain);
+    expect(tab(backgroundTokens(settings({ background: 'image' }), true).tokens)).toEqual(chip);
+    expect(tab(backgroundTokens(settings({ background: 'gradient' }), false).tokens)).toEqual(chip);
+    expect(tab(backgroundTokens(settings({ background: 'solid' }), false).tokens)).toEqual(chip);
+    expect(
+      tab(backgroundTokens(settings({ backgroundPattern: 'halftone' }), false).tokens),
+    ).toEqual(chip);
+  });
 });
