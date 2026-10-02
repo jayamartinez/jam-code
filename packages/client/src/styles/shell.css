@@ -820,13 +820,17 @@ button.thread-group-label {
 .platform-macos.focus-mode .titlebar {
   padding-left: 78px;
 }
+/*
+ * The workspace keeps the tile gutter on its left as well, so the sidebar and
+ * the panes read as separate surfaces with the wallpaper between them.
+ */
 .workspace {
   display: flex;
   flex: 1;
   min-height: 0;
   min-width: 0;
-  padding: 0 8px 8px 0;
-  gap: 6px;
+  padding: 0 8px 8px var(--spacing-gutter);
+  gap: var(--spacing-gutter);
 }
 .pane {
   background: var(--color-surface-pane);
