@@ -20,7 +20,7 @@ node scripts/third-party-notices.mjs --check
 
 - `pnpm lint` also enforces the package boundaries: no native, Node or
   provider imports in the shared client and protocol packages.
-- `pnpm test` covers the layout tree, transport and event normalization,
+- `pnpm test` covers the layout tree, anchored menus and dialogs in a DOM, transport and event normalization,
   protocol validation, appearance (theme resolution and contrast floors for
   every theme), Markdown rendering safety, keybindings, architecture
   boundaries and release metadata (one version everywhere, MIT, bundled
@@ -29,7 +29,9 @@ node scripts/third-party-notices.mjs --check
   persistence and reopen, full-text search, retry deduplication,
   cancellation, subscriptions independent of views, real PTY terminals, Git
   status, diffs and staging against temporary repositories, branches and
-  worktrees, snapshot storage, projects from folders, provider adapters
+  worktrees, snapshot storage, chat attachments (import, limits, cleanup,
+  provider delivery), conversation archive and deletion, projects from folders,
+  provider adapters
   against scripted input, and the desktop host's browser navigation policy.
 
 Opt-in tests, never run by CI:
@@ -145,6 +147,14 @@ Not verified:
 Not done: assistive-technology testing, large-history performance, provider
 versions other than those listed, Claude sub-agent text, Codex questions
 (unsupported), and sessions past the 15-minute idle stop.
+
+Not verified in the native app on either platform, only by automated tests and
+the browser preview: the native file chooser for chat attachments; an
+attached file, PDF or image opened by the real Claude Code and Codex (Codex
+is given no folder grant and its read access to JAM Code's copies is untested); archiving and
+deleting a conversation; menus drawn in the overlay host over a blurred
+wallpaper and over a Browser page; and the gutter between the sidebar and the
+workspace.
 
 ## Release acceptance
 

@@ -1,3 +1,5 @@
+import type { ContextItem } from '@jam/protocol';
+
 export interface DesktopServices {
   platform: 'windows' | 'macos' | 'web';
   minimize(): Promise<void>;
@@ -11,6 +13,18 @@ export interface DesktopServices {
    * client.
    */
   pickDirectory?(start?: string): Promise<string | null>;
+  /**
+   * The operating system's file chooser, for attaching files to a chat. The
+   * host copies each chosen file into the runtime's own storage and answers
+   * with staged context addressed by opaque ID, and with the name and reason
+   * of any file it would not attach. No path is passed in or returned.
+   * `room` is how many more items the composer can stage. Absent where the
+   * host cannot read this computer's files, such as the browser preview.
+   */
+  attachFiles?(room: number): Promise<{
+    attached: ContextItem[];
+    refused: { name: string; reason: string }[];
+  }>;
   /**
    * Opens JAM Code's GitHub page for a bug report (prefilled with version,
    * OS and WebView only), a feature idea, or the documentation.

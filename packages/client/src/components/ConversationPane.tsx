@@ -28,7 +28,8 @@ import type {
 import { IconButton, Shortcut } from './Controls';
 import { PaneChrome, type PaneChromeProps } from './PaneChrome';
 import { ProviderIcon, WorktreeIcon, sessionProviderName } from './icons';
-import { ContextChip } from './ContextChip';
+import { ContextChip, ContextIcon } from './ContextChip';
+import { attachmentDetail, imagesRefused } from './attachment-model';
 import { ProjectBadge } from './ProjectBadge';
 import type { InteractionAnswer } from './InteractionCard';
 import { AgentBlocks, type BlockActions } from './TranscriptBlocks';
@@ -89,7 +90,11 @@ interface ConversationProps extends Pick<
   onCompact(): Promise<void>;
   onOpenReview(): void;
   onAddContext(): void;
+  /** Opens the system file chooser; absent where the host has none. */
+  onAttach?(): void;
   onPreviewContext(item: ContextItem): void;
+  /** Opens an attachment that is already part of a message. */
+  onPreviewSent?(item: ContextItem): void;
   onRemoveContext(id: string): void;
   onRespond(interactionId: string, answer: InteractionAnswer): Promise<void>;
   onOpenUrl?(url: string): void;
@@ -228,6 +233,7 @@ type ComposerProps = Pick<
   | 'onSend'
   | 'onStop'
   | 'onAddContext'
+  | 'onAttach'
   | 'onPreviewContext'
   | 'onRemoveContext'
 > & {
@@ -257,13 +263,13 @@ export function Composer(props: ComposerProps) {
   const reported = reportedModel(props.session?.model);
   const choices = composerChoices(descriptor, props.options, reported);
   const pills = choices.options.filter((option) => PILL_OPTIONS.has(option.id));
+  // An image the chosen model cannot take is said before Send, not after.
+  const refused = imagesRefused(descriptor, props.options, props.context);
   const blocked = demo
     ? null
     : !props.project?.paths?.length
       ? 'Add a folder to this project in its details. Agents run in the project’s folder.'
-      : props.isNew
-        ? unavailableReason(descriptor)
-        : null;
+      : ((props.isNew ? unavailableReason(descriptor) : null) ?? refused);
   const set = (key: string, value: string) => props.onOptions({ ...props.options, [key]: value });
   const chooseModel = (value: string) => {
     const next: Record<string, string> = { ...props.options, model: value };
@@ -307,6 +313,7 @@ export function Composer(props: ComposerProps) {
                 key={item.id}
                 item={item}
                 transport={props.snapshotTransport}
+                refused={refused}
                 onPreview={props.onPreviewContext}
                 onRemove={props.onRemoveContext}
               />
@@ -339,8 +346,16 @@ export function Composer(props: ComposerProps) {
         />
         <div className="composer-toolbar">
           <div className="composer-choices">
-            {demo && (
+            {demo ? (
               <IconButton label="Add demo context" onClick={props.onAddContext}>
+                <Plus size={15} />
+              </IconButton>
+            ) : (
+              <IconButton
+                label={props.onAttach ? 'Attach files' : 'Attaching files needs the desktop app'}
+                disabled={!props.onAttach || props.busy}
+                onClick={props.onAttach}
+              >
                 <Plus size={15} />
               </IconButton>
             )}
@@ -554,7 +569,7 @@ function MessageView({
   live: boolean;
   streamReplies: boolean;
   timeFormat: TimeFormat;
-  actions: BlockActions;
+  actions: BlockActions & Pick<ConversationProps, 'onPreviewSent'>;
 }) {
   if (message.role === 'user')
     return (
@@ -565,12 +580,27 @@ function MessageView({
               <p key={index}>{block.text}</p>
             ) : block.type === 'context' ? (
               <div className="sent-context" key={index}>
-                {block.items.map((item) => (
-                  <span key={item.id}>
-                    <File size={11} />
-                    {item.label}
-                  </span>
-                ))}
+                {block.items.map((item) =>
+                  item.attachment ? (
+                    // What was attached stays on the message, and an image opens.
+                    <button
+                      key={item.id}
+                      type="button"
+                      className="sent-attachment"
+                      title={item.label}
+                      onClick={() => actions.onPreviewSent?.(item)}
+                    >
+                      <ContextIcon item={item} />
+                      <span className="truncate">{item.label}</span>
+                      <small>{attachmentDetail(item)}</small>
+                    </button>
+                  ) : (
+                    <span key={item.id}>
+                      <File size={11} />
+                      {item.label}
+                    </span>
+                  ),
+                )}
               </div>
             ) : null,
           )}

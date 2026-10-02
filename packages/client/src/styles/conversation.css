@@ -205,6 +205,24 @@
   border-color: var(--color-accent-border);
   color: var(--color-accent-strong);
 }
+/* An image the chosen model cannot take: said on the chip, before Send. */
+.context-chip.refused {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+.context-chip.refused .remove-context {
+  color: var(--color-warning);
+}
+.context-chip-detail {
+  flex-shrink: 0;
+  font-family: 'Geist Mono Variable', var(--font-mono), monospace;
+  font-size: calc(9.5px * var(--ui-scale));
+  color: var(--color-text-faint);
+}
+.context-chip.refused .context-chip-detail {
+  font-family: inherit;
+  color: inherit;
+}
 .context-chip > button {
   display: flex;
   align-items: center;
@@ -223,7 +241,8 @@
   gap: 5px;
   margin-top: 6px;
 }
-.sent-context > span {
+.sent-context > span,
+.sent-attachment {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -232,6 +251,20 @@
   color: var(--color-text-muted);
   border: 1px solid var(--color-border);
   border-radius: 4px;
+}
+.sent-attachment {
+  max-width: 100%;
+  min-width: 0;
+}
+.sent-attachment small {
+  flex-shrink: 0;
+  font-family: 'Geist Mono Variable', var(--font-mono), monospace;
+  font-size: calc(9.5px * var(--ui-scale));
+  color: var(--color-text-faint);
+}
+.attachment-preview-frame .snapshot-image {
+  max-width: 100%;
+  object-fit: contain;
 }
 .new-chat-body {
   flex: 1;

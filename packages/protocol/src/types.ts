@@ -8,6 +8,7 @@ export type ResourceKind =
   'conversation' | 'terminal' | 'browser' | 'file' | 'file-browser' | 'diff' | 'settings';
 
 import projectIconsJson from '../fixtures/project-icons.json';
+import attachmentLimitsJson from '../fixtures/attachment-limits.json';
 import type { TerminalAttachment, TerminalRequestMap, TerminalStreamEvent } from './terminal';
 import type { AppearanceRequestMap } from './appearance';
 import type { SnapshotRequestMap } from './snapshots';
@@ -322,7 +323,9 @@ export interface ContextItem {
     | 'browser-region'
     | 'terminal'
     | 'message'
-    | 'snapshot';
+    | 'snapshot'
+    /** A file chosen outside the project, copied into the runtime's storage. */
+    | 'attachment';
   label: string;
   source: {
     resourceId?: string;
@@ -331,7 +334,40 @@ export interface ContextItem {
   };
   /** Opaque runtime handle; binary assets never travel as local file permissions. */
   assetId?: string;
+  /** What an attachment is, as the runtime recorded it when it was attached. */
+  attachment?: AttachmentInfo;
 }
+
+/**
+ * Display metadata for a file attached to a chat. The runtime sets it; a
+ * client never does, and the file's original location is not part of it.
+ */
+export interface AttachmentInfo {
+  name: string;
+  mediaType: string;
+  /**
+   * Every attachment reaches the agent as a file it opens by path; an
+   * `image` is also sent natively when the model accepts images.
+   */
+  kind: 'file' | 'image';
+  /** The chosen file's size. */
+  bytes: number;
+}
+
+/**
+ * Attachment limits, shared with the Rust runtime through the same fixture
+ * so the two can never accept different things.
+ */
+export const ATTACHMENT_LIMITS = attachmentLimitsJson as {
+  filesPerPick: number;
+  imageBytes: number;
+  fileBytes: number;
+  turnImageBytes: number;
+  turnBytes: number;
+  nameUtf16: number;
+  unsentFiles: number;
+  unsentHours: number;
+};
 
 export interface FileChange {
   path: string;
@@ -527,6 +563,13 @@ export interface RequestMap
     };
     result: { accepted: true };
   };
+  /**
+   * Removes an attachment that was staged and not sent, with the runtime's
+   * copy of it. One that was sent belongs to its conversation (`conflict`).
+   */
+  'attachment.remove': { params: { id: string }; result: { accepted: true } };
+  /** An image attachment as a data URL, for its preview. */
+  'attachment.asset': { params: { id: string }; result: { dataUrl: string } };
   'turn.interrupt': {
     params: { sessionId: string };
     result: { sessionId: string; interrupted: boolean };

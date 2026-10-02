@@ -115,6 +115,43 @@ notice replaces it. Claude's `autoCompact` option starts its process with
 `get_context_usage`) and applies from the next message; Codex manages its own
 automatic compaction.
 
+### Attached files
+
+Researched 2026-10-01 against Claude Code 2.1.287, codex-cli 0.157 and the
+current documentation. Neither interface documents a general file or PDF
+input, and the agents planned next accept other sets, so delivery does not
+depend on what a protocol carries (ADR 0014):
+
+- **Every agent, every file type:** the turn's text ends with one line per
+  attachment naming the file and the path of JAM Code's own copy, and the
+  agent opens it with its own tools. A new adapter gets this without doing
+  anything. The file is not pasted into the prompt.
+- **Natively, where a provider takes the type:** an adapter may also send an
+  attachment from `ProviderTurn.files`. Today that is images only.
+
+| Agent       | Path in the turn's text | Sent natively                                                 | Read access to the copies                                      |
+| ----------- | ----------------------- | ------------------------------------------------------------- | -------------------------------------------------------------- |
+| Claude Code | Every attachment        | PNG, JPEG, GIF, WebP as base64 `image` blocks before the text | `--add-dir` for this conversation's attachment folder only     |
+| Codex       | Every attachment        | The same images as `localImage` items naming JAM Code's copy  | None granted; relies on its sandbox's read access (unverified) |
+
+- Claude Code: the [streaming input](https://code.claude.com/docs/en/agent-sdk/streaming-vs-single-mode)
+  documentation describes `text` and `image` content blocks only. Its Read
+  tool opens PDFs and images from a granted folder. A process started before a
+  chat had attachments is restarted with the grant and resumes the session.
+- Codex: `codex app-server generate-json-schema` for 0.157 lists `text`,
+  `image` (URL or file ID), `localImage`, `audio`, `localAudio`, `skill` and
+  `mention` as `turn/start` inputs; there is no document or file item.
+- An image is sent natively only when the model reports image support
+  (`images` on the model, or the provider's `images` capability). The composer
+  says so before Send and the runtime refuses the turn with `unsupported`; an
+  image is never dropped while the text goes through. Unknown support is not a
+  refusal. Other files are not subject to this.
+- The provider is given the file's name and the path of JAM Code's copy, never
+  the path the reader chose it from. Each conversation's copies are in their
+  own folder, and an agent is never pointed at another conversation's.
+- What an agent can do with a given type is the agent's own capability; JAM
+  Code delivers the copy and makes no claim beyond that.
+
 ### Opening outside JAM Code
 
 Two requests hand something to the operating system after an explicit click,

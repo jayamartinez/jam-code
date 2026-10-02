@@ -31,9 +31,11 @@ for an interactive preview.
 - **Agent chats you can read.** Streaming replies, tool activity and diffs as
   structured cards rather than terminal scrollback. Approve or deny actions and
   answer an agent's questions inline. Stop a turn, pick the model, effort and
-  access level, watch context usage, and resume a chat after a restart.
+  access level, attach files and images, watch context usage, and resume a
+  chat after a restart.
 - **Projects and history.** Any folder is a project; Git is optional. Every
-  conversation is kept and full-text searchable.
+  conversation is kept and full-text searchable until you delete it; archive
+  the ones you are done with.
 - **Parallel work with worktrees.** Start a chat in the current checkout or in
   a new Git worktree on its own branch, so two chats never edit the same files.
 - **Tabs and tiled panes.** Put any chat, terminal, file, browser or review in
