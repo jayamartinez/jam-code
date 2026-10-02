@@ -218,8 +218,9 @@ fn git_accepts(root: &Path, name: &str) -> Result<(), JamError> {
     }
 }
 
-/// Switches the checkout only when nothing could be lost. Git's own refusal
-/// (for example an untracked file in the way) is the last line of defense.
+/// Switches the checkout the way `git switch` does: uncommitted changes come
+/// along, and Git refuses, changing nothing, when the switch would overwrite
+/// one of them or an untracked file.
 pub(super) fn switch(root: &Path, list: &BranchList, branch: &str) -> Result<(), JamError> {
     validate_branch_name(branch)?;
     let target = list
@@ -246,34 +247,32 @@ pub(super) fn switch(root: &Path, list: &BranchList, branch: &str) -> Result<(),
             "A merge, rebase or similar operation is in progress in this checkout. Finish it before switching branches.",
         ));
     }
-    if list.changed > 0 {
-        let files = if list.changed == 1 {
-            "1 file has".to_string()
-        } else {
-            format!("{} files have", list.changed)
-        };
-        return Err(JamError::new(
-            "conflict",
-            format!(
-                "{files} uncommitted changes. Commit or stash them before switching to {branch}, or start this chat in a new worktree."
-            ),
-        ));
-    }
     git_accepts(root, branch)?;
     let output = process::run(
         root,
         &["switch", "--no-guess", "--end-of-options", branch],
         16_384,
     )?;
-    if !output.success {
-        return Err(JamError::new(
+    if output.success {
+        return Ok(());
+    }
+    // Git's own words stay private; with changes pending, its usual reason
+    // is that the switch would overwrite one of them.
+    Err(if list.changed > 0 {
+        JamError::new(
+            "conflict",
+            format!(
+                "Git refused to switch to {branch}, most likely because it would overwrite uncommitted changes. Your files were not changed. Commit or stash them, or use a new worktree for this chat."
+            ),
+        )
+    } else {
+        JamError::new(
             "unavailable",
             format!(
                 "Git refused to switch to {branch}; your files were not changed. Check the checkout in your Git tools."
             ),
-        ));
-    }
-    Ok(())
+        )
+    })
 }
 
 /// A short, safe name from the first message: lowercase ASCII words.

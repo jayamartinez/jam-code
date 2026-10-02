@@ -235,6 +235,7 @@ impl Runtime {
                 )?)
             }
             "conversation.create" => self.create_conversation(request.params),
+            "conversation.workspace" => self.move_conversation(request.params),
             "conversation.delete" => self.delete_conversation(request.params),
             "turn.start" => {
                 let fingerprint = serde_json::to_string(&request.params)?;

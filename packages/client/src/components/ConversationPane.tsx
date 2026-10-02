@@ -69,6 +69,8 @@ interface ConversationProps extends Pick<
   project?: Project;
   /** The worktree the chat works in, when it started in a new one. */
   worktree?: Worktree;
+  /** The workspace and branch pills under the message box. */
+  target?: React.ReactNode;
   session?: Session;
   conversation?: Conversation;
   draft: string;
@@ -252,7 +254,10 @@ type ComposerProps = Pick<
   presentation?: Presentation;
   /** New chats only: choose the agent before the first Send. */
   onProvider?(providerId: ProviderId): void;
-  /** New chats only: where the chat will work, in place of the folder name. */
+  /**
+   * Where the chat works: a new chat's choice in place of the folder name,
+   * or a started chat's workspace and branch, changed from its next Send.
+   */
   target?: React.ReactNode;
   onCompact?(): Promise<void>;
 };
@@ -511,6 +516,13 @@ export function Composer(props: ComposerProps) {
               </span>
             )}
             <SendHint mac={mac} />
+          </div>
+        )}
+        {!props.isNew && props.target && (
+          // A started chat keeps its workspace and branch in the same place;
+          // a change there applies when the next message is sent.
+          <div className="new-run-target">
+            <span className="new-run-choices">{props.target}</span>
           </div>
         )}
       </form>

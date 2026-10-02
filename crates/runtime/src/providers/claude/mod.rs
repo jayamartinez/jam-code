@@ -49,6 +49,8 @@ struct Process {
     child: StdioChild,
     lines: tokio::sync::Mutex<mpsc::Receiver<Output>>,
     native_id: String,
+    /// The folder it was started in; a process never changes folder.
+    cwd: std::path::PathBuf,
     effort: Option<String>,
     auto_compact: bool,
     fast: bool,
@@ -739,6 +741,7 @@ async fn spawn(
         child,
         lines: tokio::sync::Mutex::new(lines),
         native_id: native,
+        cwd: cwd.to_path_buf(),
         effort,
         auto_compact: compacts,
         fast,
@@ -771,22 +774,24 @@ async fn run(adapter: &ClaudeAdapter, turn: ProviderTurn, io: TurnIo) -> Result<
         .map_err(missing)?
         .path;
 
-    // Reuse this session's process when it is alive and compatible.
-    let existing = adapter.take(&turn.session_id).filter(|p| {
-        p.child.exited().is_none()
+    // Reuse this session's process when it is alive and compatible; one that
+    // is not is ended, and the next resumes the same session.
+    let existing = adapter.take(&turn.session_id).and_then(|p| {
+        let compatible = p.child.exited().is_none()
             && Some(&p.native_id) == turn.native_id.as_ref()
+            // The chat moved to another branch's folder since it started.
+            && p.cwd == cwd
             && p.effort == turn.options.get("effort").cloned()
             && p.auto_compact == auto_compact(&turn.options)
             && p.fast == is_fast(&turn.options)
             // A process started before this chat had attachments cannot read
-            // their folder; it is restarted and resumes the same session.
-            && (turn.attachment_dir.is_none() || p.attachment_dir == turn.attachment_dir)
+            // their folder.
+            && (turn.attachment_dir.is_none() || p.attachment_dir == turn.attachment_dir);
+        if !compatible {
+            p.child.kill();
+        }
+        compatible.then_some(p)
     });
-    if existing.is_none()
-        && let Some(stale) = adapter.take(&turn.session_id)
-    {
-        stale.child.kill();
-    }
     let process = match existing {
         Some(process) => {
             let model = turn.options.get("model").cloned();

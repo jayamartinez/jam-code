@@ -88,9 +88,10 @@ export interface Resource {
 }
 
 /**
- * A worktree JAM created for a chat: its own branch and folder beside the
+ * A worktree a chat works in: its own branch and folder beside the
  * repository, so chats working in parallel never edit the same files. JAM
- * records it and never deletes it.
+ * creates one for a chat, or records one that already existed when a chat
+ * joins it (its `baseBranch` is then its own branch), and never deletes it.
  */
 export interface Worktree {
   id: string;
@@ -111,6 +112,24 @@ export type NewWorkspace =
    * A new `jam/<name>` branch and folder from `baseBranch` (absent: the
    * checkout's current branch); the runtime chooses the name and folder.
    */
+  | { kind: 'worktree'; baseBranch?: string; nameHint: string }
+  /**
+   * The worktree that already has `branch` checked out, beside any chats
+   * working there. Nothing is created; the runtime finds its folder itself.
+   */
+  | { kind: 'existing'; branch: string };
+
+/** Where a chat that has already started works from its next turn on. */
+export type MoveWorkspace =
+  /**
+   * Work on `branch`: in the folder that has it checked out (a worktree, or
+   * the project's checkout), or, when no folder has, by switching the folder
+   * the chat works in now.
+   */
+  | { kind: 'branch'; branch: string }
+  /** The project's own checkout, on the branch it is on. */
+  | { kind: 'checkout' }
+  /** A new worktree; the base defaults to the branch the chat works on now. */
   | { kind: 'worktree'; baseBranch?: string; nameHint: string };
 
 /** Resource kinds a client may ask the runtime to open by target. */
@@ -503,6 +522,18 @@ export interface RequestMap
       conversation: Conversation;
       /** The worktree the chat created, when it asked for one. */
       worktree?: Worktree;
+    };
+  };
+  /**
+   * Changes where a started chat works, from its next turn on; the agent
+   * resumes the same session in the new folder. Refused (`conflict`) while
+   * its agent is working or waiting for an answer.
+   */
+  'conversation.workspace': {
+    params: { resourceId: string; workspace: MoveWorkspace };
+    result: {
+      resource: Resource;
+      /** The worktree it works in now, if any. */ worktree?: Worktree;
     };
   };
   /**

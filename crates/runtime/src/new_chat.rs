@@ -35,6 +35,8 @@ impl Runtime {
         }
         let project = self.project(&input.project_id)?;
         let demo = input.provider_id.as_deref().is_none_or(|p| p == "mock");
+        // `made`: this Send created the worktree. `recorded`: JAM already knew it.
+        let (mut made, mut recorded) = (false, false);
         let worktree = match &input.workspace {
             None | Some(NewWorkspace::Checkout { branch: None }) => None,
             Some(_) if demo => {
@@ -56,6 +58,7 @@ impl Runtime {
                 let created =
                     self.git
                         .create_worktree(&target, base_branch.as_deref(), name_hint)?;
+                made = true;
                 Some(Worktree {
                     id: new_id("worktree"),
                     project_id: project.id.clone(),
@@ -64,6 +67,11 @@ impl Runtime {
                     path: created.path.to_string_lossy().into_owned(),
                     created_at: now(),
                 })
+            }
+            Some(NewWorkspace::Existing { branch }) => {
+                let (worktree, known) = self.existing_worktree(&project, branch)?;
+                recorded = known;
+                Some(worktree)
             }
         };
 
@@ -102,7 +110,7 @@ impl Runtime {
             usage: None,
         };
         let saved = state.store.transaction(|| {
-            if let Some(worktree) = &worktree {
+            if let Some(worktree) = worktree.as_ref().filter(|_| !recorded) {
                 state.store.save_worktree(worktree)?;
             }
             state.store.insert_conversation(&resource, &session)?;
@@ -118,7 +126,7 @@ impl Runtime {
         if let Err(error) = saved {
             // The worktree stays: JAM never deletes one, and the reader can
             // use or remove it with their own Git tools.
-            return Err(match &worktree {
+            return Err(match worktree.as_ref().filter(|_| made) {
                 Some(worktree) => JamError::new(
                     &error.code,
                     format!(
@@ -158,29 +166,53 @@ impl Runtime {
         Ok(created)
     }
 
-    /// A checkout chat that asked for another branch switches the project's
-    /// checkout on Send, but never while a chat is working in it.
-    fn switch_checkout(&self, project: &Project, branch: &str) -> Result<(), JamError> {
-        {
-            let state = self.lock()?;
-            let workspace = state.store.workspace(self.cursor(&state))?;
-            let busy = workspace.sessions.iter().any(|session| {
-                session.status == SessionStatus::Running
-                    && workspace.resources.iter().any(|resource| {
-                        resource.id == session.resource_id
-                            && resource.project_id.as_deref() == Some(project.id.as_str())
-                            && resource.worktree_id.is_none()
-                    })
-            });
-            if busy {
-                return Err(JamError::new(
-                    "conflict",
-                    format!(
-                        "A chat is working in this checkout. Switch to {branch} after it finishes, or start this chat in a new worktree."
-                    ),
-                ));
-            }
+    /// The worktree that has `branch` checked out, for a chat that joins it.
+    /// Git says where that worktree is; a request never names a folder. One
+    /// JAM has not seen before (made in a terminal, or by another tool) gets a
+    /// record now; the flag says whether it already had one.
+    fn existing_worktree(
+        &self,
+        project: &Project,
+        branch: &str,
+    ) -> Result<(Worktree, bool), JamError> {
+        let target = self.git_target(project, None)?;
+        let folder = self.git.worktree_of(&target, branch)?;
+        self.worktree_at(project, branch, folder)
+    }
+
+    /// The record of the worktree in `folder`, which Git reported and the
+    /// runtime verified; a new one when JAM has not seen that folder before.
+    pub(crate) fn worktree_at(
+        &self,
+        project: &Project,
+        branch: &str,
+        folder: std::path::PathBuf,
+    ) -> Result<(Worktree, bool), JamError> {
+        let known = self.lock()?.store.project_worktrees(&project.id)?;
+        // A record's path is compared as Git resolves it today, not as text.
+        if let Some(found) = known.into_iter().find(|worktree| {
+            crate::git::verify(std::path::Path::new(&worktree.path)).is_ok_and(|p| p == folder)
+        }) {
+            return Ok((found, true));
         }
+        Ok((
+            Worktree {
+                id: new_id("worktree"),
+                project_id: project.id.clone(),
+                branch: branch.to_owned(),
+                // JAM did not start it from anything: it is its own base.
+                base_branch: branch.to_owned(),
+                path: folder.to_string_lossy().into_owned(),
+                created_at: now(),
+            },
+            false,
+        ))
+    }
+
+    /// A checkout chat that asked for another branch switches the project's
+    /// checkout on Send. Chats share that folder, so the ones already working
+    /// in it move to the branch too, as they would in any shared checkout.
+    fn switch_checkout(&self, project: &Project, branch: &str) -> Result<(), JamError> {
         let target = self.git_target(project, None)?;
         self.git.switch_branch(&target, branch).map(|_| ())
     }

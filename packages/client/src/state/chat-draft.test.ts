@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { GitBranches } from '@jam/protocol';
-import { type ChatDraft, inProject, workspaceProblem, workspaceRequest } from './chat-draft';
+import type { GitBranches, Resource, Session } from '@jam/protocol';
+import {
+  type ChatDraft,
+  checkoutBusy,
+  inProject,
+  moveRequest,
+  workspaceProblem,
+  workspaceRequest,
+} from './chat-draft';
 import { filterBranches, switchProblem } from './branches';
 
 const draft: ChatDraft = {
@@ -24,6 +31,22 @@ describe('where a new chat works', () => {
     });
   });
 
+  it('knows when a chat is running in the checkout, whose branch is then read again', () => {
+    const resource = { id: 'chat', projectId: 'project-a', sessionId: 's' } as Resource;
+    const session = { id: 's', resourceId: 'chat', status: 'running' } as Session;
+    const running = { resources: [resource], sessions: [session] };
+    expect(checkoutBusy(running, 'project-a')).toBe(true);
+    expect(checkoutBusy(running, 'project-b')).toBe(false);
+    expect(
+      checkoutBusy({ ...running, sessions: [{ ...session, status: 'idle' }] }, 'project-a'),
+    ).toBe(false);
+    // A chat in its own worktree is not in the checkout.
+    expect(
+      checkoutBusy({ ...running, resources: [{ ...resource, worktreeId: 'w' }] }, 'project-a'),
+    ).toBe(false);
+    expect(checkoutBusy(null, 'project-a')).toBe(false);
+  });
+
   it('names a new worktree from the first message and its chosen base', () => {
     expect(workspaceRequest({ kind: 'worktree' }, 'Fix the test')).toEqual({
       kind: 'worktree',
@@ -33,6 +56,31 @@ describe('where a new chat works', () => {
       kind: 'worktree',
       nameHint: 'Fix the test',
       baseBranch: 'feat/base',
+    });
+  });
+
+  it('joins the worktree that has a branch checked out, and leaves it with the project', () => {
+    const existing = { kind: 'existing', branch: 'feat/chat' } as const;
+    expect(workspaceRequest(existing, 'hi')).toEqual(existing);
+    expect(
+      inProject({ ...draft, workspace: existing }, 'project-b').workspace,
+      'a worktree belongs to one repository',
+    ).toEqual({ kind: 'checkout' });
+  });
+
+  it('moves a started chat on its next Send only when something was chosen', () => {
+    expect(moveRequest({}, 'hi')).toBeUndefined();
+    // A branch is worked on wherever it is; the runtime finds the folder.
+    expect(moveRequest({ branch: 'feat/x' }, 'hi')).toEqual({ kind: 'branch', branch: 'feat/x' });
+    expect(moveRequest({ kind: 'checkout' }, 'hi')).toEqual({ kind: 'checkout' });
+    expect(moveRequest({ kind: 'worktree' }, 'Split it')).toEqual({
+      kind: 'worktree',
+      nameHint: 'Split it',
+    });
+    expect(moveRequest({ kind: 'worktree', branch: 'main' }, 'Split it')).toEqual({
+      kind: 'worktree',
+      nameHint: 'Split it',
+      baseBranch: 'main',
     });
   });
 
@@ -74,10 +122,9 @@ describe('branch picker', () => {
     expect(found.remote.map((b) => b.name)).toEqual(['origin/main']);
   });
 
-  it('refuses a checkout switch that could lose work', () => {
+  it('leaves uncommitted changes to Git and refuses only mid-merge or rebase', () => {
     expect(switchProblem(branches)).toBeNull();
-    expect(switchProblem({ ...branches, changed: 1 })).toMatch(/^1 file has uncommitted changes/);
-    expect(switchProblem({ ...branches, changed: 3 })).toMatch(/^3 files have/);
+    expect(switchProblem({ ...branches, changed: 3 })).toBeNull();
     expect(switchProblem({ ...branches, busy: true })).toMatch(/in progress/);
   });
 });

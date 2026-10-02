@@ -349,6 +349,21 @@ export class RuntimeClient {
     });
   }
 
+  /** Reflect a chat that now works elsewhere, and the worktree it works in. */
+  moveConversation({ resource, worktree }: { resource: Resource; worktree?: Worktree }) {
+    const workspace = this.state.workspace;
+    if (!workspace) return;
+    this.update({
+      workspace: {
+        ...workspace,
+        resources: workspace.resources.map((item) => (item.id === resource.id ? resource : item)),
+        worktrees: worktree
+          ? [...workspace.worktrees.filter((item) => item.id !== worktree.id), worktree]
+          : workspace.worktrees,
+      },
+    });
+  }
+
   /**
    * Forget a conversation the runtime just deleted: its resource, session and
    * cached transcript. A workspace read or an event that was already on its

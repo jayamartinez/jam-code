@@ -26,9 +26,11 @@ import type {
 } from '@jam/protocol';
 import {
   type ChatDraft,
+  checkoutBusy,
   type DraftWorkspace,
   draftProvider,
   inProject,
+  moveRequest,
   presentationFor,
   workspaceProblem,
   workspaceRequest,
@@ -157,6 +159,9 @@ const browserRatio = (paneId: string | undefined) => {
     : BROWSER_WIDTH / 1160;
 };
 
+/** A started chat with no change staged: it stays where it works. */
+const noMove: DraftWorkspace = {};
+
 /** A new chat's workspace from the Settings choice; "Ask each time" leaves it open. */
 function startingWorkspace(choice: NewThreadWorkspace): DraftWorkspace {
   return choice === 'ask' ? {} : { kind: choice };
@@ -196,6 +201,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   );
   const [settingsMode, setSettingsMode] = useState<'dedicated' | null>(null);
   const [newChats, setNewChats] = useState<Record<string, ChatDraft>>({});
+  // Where started chats will work from their next Send, when that changes.
+  const [moves, setMoves] = useState<Record<string, DraftWorkspace>>({});
   /** Model, effort or provider options chosen since a session's last Send. */
   const [pendingOptions, setPendingOptions] = useState<Record<string, Record<string, string>>>({});
   const [context, setContext] = useState<Record<string, ContextItem[]>>({});
@@ -1135,6 +1142,23 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         });
         setContext((current) => ({ ...current, [resourceId]: staged }));
       }
+      // A started chat that chose another branch or worktree moves there
+      // first; if that is refused, nothing is sent.
+      const move = draft ? undefined : moveRequest(moves[resourceId] ?? noMove, text);
+      if (move) {
+        const moved = await transport.request('conversation.workspace', {
+          resourceId,
+          workspace: move,
+        });
+        client.moveConversation(moved);
+        setMoves((current) => {
+          const rest = { ...current };
+          delete rest[resourceId];
+          return rest;
+        });
+        // A switched folder is on another branch now; labels read it again.
+        if (moved.resource.projectId) void git.refresh(moved.resource.projectId);
+      }
       // Choices made since the last Send apply from this turn on.
       const options = draft ? undefined : pendingOptions[resourceId];
       const payload = JSON.stringify({ text, context: staged, options });
@@ -1589,6 +1613,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                     transport={transport}
                     projectId={draft.projectId}
                     workspace={draft.workspace}
+                    chatRunning={checkoutBusy(workspace, draft.projectId)}
                     disabled={busy.has(resourceId)}
                     onChange={(next: DraftWorkspace) =>
                       setNewChats((current) => {
@@ -1646,6 +1671,32 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             composer={{
               ...composerFor(resource.id, session?.id),
               worktree: workspace.worktrees.find((item) => item.id === resource.worktreeId),
+              // The demo provider never changes a repository.
+              ...(session && session.providerId !== 'mock' && resource.projectId
+                ? {
+                    target: (
+                      <DraftWorkspacePicker
+                        // Where it works changed: its branches are read anew.
+                        key={`${resource.projectId}:${resource.worktreeId ?? ''}`}
+                        transport={transport}
+                        projectId={resource.projectId}
+                        worktreeId={resource.worktreeId}
+                        home={resource.worktreeId ? 'existing' : 'checkout'}
+                        checkoutFolder={
+                          workspace.projects.find((item) => item.id === resource.projectId)
+                            ?.paths?.[0]
+                        }
+                        workspace={moves[resource.id] ?? noMove}
+                        chatRunning={session.status === 'running'}
+                        // A turn works in the folder it started in.
+                        disabled={busy.has(resource.id) || session.status === 'running'}
+                        onChange={(next: DraftWorkspace) =>
+                          setMoves((current) => ({ ...current, [resource.id]: next }))
+                        }
+                      />
+                    ),
+                  }
+                : {}),
               onOpenUrl: (url: string) => void openPreviewFrom(url, paneId, resource.projectId),
               onOpenFile: (path: string, line?: number) =>
                 void openFileFrom(path, paneId, resource.projectId, line, resource.worktreeId),

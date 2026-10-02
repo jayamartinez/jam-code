@@ -608,7 +608,14 @@ async fn run(adapter: &CodexAdapter, turn: ProviderTurn, io: TurnIo) -> Result<(
                 )}),
             });
         }
-        let mut start = json!({"threadId": thread_id, "input": input, "approvalPolicy": approval});
+        // The folder goes with every turn: a chat can move to another
+        // branch's folder, and a loaded thread keeps the one it started in.
+        let mut start = json!({
+            "threadId": thread_id,
+            "input": input,
+            "approvalPolicy": approval,
+            "cwd": cwd.display().to_string(),
+        });
         if let Some(model) = &model {
             start["model"] = json!(model);
         }

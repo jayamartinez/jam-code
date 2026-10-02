@@ -72,6 +72,8 @@ pub enum NewWorkspace {
         #[serde(rename = "nameHint")]
         name_hint: String,
     },
+    /// The worktree that already has `branch` checked out. Nothing is made.
+    Existing { branch: String },
 }
 
 impl CreateConversation {
@@ -83,9 +85,12 @@ impl CreateConversation {
         }
         match &self.workspace {
             None | Some(NewWorkspace::Checkout { branch: None }) => Ok(()),
-            Some(NewWorkspace::Checkout {
-                branch: Some(branch),
-            }) => crate::git::validate_branch_name(branch),
+            Some(
+                NewWorkspace::Checkout {
+                    branch: Some(branch),
+                }
+                | NewWorkspace::Existing { branch },
+            ) => crate::git::validate_branch_name(branch),
             Some(NewWorkspace::Worktree {
                 base_branch,
                 name_hint,
@@ -409,6 +414,53 @@ pub struct UpdateProject {
 pub struct SetThreadClosed {
     pub resource_id: String,
     pub closed: bool,
+}
+
+/// Where a chat that has already started works from its next turn on.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MoveConversation {
+    pub resource_id: String,
+    pub workspace: MoveWorkspace,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "lowercase", deny_unknown_fields)]
+pub enum MoveWorkspace {
+    /// Work on `branch`: in the folder that has it checked out, or, when no
+    /// folder has, by switching the folder the chat works in now.
+    Branch { branch: String },
+    /// The project's own checkout, on the branch it is on.
+    Checkout {},
+    /// A new branch and folder, as for a new chat; the base defaults to the
+    /// branch the chat works on now.
+    Worktree {
+        #[serde(rename = "baseBranch")]
+        base_branch: Option<String>,
+        #[serde(rename = "nameHint")]
+        name_hint: String,
+    },
+}
+
+impl MoveConversation {
+    pub fn validate(&self) -> Result<(), JamError> {
+        validate_id(&self.resource_id)?;
+        match &self.workspace {
+            MoveWorkspace::Checkout {} => Ok(()),
+            MoveWorkspace::Branch { branch } => crate::git::validate_branch_name(branch),
+            MoveWorkspace::Worktree {
+                base_branch,
+                name_hint,
+            } => {
+                if name_hint.encode_utf16().count() > 20_000 {
+                    return Err(JamError::invalid("A worktree name hint is too long."));
+                }
+                base_branch
+                    .as_deref()
+                    .map_or(Ok(()), crate::git::validate_branch_name)
+            }
+        }
+    }
 }
 
 #[derive(Deserialize)]

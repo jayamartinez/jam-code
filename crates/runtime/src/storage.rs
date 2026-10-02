@@ -204,6 +204,24 @@ impl Store {
             .ok_or_else(|| JamError::new("not_found", "Worktree not found."))
     }
 
+    /// Every worktree recorded for a project.
+    pub fn project_worktrees(&self, project_id: &str) -> Result<Vec<Worktree>, JamError> {
+        let mut statement = self
+            .connection
+            .prepare("SELECT data FROM worktrees WHERE project_id=?1 ORDER BY rowid")?;
+        let rows = statement.query_map([project_id], |row| decode(row.get(0)?))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// Rewrites a recorded worktree, when its branch was switched.
+    pub fn update_worktree(&self, worktree: &Worktree) -> Result<(), JamError> {
+        self.connection.execute(
+            "UPDATE worktrees SET data=?2 WHERE id=?1",
+            params![worktree.id, serde_json::to_string(worktree)?],
+        )?;
+        Ok(())
+    }
+
     pub fn save_worktree(&self, worktree: &Worktree) -> Result<(), JamError> {
         self.connection.execute(
             "INSERT INTO worktrees(id,project_id,data) VALUES (?1,?2,?3)",
