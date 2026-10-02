@@ -12,7 +12,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { Folder, Plus, X } from 'lucide-react';
-import { ATTACHMENT_LIMITS, JamError } from '@jam/protocol';
+import { ATTACHMENT_LIMITS, JamError, SIDEBAR_SECTIONS } from '@jam/protocol';
 import type {
   ContextItem,
   JamTransport,
@@ -22,6 +22,7 @@ import type {
   ProviderId,
   RequestMap,
   Resource,
+  SidebarSection,
   TerminalSession,
 } from '@jam/protocol';
 import {
@@ -709,6 +710,39 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         ...changes,
       });
       client.updateProject(updated);
+    },
+    [client, transport],
+  );
+
+  /**
+   * Dragging in the sidebar. The new order shows at once and the runtime
+   * stores it; an order it refuses is put back and the reason reported.
+   */
+  const reorderProjects = useCallback(
+    (projectIds: string[]) => {
+      const before = client.getSnapshot().workspace?.projects.map((project) => project.id) ?? [];
+      client.reorderProjects(projectIds);
+      void transport
+        .request('project.reorder', { projectIds })
+        .then(({ projectIds: stored }) => client.reorderProjects(stored))
+        .catch((error: unknown) => {
+          client.reorderProjects(before);
+          client.reportError(error);
+        });
+    },
+    [client, transport],
+  );
+  const reorderSections = useCallback(
+    (sections: SidebarSection[]) => {
+      const before = client.getSnapshot().workspace?.sidebarSections ?? [...SIDEBAR_SECTIONS];
+      client.reorderSections(sections);
+      void transport
+        .request('sidebar.reorder', { sections })
+        .then(({ sections: stored }) => client.reorderSections(stored))
+        .catch((error: unknown) => {
+          client.reorderSections(before);
+          client.reportError(error);
+        });
     },
     [client, transport],
   );
@@ -1921,6 +1955,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                 onNew={() => newChat()}
                 onSettings={openSettings}
                 onCollapse={() => dispatch({ type: 'collapse' })}
+                onReorderSections={reorderSections}
+                onReorderProjects={reorderProjects}
                 {...(desktop.pickDirectory ? { onAddProject: () => void addProject() } : {})}
                 {...(desktop.openFeedback
                   ? {

@@ -106,6 +106,19 @@ preference computed from those timestamps; no timer runs. `thread.setPinned`
 pins or unpins a conversation, and `project.update` accepts `pinned` for a
 project.
 
+The sidebar's arrangement is runtime data too, so it survives a restart and is
+the same in every view. `sidebar.reorder` stores the order of its sections
+(Projects, Pinned, History), each listed exactly once, and `workspace.get`
+returns it as `sidebarSections`; absent means the default order.
+`project.reorder` stores the order of projects, which `workspace.get` then
+returns them in; a project added afterward follows the arranged ones. That
+order is bounded at 500 identifiers and names each project once.
+
+Chats are never arranged by hand. Every chat list is an inbox sorted by the
+resource's `updatedAt`, newest first, and the runtime sets it whenever a chat
+is used (a turn is sent or stopped), finishes or fails, or begins waiting for
+an answer. A client rereads the resources on those events; nothing polls.
+
 Deleting a conversation (`conversation.delete`) is a separate, permanent
 lifecycle command, asked for through a confirmation. In one transaction the
 runtime removes what only that conversation owns: its resource, conversation

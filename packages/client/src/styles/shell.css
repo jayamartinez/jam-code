@@ -139,10 +139,101 @@
   flex: 1;
   text-align: left;
 }
+/*
+ * The reader arranges the sections. They keep their height and scroll
+ * together when they do not fit, so making one taller never squeezes another.
+ */
+.sidebar-sections {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden auto;
+}
 .sidebar-section {
+  flex-shrink: 0;
   padding: 0 8px 12px;
 }
+/*
+ * The grip a section or a project is dragged by. It leads the row, hidden
+ * until the row is hovered or the grip focused; the row's content then slides
+ * right to make room, so the grip sits where the content began rather than
+ * against the sidebar's edge.
+ */
+.sort-grip {
+  position: absolute;
+  left: 3px;
+  top: 0;
+  width: 16px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  opacity: 0;
+  cursor: grab;
+  touch-action: none;
+  transition: opacity 120ms ease;
+}
+.sort-grip:hover {
+  color: var(--color-text-secondary);
+}
+.sort-grip:focus-visible,
+.section-label:hover > .sort-grip,
+.project-group:has(> .project-row:hover, > .project-row:focus-visible) > .sort-grip,
+.project-group > .sort-grip:hover,
+.sort-lifted > .sort-grip,
+.sort-lifted > .section-label > .sort-grip {
+  opacity: 1;
+}
+.section-label,
+.project-row {
+  transition: padding-left 120ms ease;
+}
+.section-label:hover,
+.section-label:has(> .sort-grip:focus-visible),
+.sort-lifted > .section-label {
+  padding-left: 20px;
+}
+.project-group:has(
+    > .project-row:hover,
+    > .project-row:focus-visible,
+    > .sort-grip:hover,
+    > .sort-grip:focus-visible
+  )
+  > .project-row,
+.project-group.sort-lifted > .project-row {
+  padding-left: 22px;
+}
+/* The dragged item rides the pointer; its neighbors slide to make room. */
+.sorting,
+.sorting .sort-grip {
+  cursor: grabbing;
+  user-select: none;
+}
+.sort-lifted {
+  position: relative;
+  z-index: 2;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+  box-shadow:
+    0 0 0 1px var(--color-border-strong),
+    0 10px 28px rgb(0 0 0 / 45%);
+}
+.sort-shifting {
+  transition: transform 160ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sort-grip,
+  .sort-shifting,
+  .section-label,
+  .project-row {
+    transition: none;
+  }
+}
 .section-label {
+  position: relative;
   height: 26px;
   display: flex;
   align-items: center;
@@ -201,6 +292,10 @@
 /* On hover, a project's branch gives way to + for a new thread there. */
 .project-group {
   position: relative;
+}
+/* Beside the project's row, not its threads. */
+.project-group > .sort-grip {
+  height: 30px;
 }
 .project-new-thread {
   position: absolute;
@@ -451,16 +546,69 @@ button.thread-group-label {
   font-weight: 400;
   line-height: 1;
 }
+/*
+ * History takes the height the other sections leave, down to a floor of a
+ * few rows. The reader may instead drag its bottom edge to a height of their
+ * own (`sized`) or have it show every chat (`all`).
+ */
 .history-section {
-  flex: 1;
-  min-height: 0;
+  position: relative;
+  flex: 1 1 0;
+  min-height: 160px;
   display: flex;
   flex-direction: column;
-  padding-bottom: 0;
+}
+.history-section.sized,
+.history-section.all {
+  flex: none;
+}
+/* Never taller than its chats: a height past the last one would be empty. */
+.history-section.sized {
+  max-height: max-content;
+}
+/* At the bottom only the resize edge separates its list from the footer. */
+.history-section:last-child {
+  padding-bottom: 8px;
 }
 .history-scroll {
   overflow: auto;
   flex: 1;
+}
+.history-section.all .history-scroll {
+  overflow: visible;
+  flex: none;
+}
+.history-resize {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: ns-resize;
+  touch-action: none;
+  outline: none;
+}
+.history-resize::after {
+  content: '';
+  width: 36px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--color-accent);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.history-resize:hover::after,
+.history-resize:focus-visible::after,
+.history-resize.dragging::after {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .history-resize::after {
+    transition: none;
+  }
 }
 .history-filters {
   display: flex;

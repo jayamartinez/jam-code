@@ -91,6 +91,13 @@ Verified:
   and Codex processes alone.
 - Upgrade of a development database: real chats kept, demo seed removed,
   backup written.
+- Arranging the sidebar, in a development build with the demo database:
+  dragging a section and a project by its grip, Alt+arrow moves, Escape
+  canceling a drag, the order kept across a reload, and a chat rising in
+  Recent when it finishes or asks for approval. Resizing History by its
+  bottom edge and from the keyboard, the height kept across a reload, the
+  double click that shows every chat, and the sidebar scrolling once its
+  sections no longer fit.
 
 Not verified:
 
@@ -141,6 +148,8 @@ Not verified:
 - Snapshots with full-screen, protected or multi-display windows, Secure
   Input, and clipboard copy end to end.
 - Live re-theming of the Terminal and Browser chrome in every theme.
+- Arranging the sidebar by dragging sections and projects, and resizing
+  History.
 
 ### Both platforms
 

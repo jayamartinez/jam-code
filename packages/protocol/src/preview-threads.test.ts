@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { BrowserPreviewTransport } from './preview';
 import { validateRequest } from './validation';
 
@@ -142,6 +142,91 @@ describe('thread lifecycle through the preview transport', () => {
       pinned: false,
     });
     expect(unpinned.project.pinned).toBeUndefined();
+  });
+
+  it('arranges projects, keeping one the request leaves out after the rest', async () => {
+    const transport = new BrowserPreviewTransport();
+    const { projectIds } = await transport.request('project.reorder', {
+      projectIds: ['project-orbit', 'project-jam', 'project-forge'],
+    });
+    expect(projectIds).toEqual(['project-orbit', 'project-jam', 'project-forge', 'project-atlas']);
+    const workspace = await transport.request('workspace.get', {});
+    expect(workspace.projects.map((project) => project.id)).toEqual(projectIds);
+    await expect(
+      transport.request('project.reorder', { projectIds: ['project-missing'] }),
+    ).rejects.toThrow();
+    for (const params of [
+      {},
+      { projectIds: 'project-jam' },
+      { projectIds: ['project-jam', 'project-jam'] },
+      { projectIds: [''] },
+      { projectIds: Array.from({ length: 501 }, (_, index) => `project-${index}`) },
+    ])
+      expect(() =>
+        validateRequest({ protocolVersion: 1, method: 'project.reorder', params }),
+      ).toThrow();
+  });
+
+  it('arranges the sidebar’s sections, every one exactly once', async () => {
+    const transport = new BrowserPreviewTransport();
+    expect((await transport.request('workspace.get', {})).sidebarSections).toBeUndefined();
+    const sections = ['history', 'pinned', 'projects'] as const;
+    const moved = await transport.request('sidebar.reorder', { sections: [...sections] });
+    expect(moved.sections).toEqual(sections);
+    expect((await transport.request('workspace.get', {})).sidebarSections).toEqual(sections);
+    for (const params of [
+      {},
+      { sections: ['pinned', 'projects'] },
+      { sections: ['pinned', 'pinned', 'projects'] },
+      { sections: ['pinned', 'projects', 'recent'] },
+      { sections: ['pinned', 'projects', 'history', 'pinned'] },
+    ])
+      expect(() =>
+        validateRequest({ protocolVersion: 1, method: 'sidebar.reorder', params }),
+      ).toThrow();
+    // Chats are never arranged by hand.
+    expect(() =>
+      validateRequest({
+        protocolVersion: 1,
+        method: 'project.update',
+        params: { projectId: 'project-jam', threadOrder: ['conv-window'] },
+      }),
+    ).toThrow();
+  });
+
+  it('counts finishing and asking as activity, so a chat rises like an inbox', async () => {
+    vi.useFakeTimers({ now: Date.parse('2026-10-02T09:00:00.000Z') });
+    try {
+      const transport = new BrowserPreviewTransport();
+      const active = async (id: string) =>
+        Date.parse(
+          (await transport.request('workspace.get', {})).resources.find((item) => item.id === id)!
+            .updatedAt,
+        );
+      await transport.request('turn.start', {
+        resourceId: 'conv-pane-lifetime',
+        text: 'Hello',
+        context: [],
+        requestId: 'inbox-used',
+      });
+      const used = await active('conv-pane-lifetime');
+      await vi.advanceTimersByTimeAsync(5000);
+      const done = await active('conv-pane-lifetime');
+      expect(done).toBeGreaterThan(used);
+
+      // A chat that asks later is newer than one that finished earlier.
+      await vi.advanceTimersByTimeAsync(1000);
+      await transport.request('turn.start', {
+        resourceId: 'conv-navigation',
+        text: '/approval',
+        context: [],
+        requestId: 'inbox-asks',
+      });
+      expect(await active('conv-navigation')).toBeGreaterThan(done);
+      expect(await active('conv-pane-lifetime')).toBe(done);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('rejects malformed thread requests before they reach a runtime', () => {

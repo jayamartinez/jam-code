@@ -480,13 +480,23 @@ export interface Conversation {
   cursor: Cursor;
 }
 
+/**
+ * The sidebar's sections in their default order. The reader may arrange them;
+ * the chats inside are never arranged by hand, they sort by latest activity.
+ */
+export const SIDEBAR_SECTIONS = ['projects', 'pinned', 'history'] as const;
+export type SidebarSection = (typeof SIDEBAR_SECTIONS)[number];
+
 export interface WorkspaceSnapshot extends Cursor {
   protocolVersion: typeof PROTOCOL_VERSION;
+  /** In the order the reader arranged them; one added since follows the rest. */
   projects: Project[];
   resources: Resource[];
   sessions: Session[];
   providers: ProviderDescriptor[];
   worktrees: Worktree[];
+  /** Top to bottom, once the reader has arranged them; absent means the default. */
+  sidebarSections?: SidebarSection[];
 }
 
 export interface SearchResult {
@@ -657,6 +667,16 @@ export interface RequestMap
       pinned?: boolean;
     };
     result: { project: Project };
+  };
+  /**
+   * Arranges the sidebar's projects. A project the request does not name
+   * keeps its place after the named ones; the result is the whole order.
+   */
+  'project.reorder': { params: { projectIds: string[] }; result: { projectIds: string[] } };
+  /** Arranges the sidebar's sections; every section is listed exactly once. */
+  'sidebar.reorder': {
+    params: { sections: SidebarSection[] };
+    result: { sections: SidebarSection[] };
   };
   /** Archives (`closed: true`) or reopens a thread. Refused while its agent works or waits. */
   'thread.setClosed': {

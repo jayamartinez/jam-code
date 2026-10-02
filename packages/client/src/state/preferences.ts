@@ -101,6 +101,45 @@ export function useIdleThreadDays(): [number | null, (next: number | null) => vo
 }
 
 /**
+ * How tall the sidebar's History is: `auto` takes the height the other
+ * sections leave, `all` grows to show every chat without scrolling inside,
+ * and a number is the height in pixels the reader dragged it to. A pixel size
+ * belongs to this window, so it is kept here rather than in the runtime.
+ */
+export type HistoryHeight = 'auto' | 'all' | number;
+/** The least History can be dragged to: its heading, filters and a chat or two. */
+export const HISTORY_MIN_HEIGHT = 160;
+const HISTORY_HEIGHT_KEY = 'jam.historyHeight';
+
+export function readHistoryHeight(stored: string | null): HistoryHeight {
+  if (stored === 'all') return 'all';
+  const pixels = Number(stored);
+  return stored && Number.isFinite(pixels)
+    ? Math.max(HISTORY_MIN_HEIGHT, Math.round(pixels))
+    : 'auto';
+}
+
+export function useHistoryHeight(): [HistoryHeight, (next: HistoryHeight) => void] {
+  const [height, setHeight] = useState<HistoryHeight>('auto');
+  useEffect(() => {
+    try {
+      setHeight(readHistoryHeight(localStorage.getItem(HISTORY_HEIGHT_KEY)));
+    } catch {
+      // Unreadable storage keeps the default.
+    }
+  }, []);
+  const update = useCallback((next: HistoryHeight) => {
+    setHeight(next);
+    try {
+      localStorage.setItem(HISTORY_HEIGHT_KEY, String(next));
+    } catch {
+      // Losing the preference only restores the default.
+    }
+  }, []);
+  return [height, update];
+}
+
+/**
  * Where a new chat starts: the current checkout, a new worktree, or neither
  * until the reader picks one ("Ask each time").
  */

@@ -409,6 +409,64 @@ pub struct UpdateProject {
     pub pinned: Option<bool>,
 }
 
+/// The sidebar's sections, top to bottom, as the reader arranged them.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ReorderSidebar {
+    pub sections: Vec<String>,
+}
+
+impl ReorderSidebar {
+    /// Every section the sidebar has. Chats inside them are never arranged
+    /// by hand: they sort by their latest activity.
+    pub const SECTIONS: [&'static str; 3] = ["projects", "pinned", "history"];
+
+    /// An arrangement places every section exactly once.
+    pub fn validate(&self) -> Result<(), JamError> {
+        let complete = self.sections.len() == Self::SECTIONS.len()
+            && Self::SECTIONS
+                .iter()
+                .all(|section| self.sections.iter().any(|given| given == section));
+        if !complete {
+            return Err(JamError::invalid(
+                "A sidebar order lists each section once.",
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// The sidebar's projects in the order the reader arranged them.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ReorderProjects {
+    pub project_ids: Vec<String>,
+}
+
+impl ReorderProjects {
+    /// The most projects an order may list.
+    pub const MAX: usize = 500;
+
+    /// An order names each project once and is bounded like any other list.
+    pub fn validate(&self) -> Result<(), JamError> {
+        if self.project_ids.len() > Self::MAX {
+            return Err(JamError::invalid(
+                "A project order can list at most 500 projects.",
+            ));
+        }
+        let mut seen = std::collections::HashSet::new();
+        for id in &self.project_ids {
+            validate_id(id)?;
+            if !seen.insert(id) {
+                return Err(JamError::invalid(
+                    "A project order lists each project once.",
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SetThreadClosed {

@@ -7,6 +7,10 @@ use std::{path::Path, time::Duration};
 pub(crate) const SCHEMA_VERSION: i64 = 8;
 /// Projects that have not been removed from JAM.
 const ACTIVE_PROJECT: &str = "json_extract(data,'$.removedAt') IS NULL";
+/// The settings record holding the sidebar's project order.
+const PROJECT_ORDER_KEY: &str = "sidebar.project_order";
+/// The settings record holding the order of the sidebar's sections.
+const SIDEBAR_SECTIONS_KEY: &str = "sidebar.sections";
 
 /// A JAM session's link to the provider's own session or thread.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -171,13 +175,23 @@ impl Store {
     /// Records. Provider descriptors come from the runtime's provider
     /// manager, not the database, and are filled in by the caller.
     pub fn workspace(&self, cursor: Cursor) -> Result<WorkspaceSnapshot, JamError> {
+        let mut projects: Vec<Project> = self.all(&format!(
+            "SELECT data FROM projects WHERE {ACTIVE_PROJECT} ORDER BY rowid"
+        ))?;
+        // The reader's arrangement first; a project added since follows in
+        // the order it was added.
+        let order = self.id_list(PROJECT_ORDER_KEY)?;
+        projects.sort_by_key(|project| {
+            order
+                .iter()
+                .position(|id| id == &project.id)
+                .unwrap_or(usize::MAX)
+        });
         Ok(WorkspaceSnapshot {
             protocol_version: VERSION,
             runtime_id: cursor.runtime_id,
             sequence: cursor.sequence,
-            projects: self.all(&format!(
-                "SELECT data FROM projects WHERE {ACTIVE_PROJECT} ORDER BY rowid"
-            ))?,
+            projects,
             resources: self.all(&format!(
                 "SELECT data FROM resources WHERE project_id IS NULL OR project_id IN
                    (SELECT id FROM projects WHERE {ACTIVE_PROJECT}) ORDER BY rowid"
@@ -192,6 +206,7 @@ impl Store {
                 "SELECT data FROM worktrees WHERE project_id IN
                    (SELECT id FROM projects WHERE {ACTIVE_PROJECT}) ORDER BY rowid"
             ))?,
+            sidebar_sections: self.id_list(SIDEBAR_SECTIONS_KEY)?,
         })
     }
 
@@ -360,6 +375,43 @@ impl Store {
         self.connection
             .execute("DELETE FROM settings WHERE key=?1", params![key])?;
         Ok(())
+    }
+
+    /// An arrangement the reader made of the sidebar. A record this version
+    /// cannot read is treated as no arrangement.
+    fn id_list(&self, key: &str) -> Result<Vec<String>, JamError> {
+        Ok(self
+            .setting(key)?
+            .and_then(|text| serde_json::from_str(&text).ok())
+            .unwrap_or_default())
+    }
+
+    pub fn save_project_order(&self, order: &[String], updated_at: &str) -> Result<(), JamError> {
+        self.save_setting(
+            PROJECT_ORDER_KEY,
+            &serde_json::to_string(order)?,
+            updated_at,
+        )
+    }
+
+    pub fn save_sidebar_sections(
+        &self,
+        sections: &[String],
+        updated_at: &str,
+    ) -> Result<(), JamError> {
+        self.save_setting(
+            SIDEBAR_SECTIONS_KEY,
+            &serde_json::to_string(sections)?,
+            updated_at,
+        )
+    }
+
+    /// Marks a conversation as active just now. Chat lists sort by this, so
+    /// the latest to be used, to finish or to ask for the reader is on top.
+    pub fn touch_resource(&self, id: &str) -> Result<(), JamError> {
+        let mut resource = self.resource(id)?;
+        resource.updated_at = crate::runtime::now();
+        self.save_resource(&resource)
     }
 
     /// Every project, including removed ones, so adding a folder again can

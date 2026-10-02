@@ -418,6 +418,36 @@ impl Runtime {
                 state.store.save_project(&project)?;
                 Ok(json!({ "project": crate::projects::describe(project) }))
             }
+            "project.reorder" => {
+                let input: ReorderProjects = parse(request.params)?;
+                input.validate()?;
+                let state = self.lock()?;
+                let current: Vec<String> = state
+                    .store
+                    .workspace(self.cursor(&state))?
+                    .projects
+                    .into_iter()
+                    .map(|project| project.id)
+                    .collect();
+                if !input.project_ids.iter().all(|id| current.contains(id)) {
+                    return Err(JamError::new("not_found", "Project not found."));
+                }
+                // A project the request did not name keeps its place after the rest.
+                let unnamed: Vec<String> = current
+                    .into_iter()
+                    .filter(|id| !input.project_ids.contains(id))
+                    .collect();
+                let order = [input.project_ids, unnamed].concat();
+                state.store.save_project_order(&order, &now())?;
+                Ok(json!({ "projectIds": order }))
+            }
+            "sidebar.reorder" => {
+                let input: ReorderSidebar = parse(request.params)?;
+                input.validate()?;
+                let state = self.lock()?;
+                state.store.save_sidebar_sections(&input.sections, &now())?;
+                Ok(json!({ "sections": input.sections }))
+            }
             "thread.setClosed" => {
                 let input: SetThreadClosed = parse(request.params)?;
                 validate_id(&input.resource_id)?;

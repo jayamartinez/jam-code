@@ -402,6 +402,10 @@ impl Runtime {
                             current.needs_input = waiting;
                             let saved = state.store.transaction(|| {
                                 state.store.save_message(&resource, &message)?;
+                                // A chat that starts waiting for the reader rises in its lists.
+                                if session_changed && waiting {
+                                    state.store.touch_resource(&resource.id)?;
+                                }
                                 state.store.save_session(&current)
                             });
                             if saved.is_err() { break; }
@@ -443,6 +447,8 @@ impl Runtime {
                                 if let Some(message) = &message {
                                     state.store.save_message(&resource, message)?;
                                 }
+                                // So does one that has just finished.
+                                state.store.touch_resource(&resource.id)?;
                                 state.store.save_session(&current)
                             });
                             if saved.is_err() { break; }
@@ -510,6 +516,7 @@ impl Runtime {
                 current.needs_input = false;
                 let saved = state.store.transaction(|| {
                     state.store.save_message(&resource, &message)?;
+                    state.store.touch_resource(&resource.id)?;
                     state.store.save_session(&current)
                 });
                 if saved.is_ok() {
@@ -543,6 +550,7 @@ impl Runtime {
         session.needs_input = false;
         let interrupted_messages = state.store.transaction(|| {
             state.store.save_session(&session)?;
+            state.store.touch_resource(&session.resource_id)?;
             state
                 .store
                 .interrupt_messages(&session.resource_id, InteractionStatus::Cancelled)

@@ -19,6 +19,11 @@ const newestFirst = (left: string, right: string) => Date.parse(right) - Date.pa
 
 export const isArchived = (resource: Resource) => !!resource.closedAt;
 
+/**
+ * Chat lists are an inbox, never arranged by hand: `updatedAt` is the last
+ * time a chat was used, finished working or began waiting for an answer, and
+ * the newest is on top.
+ */
 export function threadsOf(resources: Resource[], projectId: string): ProjectThreads {
   const threads = resources.filter(
     (resource) => resource.kind === 'conversation' && resource.projectId === projectId,
