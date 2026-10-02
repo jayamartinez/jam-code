@@ -54,6 +54,9 @@ struct Applied {
     sandbox: String,
     /// A service tier other than standard, which later turns keep until reset.
     tier: Option<String>,
+    /// The model its turns run on: the one it reported when it was loaded, or
+    /// the one last chosen, which Codex keeps for later turns.
+    model: Option<String>,
 }
 
 /// Codex's standard service tier, sent to leave a faster one.
@@ -524,6 +527,7 @@ async fn run(adapter: &CodexAdapter, turn: ProviderTurn, io: TurnIo) -> Result<(
     let speed = turn.options.get(SPEED).cloned();
     // What a thread resumed or started below reported for itself.
     let mut fresh_tier = None;
+    let mut fresh_model = None;
 
     // Resume the provider's thread, or start one.
     let already = turn
@@ -549,7 +553,7 @@ async fn run(adapter: &CodexAdapter, turn: ProviderTurn, io: TurnIo) -> Result<(
                 Ok(result) => {
                     thread_id = Some(native.clone());
                     fresh_tier = reported_tier(&result);
-                    report_model(&transcript, &result).await;
+                    fresh_model = report_model(&transcript, &result).await;
                 }
                 Err(error) if error.message.contains("not found") => {
                     transcript.notice(
@@ -573,7 +577,7 @@ async fn run(adapter: &CodexAdapter, turn: ProviderTurn, io: TurnIo) -> Result<(
                 })?
                 .to_string();
             fresh_tier = reported_tier(&result);
-            report_model(&transcript, &result).await;
+            fresh_model = report_model(&transcript, &result).await;
             thread_id = Some(id);
         }
     }
@@ -619,6 +623,17 @@ async fn run(adapter: &CodexAdapter, turn: ProviderTurn, io: TurnIo) -> Result<(
         if let Some(model) = &model {
             start["model"] = json!(model);
         }
+        let applied_model = model.clone().or(match &already {
+            Some(applied) => applied.model.clone(),
+            None => fresh_model,
+        });
+        // A thread names its model only when it is loaded, and every turn
+        // begins with the session's model unknown; say it again.
+        if let (None, Some(_), Some(applied)) = (&model, &already, &applied_model) {
+            transcript
+                .send(ProviderUpdate::Model(applied.clone()))
+                .await;
+        }
         if let Some(effort) = &effort {
             start["effort"] = json!(effort);
         }
@@ -650,6 +665,7 @@ async fn run(adapter: &CodexAdapter, turn: ProviderTurn, io: TurnIo) -> Result<(
                 Applied {
                     sandbox: sandbox.clone(),
                     tier,
+                    model: applied_model,
                 },
             );
         }
@@ -869,12 +885,11 @@ async fn run(adapter: &CodexAdapter, turn: ProviderTurn, io: TurnIo) -> Result<(
     Ok(())
 }
 
-async fn report_model(transcript: &Transcript, result: &Value) {
-    if let Some(model) = result.get("model").and_then(Value::as_str) {
-        transcript
-            .send(ProviderUpdate::Model(model.to_string()))
-            .await;
-    }
+/// Passes on the model a thread reports for itself, and returns it.
+async fn report_model(transcript: &Transcript, result: &Value) -> Option<String> {
+    let model = result.get("model").and_then(Value::as_str)?.to_string();
+    transcript.send(ProviderUpdate::Model(model.clone())).await;
+    Some(model)
 }
 
 /// Stops routing a thread's messages when its turn ends, however it ends.
