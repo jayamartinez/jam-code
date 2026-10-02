@@ -212,6 +212,11 @@ export class BrowserPreviewTransport implements JamTransport {
         } else delete resource.closedAt;
         return { resource };
       }
+      case 'thread.setPinned': {
+        const resource = this.getThread(request.params.resourceId);
+        resource.pinned = request.params.pinned;
+        return { resource };
+      }
       case 'thread.keepOpen': {
         const resource = this.getThread(request.params.resourceId);
         resource.closeSuggestionDismissedAt = new Date().toISOString();

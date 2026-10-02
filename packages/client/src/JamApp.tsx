@@ -95,7 +95,12 @@ import { FileIconThemeProvider, useFileIconThemeChoice } from './components/file
 import { FileResource } from './components/FileResource';
 import { TerminalResource } from './components/TerminalResource';
 import { estimateTerminalSize } from './components/terminal-metrics';
-import { ContextMenu, menuPoint, type ContextMenuState } from './components/ContextMenu';
+import {
+  ContextMenu,
+  menuPoint,
+  type ContextMenuItem,
+  type ContextMenuState,
+} from './components/ContextMenu';
 import type { FileReference } from './markdown/file-refs';
 import { parseAddress } from './state/browser-address';
 import { ProjectEditor } from './components/ProjectEditor';
@@ -604,8 +609,17 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     [client, transport],
   );
 
+  /** Pin or unpin, as a menu item. An archived chat keeps its pin and shows no item. */
+  const pinAction = (resource: Resource): ContextMenuItem => ({
+    label: resource.pinned ? 'Unpin chat' : 'Pin chat',
+    onSelect: () =>
+      void transport
+        .request('thread.setPinned', { resourceId: resource.id, pinned: !resource.pinned })
+        .then(({ resource: updated }) => client.updateResource(updated))
+        .catch(client.reportError),
+  });
   /** Archive or reopen, as a menu item; the same action wherever a chat is listed. */
-  const archiveAction = (resource: Resource) => {
+  const archiveAction = (resource: Resource): ContextMenuItem => {
     if (isArchived(resource))
       return { label: 'Reopen chat', onSelect: () => setThreadArchived(resource.id, false) };
     const blocked = archiveBlocked(
@@ -625,7 +639,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     error?: string;
   } | null>(null);
   /** Delete, as a menu item. It only opens the dialog; nothing is removed yet. */
-  const deleteAction = (resource: Resource) => {
+  const deleteAction = (resource: Resource): ContextMenuItem => {
     const blocked = deleteBlocked(
       workspace?.sessions.find((session) => session.id === resource.sessionId),
     );
@@ -1566,14 +1580,18 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     switch (resource.kind) {
       case 'conversation': {
         const session = workspace.sessions.find((item) => item.id === resource.sessionId);
-        // Disabled with their reason while the agent works or waits.
+        // The chat's own actions, as one group before Close tab. Archive and
+        // Delete are disabled with their reason while the agent works or waits.
         const chatActions = [
-          { ...archiveAction(resource), separated: true },
-          { ...deleteAction(resource), separated: false },
-        ].map(({ unavailable, onSelect, ...item }) => ({
-          ...item,
-          onSelect: unavailable ? undefined : onSelect,
-          unavailable,
+          ...(isArchived(resource) ? [] : [pinAction(resource)]),
+          archiveAction(resource),
+          deleteAction(resource),
+        ].map((action, index) => ({
+          label: action.label,
+          danger: action.danger,
+          separated: index === 0,
+          onSelect: action.unavailable ? undefined : action.onSelect,
+          unavailable: action.unavailable,
         }));
         const conversationChrome = {
           ...chrome,
@@ -1796,6 +1814,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                     ...menuPoint(event),
                     items: [
                       { label: 'Open', onSelect: () => openResource(resource.id) },
+                      ...(isArchived(resource) ? [] : [pinAction(resource)]),
                       archiveAction(resource),
                       deleteAction(resource),
                     ],

@@ -623,6 +623,11 @@ export interface RequestMap
     result: { resource: Resource };
   };
   'thread.keepOpen': { params: { resourceId: string }; result: { resource: Resource } };
+  /** Pins a conversation to the sidebar's Pinned section, or unpins it. */
+  'thread.setPinned': {
+    params: { resourceId: string; pinned: boolean };
+    result: { resource: Resource };
+  };
   'resource.open': {
     /** `worktreeId` opens it in that JAM worktree (not for a browser). */
     params: { projectId: string; kind: OpenableKind; path?: string; worktreeId?: string };

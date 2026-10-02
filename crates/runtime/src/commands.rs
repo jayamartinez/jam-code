@@ -413,6 +413,13 @@ pub struct SetThreadClosed {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SetThreadPinned {
+    pub resource_id: String,
+    pub pinned: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct KeepThreadOpen {
     pub resource_id: String,
 }
