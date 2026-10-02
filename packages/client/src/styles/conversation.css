@@ -300,7 +300,7 @@
   max-width: 100%;
   overflow: hidden;
   color: var(--color-text-secondary);
-  font-family: var(--font-mono), monospace;
+  font-family: var(--font-mono-stack);
   font-size: calc(12px * var(--ui-scale));
   line-height: calc(16px * var(--ui-scale));
   text-overflow: ellipsis;
@@ -361,7 +361,7 @@
 }
 .attachment-viewer-size {
   margin-left: 6px;
-  font-family: var(--font-mono), monospace;
+  font-family: var(--font-mono-stack);
   font-size: calc(11px * var(--ui-scale));
 }
 .attachment-viewer-actions {
@@ -399,7 +399,7 @@
   padding: 14px 16px;
   overflow: auto;
   color: var(--color-text-body);
-  font-family: var(--font-mono), monospace;
+  font-family: var(--font-mono-stack);
   font-size: calc(12px * var(--ui-scale));
   line-height: calc(18px * var(--ui-scale));
   white-space: pre-wrap;
