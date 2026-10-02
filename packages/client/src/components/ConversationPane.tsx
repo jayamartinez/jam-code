@@ -29,7 +29,7 @@ import { IconButton, Shortcut } from './Controls';
 import { PaneChrome, type PaneChromeProps } from './PaneChrome';
 import { ProviderIcon, WorktreeIcon, sessionProviderName } from './icons';
 import { ContextChip, ContextIcon } from './ContextChip';
-import { attachmentDetail, imagesRefused, sentAttachments } from './attachment-model';
+import { attachmentDetail, imagesRefused, pastedFiles, sentAttachments } from './attachment-model';
 import { ProjectBadge } from './ProjectBadge';
 import type { InteractionAnswer } from './InteractionCard';
 import { AgentBlocks, type BlockActions } from './TranscriptBlocks';
@@ -92,6 +92,8 @@ interface ConversationProps extends Pick<
   onAddContext(): void;
   /** Opens the system file chooser; absent where the host has none. */
   onAttach?(): void;
+  /** Attaches files or images pasted into the message; absent where the host cannot. */
+  onPasteFiles?(files: readonly File[]): void;
   onPreviewContext(item: ContextItem): void;
   /** Opens an attachment that is already part of a message. */
   onPreviewSent?(item: ContextItem): void;
@@ -237,6 +239,7 @@ type ComposerProps = Pick<
   | 'onStop'
   | 'onAddContext'
   | 'onAttach'
+  | 'onPasteFiles'
   | 'onPreviewContext'
   | 'onRemoveContext'
 > & {
@@ -339,6 +342,13 @@ export function Composer(props: ComposerProps) {
           rows={props.isNew ? 2 : 1}
           disabled={props.busy}
           maxLength={20000}
+          onPaste={(event) => {
+            // A copied file or image becomes an attachment; text pastes as text.
+            const files = props.onPasteFiles ? pastedFiles(event.clipboardData) : [];
+            if (!files.length) return;
+            event.preventDefault();
+            props.onPasteFiles?.(files);
+          }}
           onKeyDown={(event) => {
             const { key, shiftKey, keyCode, nativeEvent } = event;
             if (sendsMessage({ key, shiftKey, keyCode, isComposing: nativeEvent.isComposing })) {

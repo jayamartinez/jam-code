@@ -49,6 +49,7 @@ fn main() {
             snapshots::snapshot_toast_request,
             folders::pick_directory,
             attachments::attach_files,
+            attachments::attach_pasted,
             feedback::open_feedback,
             attention::set_attention_badge,
             attention::notify

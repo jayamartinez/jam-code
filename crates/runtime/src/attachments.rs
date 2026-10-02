@@ -398,12 +398,6 @@ fn read_chosen(path: &Path) -> Result<Vec<u8>, JamError> {
         return Err(JamError::invalid("Only regular files can be attached."));
     }
     let cap = limits().file_bytes;
-    let too_large = || {
-        JamError::invalid(format!(
-            "The file is too large. Attachments can be at most {}.",
-            size_label(cap)
-        ))
-    };
     if meta.len() > cap as u64 {
         return Err(too_large());
     }
@@ -411,13 +405,26 @@ fn read_chosen(path: &Path) -> Result<Vec<u8>, JamError> {
     file.take(cap as u64 + 1)
         .read_to_end(&mut data)
         .map_err(|_| unreadable())?;
-    if data.len() > cap {
+    within_limits(&data)?;
+    Ok(data)
+}
+
+fn too_large() -> JamError {
+    JamError::invalid(format!(
+        "The file is too large. Attachments can be at most {}.",
+        size_label(limits().file_bytes)
+    ))
+}
+
+/// What every attachment's bytes must be, however they arrived.
+fn within_limits(bytes: &[u8]) -> Result<(), JamError> {
+    if bytes.len() > limits().file_bytes {
         return Err(too_large());
     }
-    if data.is_empty() {
+    if bytes.is_empty() {
         return Err(JamError::invalid("The file is empty."));
     }
-    Ok(data)
+    Ok(())
 }
 
 #[derive(Deserialize)]
@@ -433,11 +440,28 @@ impl Runtime {
     /// it, with a path the operating system's file chooser returned. A client
     /// can therefore never make the runtime read a path of its choosing.
     pub fn import_attachment(&self, path: &Path) -> Result<ContextItem, JamError> {
-        // The file is read, classified and copied before the database is
-        // locked, so a large file never holds up another request.
         let bytes = read_chosen(path)?;
-        let name = display_name(path);
-        let (kind, media_type, extension) = classify(&bytes, &name);
+        self.stage_attachment(display_name(path), &bytes)
+    }
+
+    /// Stages bytes the reader pasted into a chat: a copied image or file.
+    ///
+    /// Like `import_attachment`, only the desktop host calls this. It reads
+    /// nothing from disk: the bytes are the paste itself, and `name` is only
+    /// what the attachment is called.
+    pub fn import_pasted_attachment(
+        &self,
+        name: &str,
+        bytes: &[u8],
+    ) -> Result<ContextItem, JamError> {
+        within_limits(bytes)?;
+        self.stage_attachment(display_name(Path::new(name)), bytes)
+    }
+
+    fn stage_attachment(&self, name: String, bytes: &[u8]) -> Result<ContextItem, JamError> {
+        // The file is classified and copied before the database is locked,
+        // so a large file never holds up another request.
+        let (kind, media_type, extension) = classify(bytes, &name);
         let attachment = Attachment {
             id: new_id("attachment"),
             name,
@@ -451,7 +475,7 @@ impl Runtime {
         };
         self.attachments
             .dir
-            .create(&attachment.file_name(), &bytes)?;
+            .create(&attachment.file_name(), bytes)?;
         let recorded = (|| {
             let state = self.lock()?;
             state.store.expire_attachments(&self.attachments)?;

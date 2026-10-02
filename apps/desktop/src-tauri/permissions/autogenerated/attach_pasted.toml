@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-attach-pasted"
+description = "Enables the attach_pasted command without any pre-configured scope."
+commands.allow = ["attach_pasted"]
+
+[[permission]]
+identifier = "deny-attach-pasted"
+description = "Denies the attach_pasted command without any pre-configured scope."
+commands.deny = ["attach_pasted"]

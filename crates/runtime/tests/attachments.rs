@@ -508,6 +508,44 @@ async fn any_regular_file_within_the_limit_is_attached_as_it_is() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn pasted_bytes_are_staged_like_a_chosen_file_and_read_nothing_from_disk() {
+    let temp = Temp::new();
+    let runtime = open(&temp, Scripted::new("supported"));
+
+    // A pasted screenshot: typed by content, kept byte for byte.
+    let pasted = runtime.import_pasted_attachment("image.png", PNG).unwrap();
+    let pasted = serde_json::to_value(pasted).unwrap();
+    assert_eq!(pasted["label"], "image.png");
+    assert_eq!(pasted["attachment"]["kind"], "image");
+    let copy = temp.attachments().join(format!("{}.png", id_of(&pasted)));
+    assert_eq!(std::fs::read(copy).unwrap(), PNG);
+
+    // The name only names it: a path in it is not opened, and only its last
+    // component is kept.
+    let secret = temp.chosen("secret.txt", b"not this");
+    let named = runtime
+        .import_pasted_attachment(&secret.display().to_string(), b"pasted text")
+        .unwrap();
+    let named = serde_json::to_value(named).unwrap();
+    assert_eq!(named["label"], "secret.txt");
+    assert_eq!(named["attachment"]["bytes"], 11);
+
+    // The same limits as a chosen file, and nothing is left behind.
+    let before = temp.stored().len();
+    let refused = |bytes: &[u8]| {
+        runtime
+            .import_pasted_attachment("paste.bin", bytes)
+            .unwrap_err()
+            .message
+    };
+    assert_eq!(refused(b""), "The file is empty.");
+    assert!(
+        refused(&vec![0; limits().file_bytes + 1]).contains("Attachments can be at most 25 MB")
+    );
+    assert_eq!(temp.stored().len(), before);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn every_file_type_reaches_the_agent_by_path_and_images_also_natively() {
     let temp = Temp::new();
     let agent = Scripted::new("supported");

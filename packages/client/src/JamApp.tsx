@@ -12,7 +12,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { Folder, Plus, X } from 'lucide-react';
-import { JamError } from '@jam/protocol';
+import { ATTACHMENT_LIMITS, JamError } from '@jam/protocol';
 import type {
   ContextItem,
   JamTransport,
@@ -81,7 +81,7 @@ import { useSnapshots, snapshotFocus } from './state/snapshots';
 import { archiveBlocked, deleteBlocked, isArchived } from './state/threads';
 import { DeleteChatDialog } from './components/DeleteChatDialog';
 import { AttachmentPreview } from './components/AttachmentPreview';
-import { refusalMessage } from './components/attachment-model';
+import { errorText, pasteRefusal, refusalMessage } from './components/attachment-model';
 import { SettingsPanel } from './components/SettingsPanel';
 import { NewResourceLauncher } from './components/NewResourceLauncher';
 import { NewChat } from './components/NewChat';
@@ -1180,17 +1180,53 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       return;
     }
     try {
-      const { attached, refused } = await desktop.attachFiles(room);
-      if (attached.length)
-        setContext((current) => ({
-          ...current,
-          [resourceId]: [...(current[resourceId] ?? emptyContext), ...attached],
-        }));
-      // A file that was not attached is named with its reason, never dropped quietly.
-      if (refused.length) client.reportError(new Error(refusalMessage(refused)));
+      stageAttachments(resourceId, await desktop.attachFiles(room));
     } catch (cause) {
       client.reportError(cause);
     }
+  }
+  /**
+   * Attach what was pasted into the composer: the host stages each file's
+   * bytes, under the same limits as the chooser. Nothing is sent.
+   */
+  async function attachPasted(resourceId: string, files: readonly File[]) {
+    const paste = desktop.attachPasted;
+    if (!paste) return;
+    const room = Math.min(
+      MAX_CONTEXT - contextFor(resourceId).length,
+      ATTACHMENT_LIMITS.filesPerPick,
+    );
+    const attached: ContextItem[] = [];
+    const refused: { name: string; reason: string }[] = [];
+    for (const file of files) {
+      const name = file.name || 'Pasted file';
+      const reason =
+        attached.length >= room
+          ? 'There is no room for more context in this message.'
+          : pasteRefusal(file.size);
+      if (reason) {
+        refused.push({ name, reason });
+        continue;
+      }
+      try {
+        attached.push(await paste(name, new Uint8Array(await file.arrayBuffer())));
+      } catch (cause) {
+        refused.push({ name, reason: errorText(cause, 'JAM Code could not read it.') });
+      }
+    }
+    stageAttachments(resourceId, { attached, refused });
+  }
+  function stageAttachments(
+    resourceId: string,
+    { attached, refused }: { attached: ContextItem[]; refused: { name: string; reason: string }[] },
+  ) {
+    if (attached.length)
+      setContext((current) => ({
+        ...current,
+        [resourceId]: [...(current[resourceId] ?? emptyContext), ...attached],
+      }));
+    // A file that was not attached is named with its reason, never dropped quietly.
+    if (refused.length) client.reportError(new Error(refusalMessage(refused)));
   }
   /** Lets the runtime delete its copy of an attachment that will not be sent. */
   const releaseAttachment = (item: ContextItem) => {
@@ -1289,6 +1325,9 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     },
     onAddContext: () => setContextTarget(resourceId),
     ...(desktop.attachFiles ? { onAttach: () => void attach(resourceId) } : {}),
+    ...(desktop.attachPasted
+      ? { onPasteFiles: (files: readonly File[]) => void attachPasted(resourceId, files) }
+      : {}),
     onPreviewContext: setPreviewContext,
     onPreviewSent: setPreviewSent,
     onRemoveContext: (id: string) => {
