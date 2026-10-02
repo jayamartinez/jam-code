@@ -62,6 +62,18 @@ export function Dialog({
   className?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const pressedBackdrop = useRef(false);
+  /** Whether the pointer is on the scrim around the dialog, not on the dialog. */
+  const onBackdrop = (event: React.MouseEvent) => {
+    if (event.target !== event.currentTarget) return false;
+    const box = event.currentTarget.getBoundingClientRect();
+    return (
+      event.clientX < box.left ||
+      event.clientX > box.right ||
+      event.clientY < box.top ||
+      event.clientY > box.bottom
+    );
+  };
   useOccludesNativeViews();
   useEffect(() => {
     const element = ref.current;
@@ -81,8 +93,15 @@ export function Dialog({
         event.preventDefault();
         onClose();
       }}
+      onPointerDown={(event) => {
+        pressedBackdrop.current = onBackdrop(event);
+      }}
       onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        // Only a press that both began and ended on the backdrop dismisses.
+        // A text selection dragged out of the dialog ends as a click on the
+        // dialog element, and so does a click on its own padding.
+        if (pressedBackdrop.current && onBackdrop(event)) onClose();
+        pressedBackdrop.current = false;
       }}
     >
       {children}

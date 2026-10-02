@@ -106,6 +106,30 @@ describe('thread lifecycle through the preview transport', () => {
     ).toThrow();
   });
 
+  it('pins and unpins a conversation, and nothing else', async () => {
+    const transport = new BrowserPreviewTransport();
+    const pinned = await transport.request('thread.setPinned', {
+      resourceId: 'conv-layout',
+      pinned: true,
+    });
+    expect(pinned.resource.pinned).toBe(true);
+    const unpinned = await transport.request('thread.setPinned', {
+      resourceId: 'conv-layout',
+      pinned: false,
+    });
+    expect(unpinned.resource.pinned).toBe(false);
+    await expect(
+      transport.request('thread.setPinned', { resourceId: 'diff-pane', pinned: true }),
+    ).rejects.toThrow('Only a conversation');
+    expect(() =>
+      validateRequest({
+        protocolVersion: 1,
+        method: 'thread.setPinned',
+        params: { resourceId: 'conv-layout' },
+      }),
+    ).toThrow();
+  });
+
   it('pins and unpins a project', async () => {
     const transport = new BrowserPreviewTransport();
     const pinned = await transport.request('project.update', {

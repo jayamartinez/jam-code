@@ -214,25 +214,28 @@ export function Sidebar(props: SidebarProps) {
           );
         })}
       </section>
-      <section className="sidebar-section">
-        <div className="section-label">
-          Pinned
-          <span className="count">{pinned.length}</span>
-        </div>
-        {pinned.map((resource) => (
-          <ChatRow
-            key={resource.id}
-            resource={resource}
-            session={sessionFor(resource)}
-            project={workspace.projects.find((project) => project.id === resource.projectId)}
-            active={resource.id === activeResourceId}
-            finished={props.finishedSessions.has(resource.sessionId ?? '')}
-            pinned
-            onOpen={props.onOpen}
-            onMenu={props.onThreadMenu}
-          />
-        ))}
-      </section>
+      {/* Shown only when something is pinned; an empty heading says nothing. */}
+      {pinned.length > 0 && (
+        <section className="sidebar-section">
+          <div className="section-label">
+            Pinned
+            <span className="count">{pinned.length}</span>
+          </div>
+          {pinned.map((resource) => (
+            <ChatRow
+              key={resource.id}
+              resource={resource}
+              session={sessionFor(resource)}
+              project={workspace.projects.find((project) => project.id === resource.projectId)}
+              active={resource.id === activeResourceId}
+              finished={props.finishedSessions.has(resource.sessionId ?? '')}
+              pinned
+              onOpen={props.onOpen}
+              onMenu={props.onThreadMenu}
+            />
+          ))}
+        </section>
+      )}
       <section className="sidebar-section history-section">
         <div className="section-label">
           History

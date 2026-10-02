@@ -840,6 +840,7 @@ const params: Record<RequestMethod, Check> = {
     ),
   'thread.setClosed': (value) => shape(value, { resourceId: id, closed: boolean }),
   'thread.keepOpen': (value) => shape(value, { resourceId: id }),
+  'thread.setPinned': (value) => shape(value, { resourceId: id, pinned: boolean }),
   'resource.open': (value) => {
     shape(
       value,
@@ -931,6 +932,7 @@ const responses: Record<RequestMethod, Check> = {
   'project.update': (value) => shape(value, { project }),
   'thread.setClosed': (value) => shape(value, { resource }),
   'thread.keepOpen': (value) => shape(value, { resource }),
+  'thread.setPinned': (value) => shape(value, { resource }),
   'resource.open': (value) => shape(value, { resource }),
   'search.query': (value) => shape(value, { results: array(searchResult, 50) }),
   'terminal.create': (value) => shape(value, { resource, terminal: terminalSession }),

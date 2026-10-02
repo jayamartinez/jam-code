@@ -102,8 +102,9 @@ session, provider binding, worktree and pin stay, and it is refused while the
 agent is working or waiting for an answer, because it never stops one. Clients
 leave archived conversations out of Recent and Pinned and list them under their
 project; search still finds them. When to suggest archiving is a client
-preference computed from those timestamps; no timer runs. `project.update` also
-accepts `pinned`.
+preference computed from those timestamps; no timer runs. `thread.setPinned`
+pins or unpins a conversation, and `project.update` accepts `pinned` for a
+project.
 
 Deleting a conversation (`conversation.delete`) is a separate, permanent
 lifecycle command, asked for through a confirmation. In one transaction the

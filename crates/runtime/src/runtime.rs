@@ -442,6 +442,18 @@ impl Runtime {
                 state.store.save_resource(&resource)?;
                 Ok(json!({ "resource": resource }))
             }
+            "thread.setPinned" => {
+                let input: SetThreadPinned = parse(request.params)?;
+                validate_id(&input.resource_id)?;
+                let state = self.lock()?;
+                let mut resource = state.store.resource(&input.resource_id)?;
+                if resource.kind != "conversation" {
+                    return Err(JamError::invalid("Only a conversation can be pinned."));
+                }
+                resource.pinned = input.pinned;
+                state.store.save_resource(&resource)?;
+                Ok(json!({ "resource": resource }))
+            }
             "thread.keepOpen" => {
                 let input: KeepThreadOpen = parse(request.params)?;
                 validate_id(&input.resource_id)?;

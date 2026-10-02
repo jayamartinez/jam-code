@@ -834,6 +834,67 @@ async fn archiving_waits_for_the_agent_and_keeps_the_chat_whole_and_searchable()
 }
 
 #[test]
+fn pinning_a_chat_is_explicit_and_durable() {
+    let database = TestDatabase::new();
+    let runtime = database.open();
+    let pin = |runtime: &Arc<Runtime>, id: &str, pinned: bool| {
+        runtime.request(Request {
+            protocol_version: 1,
+            method: "thread.setPinned".into(),
+            params: json!({"resourceId":id,"pinned":pinned}),
+        })
+    };
+    // conv-browser starts unpinned; conv-pane-lifetime is pinned by the fixture.
+    let before = request(&runtime, "workspace.get", json!({}));
+    assert_eq!(resource_in(&before, "conv-browser")["pinned"], json!(false));
+    let pinned = pin(&runtime, "conv-browser", true).unwrap();
+    assert_eq!(pinned["resource"]["pinned"], json!(true));
+    let unpinned = pin(&runtime, "conv-pane-lifetime", false).unwrap();
+    assert_eq!(unpinned["resource"]["pinned"], json!(false));
+    // Nothing else about either chat changes.
+    for field in ["title", "projectId", "sessionId", "updatedAt"] {
+        assert_eq!(
+            pinned["resource"][field],
+            resource_in(&before, "conv-browser")[field]
+        );
+    }
+    // Only conversations are pinned this way.
+    assert_eq!(
+        pin(&runtime, "diff-pane", true).unwrap_err().code,
+        "invalid_request"
+    );
+    assert_eq!(
+        pin(&runtime, "conv-missing", true).unwrap_err().code,
+        "not_found"
+    );
+
+    // Both survive a restart, and the pinned search filter follows them.
+    drop(runtime);
+    let reopened = database.open();
+    let workspace = request(&reopened, "workspace.get", json!({}));
+    assert_eq!(
+        resource_in(&workspace, "conv-browser")["pinned"],
+        json!(true)
+    );
+    assert_eq!(
+        resource_in(&workspace, "conv-pane-lifetime")["pinned"],
+        json!(false)
+    );
+    let found = request(
+        &reopened,
+        "search.query",
+        json!({"query":"PTY","pinned":true}),
+    );
+    assert!(
+        !found["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|result| result["resourceId"] == "conv-pane-lifetime")
+    );
+}
+
+#[test]
 fn pinning_a_project_persists_and_unpinning_clears_it() {
     let database = TestDatabase::new();
     let runtime = database.open();
