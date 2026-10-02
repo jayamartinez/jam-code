@@ -80,6 +80,8 @@ import { SnapshotPreview } from './components/SnapshotPreview';
 import { useSnapshots, snapshotFocus } from './state/snapshots';
 import { archiveBlocked, deleteBlocked, isArchived } from './state/threads';
 import { DeleteChatDialog } from './components/DeleteChatDialog';
+import { AttachmentPreview } from './components/AttachmentPreview';
+import { refusalMessage } from './components/attachment-model';
 import { SettingsPanel } from './components/SettingsPanel';
 import { NewResourceLauncher } from './components/NewResourceLauncher';
 import { NewChat } from './components/NewChat';
@@ -108,6 +110,8 @@ const ReviewResource = lazy(() => import('./components/ReviewResource'));
 const emptyContext: ContextItem[] = [];
 const emptyPaths: string[] = [];
 const emptyAnnotations: BrowserAnnotation[] = [];
+/** Context items one Send may carry; the runtime enforces the same bound. */
+const MAX_CONTEXT = 16;
 type Overlay = 'search' | null;
 /** Set while the New Resource launcher is open; `paneId` targets an empty pane. */
 /** Viewport point the launcher hangs from: the control that opened it. */
@@ -207,6 +211,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
    */
   const [expandedProjects, setExpandedProjects] = useState<string[] | undefined>(undefined);
   const [previewContext, setPreviewContext] = useState<ContextItem | null>(null);
+  /** An attachment opened from a message it was sent with. */
+  const [previewSent, setPreviewSent] = useState<ContextItem | null>(null);
   /** Annotations stacked in each browser, held until staged or cleared. */
   const [browserAnnotations, setBrowserAnnotations] = useState<Record<string, BrowserAnnotation[]>>(
     {},
@@ -642,6 +648,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       delete rest[resourceId];
       return rest;
     };
+    // Files attached to it and never sent have nothing left to be sent with.
+    (context[resourceId] ?? emptyContext).forEach(releaseAttachment);
     setContext(without);
     setPendingOptions(without);
     requests.current.delete(resourceId);
@@ -1058,10 +1066,10 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   async function send(sendId: string) {
     const text = layout.drafts[sendId] ?? '';
     const staged = contextFor(sendId);
-    if (staged.length > 16) {
+    if (staged.length > MAX_CONTEXT) {
       client.reportError(
         new Error(
-          'Send at most 16 context items at once. Remove some snapshots to the inbox first.',
+          `Send at most ${MAX_CONTEXT} context items at once. Remove some attachments, or move snapshots to the inbox.`,
         ),
       );
       return;
@@ -1143,6 +1151,40 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       setBusy(new Set(busyRef.current));
     }
   }
+
+  /**
+   * Attach files: the host's own file chooser, which copies what was chosen
+   * into the runtime and answers with staged context. Nothing is sent.
+   */
+  async function attach(resourceId: string) {
+    if (!desktop.attachFiles) return;
+    const room = MAX_CONTEXT - contextFor(resourceId).length;
+    if (room <= 0) {
+      client.reportError(
+        new Error(`A message carries at most ${MAX_CONTEXT} context items. Remove some first.`),
+      );
+      return;
+    }
+    try {
+      const { attached, refused } = await desktop.attachFiles(room);
+      if (attached.length)
+        setContext((current) => ({
+          ...current,
+          [resourceId]: [...(current[resourceId] ?? emptyContext), ...attached],
+        }));
+      // A file that was not attached is named with its reason, never dropped quietly.
+      if (refused.length) client.reportError(new Error(refusalMessage(refused)));
+    } catch (cause) {
+      client.reportError(cause);
+    }
+  }
+  /** Lets the runtime delete its copy of an attachment that will not be sent. */
+  const releaseAttachment = (item: ContextItem) => {
+    if (item.kind === 'attachment' && item.assetId)
+      void transport.request('attachment.remove', { id: item.assetId }).catch(() => {
+        // The runtime also removes unsent attachments by itself, later.
+      });
+  };
 
   const providerControl = {
     ensure: () => client.ensureProviders(),
@@ -1232,7 +1274,9 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         void transport.request('turn.interrupt', { sessionId }).catch(client.reportError);
     },
     onAddContext: () => setContextTarget(resourceId),
+    ...(desktop.attachFiles ? { onAttach: () => void attach(resourceId) } : {}),
     onPreviewContext: setPreviewContext,
+    onPreviewSent: setPreviewSent,
     onRemoveContext: (id: string) => {
       const snapshot = snapshots.snapshots.find((s) => s.id === id);
       if (snapshot) {
@@ -1242,6 +1286,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
           .catch(client.reportError);
         return;
       }
+      const removed = (context[resourceId] ?? emptyContext).find((item) => item.id === id);
+      if (removed) releaseAttachment(removed);
       setContext((current) => ({
         ...current,
         [resourceId]: (current[resourceId] ?? emptyContext).filter((item) => item.id !== id),
@@ -1973,7 +2019,27 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             />
           </Dialog>
         )}
-        {previewContext && previewContext.kind !== 'snapshot' && (
+        {(previewSent ?? (previewContext?.kind === 'attachment' ? previewContext : null)) && (
+          <Dialog
+            title="Attachment"
+            className="context-dialog snapshot-preview-dialog"
+            onClose={() => {
+              setPreviewSent(null);
+              setPreviewContext(null);
+            }}
+          >
+            <AttachmentPreview
+              item={(previewSent ?? previewContext)!}
+              sent={!!previewSent}
+              transport={transport}
+              onClose={() => {
+                setPreviewSent(null);
+                setPreviewContext(null);
+              }}
+            />
+          </Dialog>
+        )}
+        {previewContext && !['snapshot', 'attachment'].includes(previewContext.kind) && (
           <Dialog
             title="Context preview"
             className="context-dialog"

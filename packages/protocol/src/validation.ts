@@ -349,12 +349,22 @@ const context: Check = (value) =>
         'terminal',
         'message',
         'snapshot',
+        'attachment',
       ),
       label: text(512),
       source: (source) =>
         shape(source, {}, { resourceId: id, uri: text(4096), selection: text(20_000) }),
     },
-    { assetId: id },
+    {
+      assetId: id,
+      attachment: (value) =>
+        shape(value, {
+          name: text(512),
+          mediaType: text(128),
+          kind: oneOf('file', 'image'),
+          bytes: integer,
+        }),
+    },
   );
 
 const fileChange: Check = (value) =>
@@ -749,6 +759,8 @@ const params: Record<RequestMethod, Check> = {
       { providerId, options: optionMap, workspace: newWorkspace, requestId: id },
     ),
   'conversation.delete': (value) => shape(value, { resourceId: id }),
+  'attachment.remove': (value) => shape(value, { id }),
+  'attachment.asset': (value) => shape(value, { id }),
   'session.compact': (value) => shape(value, { resourceId: id, requestId: id }),
   'provider.list': (value) => shape(value, {}, { refresh: boolean }),
   'provider.configure': (value) =>
@@ -891,6 +903,17 @@ const responses: Record<RequestMethod, Check> = {
   'conversation.get': conversation,
   'conversation.create': (value) => shape(value, { resource, session, conversation }, { worktree }),
   'conversation.delete': (value) => shape(value, { resourceId: id }),
+  'attachment.remove': accepted,
+  'attachment.asset': (value) =>
+    shape(value, {
+      dataUrl: (data) => {
+        // The largest attachment, as base64.
+        text(8_000_000)(data);
+        // Only the raster types the runtime imports; never SVG or HTML.
+        if (!/^data:image\/(?:png|jpeg|gif|webp);base64,/.test(data as string))
+          invalid('Invalid attachment image.');
+      },
+    }),
   'turn.start': (value) => shape(value, { accepted: oneOf(true), sessionId: id, requestId: id }),
   'session.compact': (value) =>
     shape(value, { accepted: oneOf(true), sessionId: id, requestId: id }),
