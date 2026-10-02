@@ -10,7 +10,7 @@ import {
   type CustomTheme,
 } from '@jam/protocol';
 import { themeFor } from './custom';
-import { alpha, mix } from './color';
+import { alpha, fromHsl, luminance, mix, toHsl } from './color';
 import type { WallpaperPalette } from './palette';
 import {
   ANSI_ROLES,
@@ -116,30 +116,52 @@ function matchesImage(appearance: AppearanceSettings, wallpaper: WallpaperContex
   );
 }
 
+/** How much of the image tone's saturation a surface takes. */
+const MATCH_SATURATION = 0.75;
+
 /**
- * The theme with its grounds and surfaces pulled towards the wallpaper's own
- * dark (or light) tone. Text, code and status colours are untouched, so the
- * contrast floors still hold.
+ * A surface colour given the image tone's hue, at its own luminance. Keeping
+ * the luminance is what keeps every text role's contrast on it: only the
+ * colour of the surface changes, not how light it is.
+ */
+function recolour(hex: string, tone: string): string {
+  // A role written as something other than a hex colour is only nudged.
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) return mix(hex, tone, 0.3);
+  const [hue, saturation] = toHsl(tone);
+  const target = luminance(hex);
+  let low = 0;
+  let high = 1;
+  for (let step = 0; step < 16; step++) {
+    const lightness = (low + high) / 2;
+    if (luminance(fromHsl(hue, saturation * MATCH_SATURATION, lightness)) < target) low = lightness;
+    else high = lightness;
+  }
+  return fromHsl(hue, saturation * MATCH_SATURATION, (low + high) / 2);
+}
+
+/**
+ * The theme with its grounds and surfaces in the wallpaper's own dark (or
+ * light) tone: the canvas, the sidebar, raised surfaces and the rest take the
+ * image's colour and keep their own lightness. Text, code and status colours
+ * are untouched, so the contrast floors still hold.
  */
 function tintedTheme(theme: ThemeDefinition, palette: WallpaperPalette): ThemeDefinition {
-  const ground = theme.scheme === 'dark' ? palette.groundDark : palette.groundLight;
-  const tint = (hex: string, amount = 0.3) => mix(hex, ground, amount);
-  const surface = ([hex, own]: [string, number]): [string, number] => [tint(hex), own];
+  const tone = theme.scheme === 'dark' ? palette.groundDark : palette.groundLight;
+  const surface = ([hex, own]: [string, number]): [string, number] => [recolour(hex, tone), own];
   return {
     ...theme,
-    base: tint(theme.base, 0.45),
+    base: recolour(theme.base, tone),
     surfaces: {
       sidebar: surface(theme.surfaces.sidebar),
       pane: surface(theme.surfaces.pane),
       paneMuted: surface(theme.surfaces.paneMuted),
       terminal: surface(theme.surfaces.terminal),
     },
-    raised: tint(theme.raised, 0.22),
-    overlay: tint(theme.overlay, 0.22),
-    badgeRing: tint(theme.badgeRing),
+    raised: recolour(theme.raised, tone),
+    overlay: recolour(theme.overlay, tone),
+    badgeRing: recolour(theme.badgeRing, tone),
   };
 }
-
 export function themeOf(appearance: AppearanceSettings): ThemeDefinition {
   return themeFor(appearance.theme, appearance.customThemes);
 }

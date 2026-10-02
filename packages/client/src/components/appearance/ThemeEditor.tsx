@@ -226,7 +226,13 @@ export function ThemeEditor({
             </Card>
           ) : (
             <>
-              <Section label="Surfaces">
+              <Section
+                label="Surfaces"
+                {...(appearance.autoColors &&
+                  appearance.background === 'image' && {
+                    hint: 'Recoloured by the image while Match colours to image is on',
+                  })}
+              >
                 <Card>
                   {SURFACES.map(({ role, label, sub }) => (
                     <Row key={role} title={label} sub={sub}>
