@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { iconKeyForFile, iconKeyForFolder } from './classify';
 
 describe('file icon classification', () => {
-  it('recognises the types the tree needs to distinguish', () => {
+  it('recognizes the types the tree needs to distinguish', () => {
     expect(iconKeyForFile('src/app.ts')).toBe('typescript');
     expect(iconKeyForFile('src/App.tsx')).toBe('tsx');
     expect(iconKeyForFile('a/b.js')).toBe('javascript');

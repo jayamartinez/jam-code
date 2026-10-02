@@ -685,7 +685,7 @@ const gitDiff: Check = (value) =>
     ),
   });
 const hexColor: Check = (value) => {
-  if (typeof value !== 'string' || !HEX_COLOR.test(value)) invalid('Expected a #rrggbb colour.');
+  if (typeof value !== 'string' || !HEX_COLOR.test(value)) invalid('Expected a #rrggbb color.');
 };
 const fontFamily: Check = (value) => {
   text(APPEARANCE.limits.fontUtf16, true)(value);

@@ -16,7 +16,7 @@
  * Images are stricter: only inline raster `data:` images load. Remote images
  * are not fetched (they would load from the reader's machine, which is how
  * tracking pixels work, and the content policy blocks them anyway) and
- * project images wait for a binary file service; both render as a labelled
+ * project images wait for a binary file service; both render as a labeled
  * placeholder.
  */
 

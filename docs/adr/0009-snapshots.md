@@ -84,7 +84,7 @@ no region/full-screen capture or shortcut recorder, no bring-to-front-on-capture
 setting. The compact inbox in Snapshot settings exposes otherwise orphaned captures.
 The Settings v2 Snapshots page (`settings/pages/SnapshotsPage.tsx`) drives these
 settings through the protocol transport and the injected `SnapshotHost`; choices the
-host cannot honour yet (sound choice, other shortcuts, region/full screen,
+host cannot honor yet (sound choice, other shortcuts, region/full screen,
 bring-to-front) stay visible and marked planned.
 
 ## Storage, retention and privacy

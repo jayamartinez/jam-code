@@ -4,9 +4,9 @@ import { tagHighlighter, tags } from '@lezer/highlight';
  * JAM's code highlighter.
  *
  * Grammar tags map to semantic classes (`syntax-keyword`, `syntax-string`…),
- * and `styles/code.css` colours each class from the theme's `--syntax-*`
+ * and `styles/code.css` colors each class from the theme's `--syntax-*`
  * role. The same highlighter drives the CodeMirror editor and fenced code in
- * the Markdown preview, so a keyword is the same colour everywhere and a theme
+ * the Markdown preview, so a keyword is the same color everywhere and a theme
  * change needs no JavaScript at all.
  */
 export const jamHighlighter = tagHighlighter([
@@ -112,7 +112,7 @@ export const jamHighlighter = tagHighlighter([
   { tag: tags.strikethrough, class: 'syntax-strikethrough' },
   { tag: tags.quote, class: 'syntax-quote' },
   // Markdown's #, *, -, > and ``` marks, and horizontal rules. `tags.list`
-  // covers a whole list item, so it is deliberately left uncoloured.
+  // covers a whole list item, so it is deliberately left uncolored.
   { tag: [tags.processingInstruction, tags.contentSeparator], class: 'syntax-marker' },
   { tag: tags.inserted, class: 'syntax-inserted' },
   { tag: tags.deleted, class: 'syntax-deleted' },

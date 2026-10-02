@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 /**
- * Client-owned reader preferences that describe behaviour in this browser
+ * Client-owned reader preferences that describe behavior in this browser
  * profile. Appearance is not here: it is a runtime setting (see `appearance/`).
  */
 

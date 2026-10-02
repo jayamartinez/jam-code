@@ -98,8 +98,8 @@ pub struct Appearance {
     pub custom_themes: Vec<CustomTheme>,
 }
 
-/// A theme the reader made or imported: anchor colours for a dark variant, a
-/// light one, or both. The runtime checks its shape and never derives colours.
+/// A theme the reader made or imported: anchor colors for a dark variant, a
+/// light one, or both. The runtime checks its shape and never derives colors.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CustomTheme {
@@ -200,12 +200,12 @@ impl CustomTheme {
                 "A custom theme needs a dark or a light variant.",
             ));
         }
-        let complete = |colours: &std::collections::BTreeMap<String, String>| {
-            colours.len() == fixture.custom_theme_roles.len()
+        let complete = |colors: &std::collections::BTreeMap<String, String>| {
+            colors.len() == fixture.custom_theme_roles.len()
                 && fixture
                     .custom_theme_roles
                     .iter()
-                    .all(|role| colours.get(role).is_some_and(|colour| is_hex_color(colour)))
+                    .all(|role| colors.get(role).is_some_and(|color| is_hex_color(color)))
         };
         if ![&self.dark, &self.light]
             .into_iter()
@@ -279,7 +279,7 @@ impl Appearance {
         .iter()
         .all(|color| is_hex_color(color))
         {
-            return Err(JamError::invalid("Colours must be #rrggbb."));
+            return Err(JamError::invalid("Colors must be #rrggbb."));
         }
         if ![&self.ui_font, &self.code_font, &self.terminal_font]
             .iter()
@@ -386,7 +386,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_unknown_names_colours_fonts_and_ranges() {
+    fn rejects_unknown_names_colors_fonts_and_ranges() {
         assert!(appearance(json!({ "theme": "neon" })).is_err());
         assert!(appearance(json!({ "accent": "chartreuse" })).is_err());
         assert!(appearance(json!({ "background": "video" })).is_err());
@@ -426,7 +426,7 @@ mod tests {
         assert!(Appearance::from_stored(json!([])).is_none());
     }
 
-    fn colours(value: &str) -> serde_json::Value {
+    fn colors(value: &str) -> serde_json::Value {
         let roles: Vec<String> = serde_json::from_value(
             serde_json::from_str::<serde_json::Value>(include_str!(
                 "../../../packages/protocol/fixtures/appearance.json"
@@ -440,7 +440,7 @@ mod tests {
 
     #[test]
     fn custom_themes_are_bounded_and_the_active_one_must_exist() {
-        let harbour = json!({ "id": "harbour", "name": "Harbour", "dark": colours("#336699") });
+        let harbour = json!({ "id": "harbour", "name": "Harbour", "dark": colors("#336699") });
         assert!(appearance(json!({ "customThemes": [harbour.clone()] })).is_ok());
         assert!(
             appearance(
@@ -466,12 +466,12 @@ mod tests {
         assert!(with("name", json!("line\nbreak")).is_err());
         assert!(with("name", json!("a".repeat(49))).is_err());
         assert!(with("dark", json!({ "canvas": "#000000" })).is_err());
-        let mut short = colours("#000000");
+        let mut short = colors("#000000");
         short["canvas"] = json!("red");
         assert!(with("dark", short).is_err());
         assert!(appearance(json!({ "customThemes": [{ "id": "a", "name": "A" }] })).is_err());
         let many: Vec<_> = (0..33)
-            .map(|index| json!({ "id": format!("t{index}"), "name": "T", "light": colours("#eeeeee") }))
+            .map(|index| json!({ "id": format!("t{index}"), "name": "T", "light": colors("#eeeeee") }))
             .collect();
         assert!(appearance(json!({ "customThemes": many })).is_err());
     }

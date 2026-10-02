@@ -7,7 +7,7 @@
   background-color: var(--color-bg-base);
 }
 /*
- * The wallpaper layer: the theme's glow, a solid colour, a gradient or an
+ * The wallpaper layer: the theme's glow, a solid color, a gradient or an
  * image, from Settings → Appearance. Brightness, saturation and blur filter
  * this layer only, never panes or text.
  */
@@ -401,7 +401,7 @@ button.thread-group-label {
   object-fit: cover;
   display: block;
 }
-/* Tones: one colour role each, a soft tint behind, the full colour in front. */
+/* Tones: one color role each, a soft tint behind, the full color in front. */
 .project-badge.tone-blue,
 .tone-swatch.tone-blue,
 .icon-choice.tone-blue {
@@ -529,7 +529,7 @@ button.thread-group-label {
 /*
  * Icon slots.
  *
- * The slot is a fixed square; the artwork inside it is centred and never
+ * The slot is a fixed square; the artwork inside it is centered and never
  * participates in layout. A provider mark therefore cannot set a row's height
  * or push its text, however its own paths are shaped.
  */
@@ -673,7 +673,7 @@ button.thread-group-label {
 .resource-tabs.reordering {
   cursor: grabbing;
 }
-/* The dragged tab rides the pointer; its neighbours slide to make room. */
+/* The dragged tab rides the pointer; its neighbors slide to make room. */
 .resource-tab.dragging {
   position: relative;
   z-index: 2;

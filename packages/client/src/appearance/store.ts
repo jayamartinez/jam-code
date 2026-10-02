@@ -21,7 +21,7 @@ import { paletteFromImage, type WallpaperPalette } from './palette';
 export interface AppearanceSnapshot {
   appearance: AppearanceSettings;
   wallpaper?: Wallpaper;
-  /** Colours sampled from the wallpaper, for "Match colours to image". Not stored. */
+  /** Colors sampled from the wallpaper, for "Match colors to image". Not stored. */
   palette?: WallpaperPalette;
   /** The runtime's record has been read (or failed to be). */
   loaded: boolean;
@@ -88,14 +88,14 @@ export class AppearanceStore {
     this.listeners.forEach((listener) => listener());
   }
 
-  /** Samples a wallpaper's colours once, off the change path. */
+  /** Samples a wallpaper's colors once, off the change path. */
   private async sample(wallpaper: Wallpaper | undefined) {
     if (!wallpaper) return;
     try {
       const palette = await paletteFromImage(wallpaper.dataUrl);
       if (palette && this.snapshot.wallpaper === wallpaper) this.set({ palette });
     } catch {
-      // Without a palette, "Match colours to image" keeps the theme's colours.
+      // Without a palette, "Match colors to image" keeps the theme's colors.
     }
   }
 

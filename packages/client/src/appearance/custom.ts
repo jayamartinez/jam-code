@@ -12,9 +12,9 @@ import { THEMES, type Scheme, type ThemeDefinition } from './themes';
 /**
  * The reader's own themes.
  *
- * A custom theme stores only anchor colours; it is drawn by the same builder
+ * A custom theme stores only anchor colors; it is drawn by the same builder
  * as JAM's editor-style themes, so every derived role and every contrast
- * floor is the same as for a built-in. A colour that is too faint is raised
+ * floor is the same as for a built-in. A color that is too faint is raised
  * when the theme is drawn, never rewritten in the stored record.
  */
 
@@ -70,7 +70,7 @@ export function themeFor(ref: ThemeRef, customThemes: readonly CustomTheme[]): T
 }
 
 /** A theme's anchors, read back from its drawn roles: where a new theme starts. */
-export function coloursFromDefinition(theme: ThemeDefinition): CustomThemeColors {
+export function colorsFromDefinition(theme: ThemeDefinition): CustomThemeColors {
   return {
     canvas: theme.surfaces.pane[0],
     sidebar: theme.surfaces.sidebar[0],

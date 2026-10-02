@@ -57,14 +57,14 @@ export function WorkspaceTitlebar({
     from: number;
     over: number;
     dx: number;
-    /** Distance a displaced neighbour slides: the dragged tab plus the gap. */
+    /** Distance a displaced neighbor slides: the dragged tab plus the gap. */
     step: number;
   } | null>(null);
 
   /**
    * Browser-style reordering. A press selects only if it is released without
    * moving; once it moves past a small threshold it becomes a drag, the tab
-   * follows the pointer and its neighbours slide aside to show where it will
+   * follows the pointer and its neighbors slide aside to show where it will
    * land. It is pointer-driven rather than HTML5 drag-and-drop, which would
    * hand the tab to the operating system as an item droppable into other apps.
    */
@@ -98,8 +98,8 @@ export function WorkspaceTitlebar({
         if (!moved && Math.abs(dx) < 5) return;
         moved = true;
         suppressClick.current = true;
-        const centre = own.left + own.width / 2 + dx;
-        over = midpoints.filter((mid, i) => i !== index && mid < centre).length;
+        const center = own.left + own.width / 2 + dx;
+        over = midpoints.filter((mid, i) => i !== index && mid < center).length;
         setDrag({ from: index, over, dx, step: own.width + gap });
       };
       const onUp = () => {
@@ -281,7 +281,7 @@ export function WorkspaceTitlebar({
         onDoubleClick={() => void desktop.toggleMaximize()}
       />
       {/* Only the browser preview and an explicit demo database (JAM_DEMO=1)
-          carry the demo provider; a user's own workspace is never labelled. */}
+          carry the demo provider; a user's own workspace is never labeled. */}
       {(desktop.platform === 'web' ||
         workspace.providers.some((provider) => provider.id === 'mock')) && (
         <span

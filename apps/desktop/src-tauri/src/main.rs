@@ -91,7 +91,7 @@ fn main() {
             // `traffic_light_position.y` is not "distance from the top": the
             // titlebar container becomes `button height + y` and the buttons
             // keep their own offset inside it. Measured on screen, y = 16
-            // centred the lights at ~15pt; JAM's 44pt titlebar row is centred
+            // centered the lights at ~15pt; JAM's 44pt titlebar row is centered
             // at 22pt, so y = 23 aligns them with the tab row and the sidebar
             // header controls. x = 18 is the design's left inset.
             //

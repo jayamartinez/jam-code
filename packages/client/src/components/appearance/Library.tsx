@@ -4,7 +4,7 @@ import {
   LIBRARY_GROUPS,
   preferredVariant,
   searchLibrary,
-  specimenColours,
+  specimenColors,
   type LibraryFamily,
   type LibraryGroup,
   type LibraryVariant,
@@ -15,12 +15,12 @@ import type { Scheme } from '../../appearance/themes';
 /**
  * The theme library: JAM's themes, the reader's own and the editor-style
  * families, each group collapsible to one line of chips. Every card is a
- * specimen drawn in the theme's own colours; each pane in it is one variant
+ * specimen drawn in the theme's own colors; each pane in it is one variant
  * and choosing it applies that variant. Search lists variants one by one.
  */
 
 function paneStyle(variant: LibraryVariant): CSSProperties {
-  const c = specimenColours(variant.theme);
+  const c = specimenColors(variant.theme);
   return {
     '--s-canvas': c.canvas,
     '--s-sidebar': c.sidebar,

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { MenuSelect } from '../MenuSelect';
 
 /**
- * The Settings v2 vocabulary, shared by every page: a page header, labelled
+ * The Settings v2 vocabulary, shared by every page: a page header, labeled
  * sections holding raised cards of rows, and the few controls rows use. Pages
  * compose these and add one distinctive element of their own; they should not
  * restyle the pieces.
@@ -157,7 +157,7 @@ export function Select<T extends string>({
   );
 }
 
-/** Marks behaviour JAM does not have yet. Controls beside it are disabled, never simulated. */
+/** Marks behavior JAM does not have yet. Controls beside it are disabled, never simulated. */
 export function Planned({ children = 'Planned' }: { children?: ReactNode }) {
   return <span className="sv-chip planned">{children}</span>;
 }
@@ -166,7 +166,7 @@ export function Chip({ children, tone }: { children: ReactNode; tone?: 'success'
   return <span className={`sv-chip ${tone ?? ''}`}>{children}</span>;
 }
 
-/** Mac keys drawn as icons: the font's arrows sit small and off-centre in a cap. */
+/** Mac keys drawn as icons: the font's arrows sit small and off-center in a cap. */
 const KEY_ICONS: Record<string, { Icon: typeof ArrowBigUp; name: string }> = {
   '⇧': { Icon: ArrowBigUp, name: 'Shift' },
   '↵': { Icon: CornerDownLeft, name: 'Return' },

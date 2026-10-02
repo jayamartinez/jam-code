@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { fileReference, lineFromHash } from './file-refs';
 
 describe('fileReference', () => {
-  it('recognises project files with an optional line', () => {
+  it('recognizes project files with an optional line', () => {
     expect(fileReference('src/math.ts')).toEqual({ path: 'src/math.ts' });
     expect(fileReference('math.test.ts:18')).toEqual({ path: 'math.test.ts', line: 18 });
     expect(fileReference('./crates/runtime/src/turns.rs:210:4')).toEqual({

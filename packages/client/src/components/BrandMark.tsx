@@ -2,7 +2,7 @@ import { useId } from 'react';
 
 /*
  * The jam app mark, drawn from the canonical 512-unit master (Paper's
- * "Brand · jam" board). It is artwork, not themed chrome: its colours are the
+ * "Brand · jam" board). It is artwork, not themed chrome: its colors are the
  * Nightglass backdrop glows baked into the logo, so it keeps them under every
  * theme, as the app icon does.
  */

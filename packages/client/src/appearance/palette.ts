@@ -1,7 +1,7 @@
 import { fromHsl, toHex, toHsl, type Rgb } from './color';
 
 /**
- * Colours taken from a wallpaper, for "Match colours to image".
+ * Colors taken from a wallpaper, for "Match colors to image".
  *
  * The image is sampled once at a few dozen pixels a side, so extraction is a
  * few thousand pixels of arithmetic whatever the wallpaper's size. The accent

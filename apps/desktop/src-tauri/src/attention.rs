@@ -96,7 +96,7 @@ fn shrink(base: &Image<'_>, size: u32) -> Image<'static> {
                 x * width / size,
                 ((x + 1) * width / size).max(x * width / size + 1),
             );
-            // Colour is weighted by alpha so transparent edges don't darken it.
+            // Color is weighted by alpha so transparent edges don't darken it.
             let mut sums = [0u64; 4];
             for sy in top..bottom {
                 for sx in left..right {

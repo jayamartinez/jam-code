@@ -35,7 +35,7 @@ export interface ProjectIcon {
   kind: 'initials' | 'preset' | 'emoji' | 'image';
   /** Preset name, emoji, or an image data URL the client already squared. */
   value?: string;
-  /** Colour role for a preset or the initials. */
+  /** Color role for a preset or the initials. */
   tone?: string;
 }
 

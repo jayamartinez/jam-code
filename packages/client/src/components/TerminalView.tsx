@@ -54,7 +54,7 @@ async function applyTypography(term: Terminal, element: HTMLElement, isDisposed:
   }
 }
 
-/** Reads a colour role from the pane and normalizes it for xterm. */
+/** Reads a color role from the pane and normalizes it for xterm. */
 function resolveColor(probe: HTMLElement, role: string): string | undefined {
   probe.style.color = `var(${role})`;
   const value = getComputedStyle(probe).color.trim();
@@ -258,15 +258,15 @@ export default function TerminalView({
     };
   }, [mac, resourceId, transport]);
 
-  // Appearance changes update the live terminal in place: colours are re-read
+  // Appearance changes update the live terminal in place: colors are re-read
   // from the pane's roles, and a typography change re-measures and re-fits.
   // The terminal, its scrollback and its connection are never recreated.
   const typography = `${appearance.terminalFont}|${appearance.codeFont}|${appearance.terminalFontSize}|${appearance.terminalLineHeight}`;
-  const colours = `${appearance.theme}|${appearance.accent}|${appearance.customAccent}`;
+  const colors = `${appearance.theme}|${appearance.accent}|${appearance.customAccent}`;
   useEffect(() => {
     const term = terminal.current;
     if (term && host.current) term.options.theme = themeFrom(host.current);
-  }, [colours]);
+  }, [colors]);
   useEffect(() => {
     refit.current?.();
   }, [typography]);

@@ -53,7 +53,7 @@ pub struct ProjectIcon {
     /// A preset name, an emoji, or an image data URL the client already squared.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
-    /// Colour role for a preset or the initials.
+    /// Color role for a preset or the initials.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tone: Option<String>,
 }

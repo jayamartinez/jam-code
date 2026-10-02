@@ -1,7 +1,7 @@
 /*
  * Code and Markdown.
  *
- * `code/highlight.ts` gives every token a semantic class; these rules colour
+ * `code/highlight.ts` gives every token a semantic class; these rules color
  * the classes from the theme's `--syntax-*` roles. The editor, fenced code in
  * the Markdown preview and the Appearance preview all use them, so a theme is
  * one set of values and code looks the same wherever it appears.
@@ -96,7 +96,7 @@
 .syntax-invalid {
   color: var(--color-danger);
 }
-/* Terminal colour roles, for previews drawn outside xterm. */
+/* Terminal color roles, for previews drawn outside xterm. */
 .ansi-green {
   color: var(--color-ansi-green);
 }
@@ -135,8 +135,8 @@
 /*
  * The rendered Markdown document. Long-form reading: the interface font at
  * body size on a 700px measure (the Single conversation column), generous
- * block rhythm, headings by weight and size rather than colour, and code in
- * the reader's code font on the raised surface. Every colour is a role.
+ * block rhythm, headings by weight and size rather than color, and code in
+ * the reader's code font on the raised surface. Every color is a role.
  */
 .markdown-scroll {
   flex: 1;

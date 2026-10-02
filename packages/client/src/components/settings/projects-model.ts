@@ -33,7 +33,7 @@ export function iconDraft(icon?: ProjectIcon): IconDraft {
 /**
  * The icon a draft describes, or null while it is incomplete (an emoji or an
  * image not chosen yet). Initials in the default tone carry no tone, matching
- * what the runtime stores for a project that was never customised.
+ * what the runtime stores for a project that was never customized.
  */
 export function buildIcon(draft: IconDraft): ProjectIcon | null {
   switch (draft.kind) {

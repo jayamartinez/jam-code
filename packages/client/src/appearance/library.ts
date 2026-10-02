@@ -4,7 +4,7 @@ import { JAM_THEMES, THEMES, type ThemeDefinition } from './themes';
 
 /**
  * The theme library as data: families grouped into JAM, Yours and Editor
- * themes, the search over them, and the colours a specimen card draws. All
+ * themes, the search over them, and the colors a specimen card draws. All
  * pure, so Settings renders what these return and tests read the same thing.
  */
 
@@ -102,7 +102,7 @@ export function searchLibrary(families: readonly LibraryFamily[], query: string)
   return hits;
 }
 
-export interface SpecimenColours {
+export interface SpecimenColors {
   canvas: string;
   sidebar: string;
   rule: string;
@@ -119,7 +119,7 @@ export interface SpecimenColours {
 }
 
 /** What a specimen card draws for one variant: the theme's own roles, never approximations. */
-export function specimenColours(theme: ThemeDefinition): SpecimenColours {
+export function specimenColors(theme: ThemeDefinition): SpecimenColors {
   return {
     canvas: theme.surfaces.pane[0],
     sidebar: theme.surfaces.sidebar[0],

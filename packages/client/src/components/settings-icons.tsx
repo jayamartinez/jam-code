@@ -8,7 +8,7 @@ import type { ReactNode } from 'react';
  * places them. Strokes are 1.3 units for glyph lines and 1.2 for the large
  * enclosing shapes (globe, terminal frame, keyboard, drum, info circle), an
  * optical correction Paper makes so a full outline does not read heavier than
- * a short stroke. Colour comes from `currentColor`, so the row decides muted
+ * a short stroke. Color comes from `currentColor`, so the row decides muted
  * versus accent and no icon carries its own state.
  */
 

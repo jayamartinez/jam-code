@@ -7,7 +7,7 @@ import { appearanceTokens, normalizeAppearance, tokenStylesheet } from './resolv
  *
  * Tokens go into one `<style>` element, so a theme change is one style
  * recalculation rather than a hundred `setProperty` calls, and no component
- * re-renders to change colour. The wallpaper image is set separately and only
+ * re-renders to change color. The wallpaper image is set separately and only
  * when it changes, so moving a slider never re-parses image data.
  */
 

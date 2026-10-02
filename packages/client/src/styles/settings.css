@@ -1,6 +1,6 @@
 /*
  * Settings v2: the shared page grammar from the Paper "Settings v2" frames.
- * A page is a header, then labelled sections of raised cards whose rows put
+ * A page is a header, then labeled sections of raised cards whose rows put
  * text left and a control right. Page-specific pieces live in their own files
  * and build on these classes rather than restyling them.
  */

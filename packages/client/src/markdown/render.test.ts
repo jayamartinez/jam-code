@@ -214,7 +214,7 @@ describe('file links in agent replies', () => {
   });
 });
 
-describe('inline code a caller recognises', () => {
+describe('inline code a caller recognizes', () => {
   const render = (source: string) =>
     renderToStaticMarkup(
       createElement(

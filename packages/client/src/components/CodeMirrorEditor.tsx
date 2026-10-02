@@ -19,8 +19,8 @@ import { themeOf } from '../appearance/resolve';
  *
  * This module is only imported by a File pane that is actually being rendered,
  * so a hidden or merely open file never constructs an editor. Language modes
- * load on demand, one chunk per language. Colours are semantic classes from
- * `jamHighlighter`, coloured by the theme's `--syntax-*` roles in code.css, so
+ * load on demand, one chunk per language. Colors are semantic classes from
+ * `jamHighlighter`, colored by the theme's `--syntax-*` roles in code.css, so
  * a theme change restyles the editor without reconfiguring it.
  */
 
@@ -117,7 +117,7 @@ export default function CodeMirrorEditor({
       highlightActiveLineGutter(),
       syntaxHighlighting(jamHighlighter),
       // Light or dark only changes CodeMirror's own defaults (e.g. the
-      // search panel); every colour JAM draws comes from the theme's roles.
+      // search panel); every color JAM draws comes from the theme's roles.
       schemeSlot.current.of(EditorView.darkTheme.of(darkRef.current)),
       keymap.of([
         {

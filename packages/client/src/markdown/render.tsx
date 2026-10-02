@@ -15,7 +15,7 @@ import { fileReference, lineFromHash, type FileReference } from './file-refs';
  * markdown-it parses CommonMark plus GitHub tables and strikethrough with raw
  * HTML disabled, so `<script>`, `<iframe>` or `onerror=` in a README is shown
  * as the text it is. Its token stream is then turned into React elements
- * here, one allowed element per token type; anything unrecognised becomes
+ * here, one allowed element per token type; anything unrecognized becomes
  * text. Nothing is ever assigned to `innerHTML`, attributes are never copied
  * from the source, and every link and image goes through `links.ts`.
  */
@@ -29,7 +29,7 @@ const parser = new MarkdownIt('default', {
 // destination parse means a refused link still shows its label, not raw syntax.
 parser.validateLink = () => true;
 
-/** Rendering stops beyond this many characters; the rest is summarised. */
+/** Rendering stops beyond this many characters; the rest is summarized. */
 export const MARKDOWN_LIMIT = 1_000_000;
 const FRONTMATTER = /^---\r?\n([\s\S]{0,8000}?)\r?\n---\r?\n/;
 const TASK = /^\[([ xX])\][ \t]/;

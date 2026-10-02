@@ -11,7 +11,7 @@ export interface FileLinkActions {
 
 /**
  * A project file named in a chat (Paper, "11 · File links"): a file icon,
- * link colour and an underline so it reads as clickable; on hover the icon
+ * link color and an underline so it reads as clickable; on hover the icon
  * becomes an arrow. Hover never changes its size. Click opens it beside the
  * chat; right-click offers more.
  */

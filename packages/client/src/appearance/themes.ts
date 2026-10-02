@@ -6,7 +6,7 @@ import { EDITOR_THEMES } from './palettes';
  * JAM's built-in themes.
  *
  * A theme is a set of values for the semantic roles in `styles/tokens.css`,
- * never a set of component colours. Components read roles such as
+ * never a set of component colors. Components read roles such as
  * `--color-surface-pane` or `--syntax-keyword`; switching theme only remaps
  * them. Nightglass reproduces the Paper tokens exactly; Graphite and Tide
  * follow Paper's "Same components, remapped tokens" frame; OLED, Frost and
@@ -15,7 +15,7 @@ import { EDITOR_THEMES } from './palettes';
 
 export type Scheme = 'dark' | 'light';
 
-/** Highlight categories shared by CodeMirror, fenced code in Markdown and anything else that colours code. */
+/** Highlight categories shared by CodeMirror, fenced code in Markdown and anything else that colors code. */
 export const SYNTAX_ROLES = [
   'keyword',
   'string',
@@ -79,7 +79,7 @@ export interface ThemeDefinition {
   note: string;
   scheme: Scheme;
   base: string;
-  /** Opaque colours of the translucent surfaces, with their default opacity in percent. */
+  /** Opaque colors of the translucent surfaces, with their default opacity in percent. */
   surfaces: {
     sidebar: [string, number];
     pane: [string, number];
@@ -127,7 +127,7 @@ const NIGHTGLASS_TEXT: Text = {
 /** The dark ANSI mapping JAM has always used: status roles and text steps. */
 function darkAnsi(
   text: Text,
-  colours: {
+  colors: {
     red: string;
     green: string;
     yellow: string;
@@ -141,21 +141,21 @@ function darkAnsi(
 ): Record<AnsiRole, string> {
   return {
     black: text.ghost,
-    red: colours.red,
-    green: colours.green,
-    yellow: colours.yellow,
-    blue: colours.blue,
-    magenta: colours.magenta,
-    cyan: colours.cyan,
+    red: colors.red,
+    green: colors.green,
+    yellow: colors.yellow,
+    blue: colors.blue,
+    magenta: colors.magenta,
+    cyan: colors.cyan,
     white: text.secondary,
     // Dim text such as shell suggestions uses bright black, so it stays legible.
     'bright-black': text.subtle,
-    'bright-red': colours.brightRed,
-    'bright-green': colours.brightGreen,
-    'bright-yellow': mix(colours.yellow, text.strong, 0.38),
-    'bright-blue': colours.brightBlue,
-    'bright-magenta': mix(colours.magenta, text.strong, 0.38),
-    'bright-cyan': mix(colours.cyan, text.strong, 0.38),
+    'bright-red': colors.brightRed,
+    'bright-green': colors.brightGreen,
+    'bright-yellow': mix(colors.yellow, text.strong, 0.38),
+    'bright-blue': colors.brightBlue,
+    'bright-magenta': mix(colors.magenta, text.strong, 0.38),
+    'bright-cyan': mix(colors.cyan, text.strong, 0.38),
     'bright-white': text.strong,
   };
 }
@@ -471,10 +471,10 @@ const FROST_TEXT: Text = {
   ghost: '#b3b8c3',
 };
 
-/** Light ANSI: dark text steps for black/white so every colour reads on a pale pane. */
+/** Light ANSI: dark text steps for black/white so every color reads on a pale pane. */
 function lightAnsi(
   text: Text,
-  colours: {
+  colors: {
     red: string;
     green: string;
     yellow: string;
@@ -485,20 +485,20 @@ function lightAnsi(
 ): Record<AnsiRole, string> {
   return {
     black: text.strong,
-    red: colours.red,
-    green: colours.green,
-    yellow: colours.yellow,
-    blue: colours.blue,
-    magenta: colours.magenta,
-    cyan: colours.cyan,
+    red: colors.red,
+    green: colors.green,
+    yellow: colors.yellow,
+    blue: colors.blue,
+    magenta: colors.magenta,
+    cyan: colors.cyan,
     white: text.faint,
     'bright-black': text.subtle,
-    'bright-red': mix(colours.red, text.strong, 0.25),
-    'bright-green': mix(colours.green, text.strong, 0.25),
-    'bright-yellow': mix(colours.yellow, text.strong, 0.25),
-    'bright-blue': mix(colours.blue, text.strong, 0.25),
-    'bright-magenta': mix(colours.magenta, text.strong, 0.25),
-    'bright-cyan': mix(colours.cyan, text.strong, 0.25),
+    'bright-red': mix(colors.red, text.strong, 0.25),
+    'bright-green': mix(colors.green, text.strong, 0.25),
+    'bright-yellow': mix(colors.yellow, text.strong, 0.25),
+    'bright-blue': mix(colors.blue, text.strong, 0.25),
+    'bright-magenta': mix(colors.magenta, text.strong, 0.25),
+    'bright-cyan': mix(colors.cyan, text.strong, 0.25),
     'bright-white': text.muted,
   };
 }
@@ -672,7 +672,7 @@ export const ACCENTS: AccentDefinition[] = [
   { id: 'rose', name: 'Rose', dark: ['#ef7f9f', '#f49db7'], light: ['#c03a64', '#d2557e'] },
 ];
 
-/** The accent roles for one accent colour, derived for the scheme it sits on. */
+/** The accent roles for one accent color, derived for the scheme it sits on. */
 export function accentRoles(accent: string, secondary: string, scheme: Scheme, ground?: string) {
   const dark = scheme === 'dark';
   const onDark = luminance(accent) > 0.3;
@@ -720,16 +720,16 @@ export function resolveAccent(
 
 /**
  * A custom accent is used for links, focus rings and selected text, so it must
- * stay readable on the theme's panes. A colour that is too close to the
+ * stay readable on the theme's panes. A color that is too close to the
  * background is moved towards white (dark themes) or black (light themes)
  * until it reaches 3:1, the WCAG minimum for interface elements.
  */
 export function legible(accent: string, theme: ThemeDefinition): string {
   const ground = theme.surfaces.pane[0];
   const target = theme.scheme === 'dark' ? '#ffffff' : '#000000';
-  let colour = accent;
-  for (let step = 1; step <= 20 && contrast(colour, ground) < 3; step++) {
-    colour = mix(accent, target, step * 0.05);
+  let color = accent;
+  for (let step = 1; step <= 20 && contrast(color, ground) < 3; step++) {
+    color = mix(accent, target, step * 0.05);
   }
-  return colour;
+  return color;
 }

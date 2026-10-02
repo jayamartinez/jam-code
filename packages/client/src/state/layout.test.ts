@@ -79,7 +79,7 @@ describe('tabs', () => {
     expect(layoutReducer(state, { type: 'moveTab', from: 9, to: 0 })).toBe(state);
   });
 
-  it('closing a tab discards its arrangement and selects a neighbour', () => {
+  it('closing a tab discards its arrangement and selects a neighbor', () => {
     const state = run(workspace(), split('row', 'a'), { type: 'closeTab', tabId: 'tab:chat-a' });
     expect(state.tabs.map((tab) => tab.resourceId)).toEqual(['chat-b']);
     expect(state.trees['tab:chat-a']).toBeUndefined();
