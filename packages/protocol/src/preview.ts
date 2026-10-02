@@ -194,8 +194,16 @@ export class BrowserPreviewTransport implements JamTransport {
       }
       case 'thread.setClosed': {
         const resource = this.getThread(request.params.resourceId);
-        if (request.params.closed) resource.closedAt = new Date().toISOString();
-        else delete resource.closedAt;
+        if (request.params.closed) {
+          const session = this.workspace.sessions.find((item) => item.id === resource.sessionId);
+          // Archiving never stops an agent; a working or waiting chat settles first.
+          if (session?.status === 'running' || session?.needsInput)
+            throw new JamError(
+              'conflict',
+              'Stop the agent or answer its request before archiving this chat.',
+            );
+          resource.closedAt = new Date().toISOString();
+        } else delete resource.closedAt;
         return { resource };
       }
       case 'thread.keepOpen': {
@@ -474,7 +482,7 @@ export class BrowserPreviewTransport implements JamTransport {
     session.status = 'running';
     const resource = this.workspace.resources.find((item) => item.id === params.resourceId)!;
     resource.updatedAt = now();
-    // Continuing a closed thread is the clearest sign it is in use again.
+    // Continuing an archived thread is the clearest sign it is in use again.
     delete resource.closedAt;
     if (resource.title === 'New conversation')
       resource.title = params.text.trim().slice(0, 70) || 'Context review';

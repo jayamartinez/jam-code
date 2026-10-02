@@ -237,15 +237,15 @@ export default function GeneralPage({
         </Card>
       </Section>
 
-      <Section label="Threads" hint="JAM only suggests. A thread closes when you choose.">
+      <Section label="Threads" hint="JAM only suggests. A thread is archived when you choose.">
         <Card className="general-threads">
           <div className="general-threads-rows">
             <Row
-              title="Suggest closing idle threads"
+              title="Suggest archiving idle threads"
               sub="Ask about an open thread nobody has used for this long."
             >
               <Select
-                label="Suggest closing idle threads"
+                label="Suggest archiving idle threads"
                 value={idleThreadDays === null ? 'never' : String(idleThreadDays)}
                 options={IDLE_THREAD_OPTIONS.map((option) => ({
                   value: option.value === null ? 'never' : String(option.value),
@@ -255,8 +255,8 @@ export default function GeneralPage({
               />
             </Row>
             <Row
-              title="Sending reopens a closed thread"
-              sub="Closed threads stay searchable; nothing is deleted."
+              title="Sending reopens an archived thread"
+              sub="Archived threads stay searchable; nothing is deleted."
             >
               <Chip>Always</Chip>
             </Row>
@@ -311,7 +311,7 @@ function IdlePreview({ projects, days }: { projects: Project[]; days: number | n
       </div>
       <div className="general-preview-thread">
         <span>An idle thread</span>
-        {days !== null && <em>Close?</em>}
+        {days !== null && <em>Archive?</em>}
       </div>
       {days !== null && <small className="general-preview-age">Idle {days + 2} days</small>}
       {second && (

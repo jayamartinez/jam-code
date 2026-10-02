@@ -756,6 +756,83 @@ async fn closing_a_thread_is_explicit_durable_and_undone_by_sending() {
     assert!(reopened_thread["resource"].get("closedAt").is_none());
 }
 
+#[tokio::test]
+async fn archiving_waits_for_the_agent_and_keeps_the_chat_whole_and_searchable() {
+    let database = TestDatabase::new();
+    let runtime = database.open();
+    let archive = |archived: bool| Request {
+        protocol_version: 1,
+        method: "thread.setClosed".into(),
+        params: json!({"resourceId":"conv-pane-lifetime","closed":archived}),
+    };
+    let before = resource_in(
+        &request(&runtime, "workspace.get", json!({})),
+        "conv-pane-lifetime",
+    );
+
+    // A working chat is not put away mid-turn; archiving never interrupts.
+    let mut observer = runtime.subscribe(SubscriptionScope::default()).unwrap();
+    request(
+        &runtime,
+        "turn.start",
+        turn("archive-busy", "Remember uniquewordonyx"),
+    );
+    assert_eq!(runtime.request(archive(true)).unwrap_err().code, "conflict");
+    assert_eq!(finished(&mut observer.receiver).await, "idle");
+
+    // Nor is one whose agent waits for an answer.
+    request(&runtime, "turn.start", turn("archive-waiting", "/approval"));
+    let session_id = tokio::time::timeout(Duration::from_secs(5), async {
+        while let Some(event) = observer.receiver.recv().await {
+            if let EventPayload::SessionUpdated { session } = event.payload
+                && session.needs_input
+            {
+                return session.id;
+            }
+        }
+        panic!("the demo provider never asked")
+    })
+    .await
+    .expect("the approval arrives within the deadline");
+    assert_eq!(runtime.request(archive(true)).unwrap_err().code, "conflict");
+    request(&runtime, "turn.interrupt", json!({"sessionId":session_id}));
+
+    // Settled, it archives. Nothing but `closedAt` changes.
+    let archived = runtime.request(archive(true)).unwrap()["resource"].clone();
+    assert!(archived["closedAt"].is_string());
+    for field in ["projectId", "sessionId", "pinned", "title"] {
+        assert_eq!(archived[field], before[field], "{field} is kept");
+    }
+    assert_eq!(archived["pinned"], json!(true));
+    let workspace = request(&runtime, "workspace.get", json!({}));
+    assert!(
+        workspace["sessions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|session| session["id"] == json!(session_id))
+    );
+    // Search still finds an archived chat, after a restart too.
+    drop(observer);
+    runtime.shutdown().await.unwrap();
+    drop(runtime);
+    let reopened = database.open();
+    let found = request(&reopened, "search.query", json!({"query":"uniquewordonyx"}));
+    assert_eq!(found["results"][0]["resourceId"], "conv-pane-lifetime");
+    let transcript = request(
+        &reopened,
+        "conversation.get",
+        json!({"resourceId":"conv-pane-lifetime"}),
+    );
+    assert!(!transcript["messages"].as_array().unwrap().is_empty());
+    // Reopening is always allowed.
+    assert!(
+        reopened.request(archive(false)).unwrap()["resource"]
+            .get("closedAt")
+            .is_none()
+    );
+}
+
 #[test]
 fn pinning_a_project_persists_and_unpinning_clears_it() {
     let database = TestDatabase::new();

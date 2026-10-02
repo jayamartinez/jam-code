@@ -31,6 +31,36 @@ describe('thread lifecycle through the preview transport', () => {
     ).rejects.toThrow('Only a conversation');
   });
 
+  it('keeps an archived thread whole and searchable, and refuses one that is working', async () => {
+    const transport = new BrowserPreviewTransport();
+    const before = (await transport.request('workspace.get', {})).resources.find(
+      (item) => item.id === 'conv-pane-lifetime',
+    )!;
+    const { resource } = await transport.request('thread.setClosed', {
+      resourceId: 'conv-pane-lifetime',
+      closed: true,
+    });
+    expect(resource).toMatchObject({
+      sessionId: before.sessionId,
+      projectId: before.projectId,
+      pinned: before.pinned,
+      title: before.title,
+    });
+    const { results } = await transport.request('search.query', { query: 'PTY' });
+    expect(results.map((item) => item.resourceId)).toContain('conv-pane-lifetime');
+
+    // Archiving never stops an agent: a running turn is settled first.
+    await transport.request('turn.start', {
+      resourceId: 'conv-navigation',
+      text: 'Keep working',
+      context: [],
+      requestId: 'archive-while-running',
+    });
+    await expect(
+      transport.request('thread.setClosed', { resourceId: 'conv-navigation', closed: true }),
+    ).rejects.toMatchObject({ code: 'conflict' });
+  });
+
   it('pins and unpins a project', async () => {
     const transport = new BrowserPreviewTransport();
     const pinned = await transport.request('project.update', {

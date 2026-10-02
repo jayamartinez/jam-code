@@ -73,8 +73,9 @@ pub struct Resource {
     pub path: Option<String>,
     pub pinned: bool,
     pub updated_at: String,
-    /// When the reader closed this thread. Closing is always explicit: JAM
-    /// may suggest it, but never closes a thread by itself.
+    /// When the reader archived this thread (the field keeps its earlier
+    /// name). Archiving is always explicit: JAM may suggest it, but never
+    /// archives a thread by itself, and it changes nothing else about it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub closed_at: Option<String>,
     /// When the reader last answered "Keep open" to an idle suggestion.

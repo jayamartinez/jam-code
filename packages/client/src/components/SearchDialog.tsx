@@ -9,7 +9,7 @@ import type {
   Session,
 } from '@jam/protocol';
 import { loadRecentSearches, rememberSearch, saveRecentSearches } from '../state/recent-searches';
-import { compactAge } from '../state/threads';
+import { compactAge, currentChats, isArchived } from '../state/threads';
 import { Dialog, IconButton, Shortcut } from './Controls';
 import { MenuSelect } from './MenuSelect';
 import { ProviderIcon, sessionProviderName } from './icons';
@@ -42,15 +42,19 @@ export function SearchDialog({
   const [selected, setSelected] = useState(0);
   const [recentSearches, setRecentSearches] = useState<string[]>(loadRecentSearches);
   const idle = !query.trim();
+  const archivedIds = useMemo(
+    () => new Set(resources.filter(isArchived).map((resource) => resource.id)),
+    [resources],
+  );
   const sessionOf = (resource: Resource) =>
     sessions.find((session) => session.id === resource.sessionId);
-  // Before a query, the same filters narrow the recent chats.
+  // Before a query, the same filters narrow the recent chats. Archived chats
+  // are not recent work; a search finds them.
   const recentChats = useMemo(
     () =>
-      resources
+      currentChats(resources)
         .filter(
           (resource) =>
-            resource.kind === 'conversation' &&
             (!projectId || resource.projectId === projectId) &&
             (!pinned || resource.pinned) &&
             (!providerId ||
@@ -243,8 +247,8 @@ export function SearchDialog({
                 />
                 <span className="search-chat-title truncate">{chat.title}</span>
                 <span className="search-chat-meta">
-                  {projects.find((project) => project.id === chat.projectId)?.name}
-                  {chat.closedAt ? ' · closed' : ''} · {compactAge(chat.updatedAt, Date.now())}
+                  {projects.find((project) => project.id === chat.projectId)?.name} ·{' '}
+                  {compactAge(chat.updatedAt, Date.now())}
                 </span>
               </button>
             );
@@ -265,7 +269,9 @@ export function SearchDialog({
                 <strong>{result.title}</strong>
                 <p>{result.snippet}</p>
                 <small>
-                  {projects.find((project) => project.id === result.projectId)?.name} · Mock
+                  {projects.find((project) => project.id === result.projectId)?.name} ·{' '}
+                  {sessionProviderName(result)}
+                  {archivedIds.has(result.resourceId) && ' · Archived'}
                 </small>
               </span>
               <ArrowUpRight size={14} />

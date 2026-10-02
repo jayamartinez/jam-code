@@ -233,6 +233,7 @@
 .thread-group-label {
   height: 24px;
   width: 100%;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -242,20 +243,25 @@
   color: var(--color-text-subtle);
   text-align: left;
 }
-.thread-group-label.toggle {
+/* Archived: the same lanes as Open, with a chevron after the label. */
+button.thread-group-label {
   margin-top: 4px;
+  border-radius: 7px;
 }
-.thread-group-label.toggle > span:first-child {
+.thread-group-name {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  margin-left: -14px;
+  gap: 5px;
 }
 .thread-group-label .count {
   font-family: 'Geist Mono Variable', monospace;
   font-size: var(--text-label);
   font-weight: 400;
   color: var(--color-text-faint);
+}
+/* Rows keep their height; a long list scrolls instead of squeezing them. */
+.thread-item {
+  flex-shrink: 0;
 }
 .thread-row {
   height: 28px;
@@ -275,18 +281,24 @@
   background: var(--color-fill);
   color: var(--color-text-primary);
 }
-.thread-row.closed {
+.thread-row.archived {
   color: var(--color-text-subtle);
 }
-.thread-row.closed .icon-slot {
+.thread-row.archived.active {
+  color: var(--color-text-secondary);
+}
+.thread-row.archived .icon-slot {
   opacity: 0.55;
 }
 .thread-title {
   flex: 1;
   min-width: 0;
 }
+/* A fixed slot, so a title is cut at the same place in every row. */
 .thread-age {
   flex-shrink: 0;
+  min-width: 24px;
+  text-align: right;
   font-size: var(--text-label);
   color: var(--color-text-faint);
 }
@@ -294,6 +306,7 @@
   color: var(--color-warning);
 }
 .close-suggestion {
+  flex-shrink: 0;
   margin: 2px 0 6px 35px;
   padding: 8px 10px 10px;
   display: flex;
@@ -328,6 +341,7 @@
 .thread-more,
 .thread-empty {
   height: 24px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   padding: 0 8px 0 60px;
