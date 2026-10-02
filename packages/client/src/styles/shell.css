@@ -55,13 +55,31 @@
   -webkit-backdrop-filter: var(--sidebar-backdrop);
   backdrop-filter: var(--sidebar-backdrop);
 }
+/*
+ * The overlay host (overlay-host.ts): the one layer anchored menus are drawn
+ * in, at the end of the document or of an open dialog. It covers its
+ * containing block, so a menu inside it is placed against a rectangle that
+ * can be measured, and it sits above every pane without any surface's
+ * stacking context or backdrop filter applying to it.
+ */
+.overlay-host {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+}
+.overlay-host > * {
+  pointer-events: auto;
+}
 /* Navigation chrome: WebKit selects the word under a right-click otherwise. */
 .sidebar,
+.overlay-host,
 .context-menu {
   -webkit-user-select: none;
   user-select: none;
 }
-.sidebar input {
+.sidebar input,
+.overlay-host input {
   -webkit-user-select: text;
   user-select: text;
 }
@@ -1204,8 +1222,7 @@ button.thread-group-label {
   flex-shrink: 0;
 }
 .help-menu {
-  position: fixed;
-  z-index: 60;
+  position: absolute;
   min-width: 200px;
   padding: 4px;
   border-radius: var(--radius-lg);

@@ -17,7 +17,7 @@ export function HelpMenu({
   onCopyDiagnostics(): Promise<void>;
 }) {
   const [copied, setCopied] = useState(false);
-  const { open, place, root, trigger, menu, toggle, close } = useAnchoredMenu({
+  const { open, place, root, trigger, menu, layer, toggle, close, tabOut } = useAnchoredMenu({
     onOpened: (element) => element.querySelector<HTMLElement>('[role="menuitem"]')?.focus(),
   });
   const pages: { kind: FeedbackKind; label: string }[] = [
@@ -39,53 +39,54 @@ export function HelpMenu({
       >
         <HelpCircle size={14} />
       </button>
-      {open && (
-        <div
-          ref={menu}
-          className="help-menu"
-          role="menu"
-          aria-label="Help and feedback"
-          style={place}
-          onKeyDown={(event) => {
-            const items = [
-              ...(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []),
-            ];
-            if (moveMenuFocus(event, items)) return;
-            if (event.key === 'Escape') {
-              event.preventDefault();
-              close(true);
-            }
-          }}
-        >
-          {pages.map((page) => (
+      {open &&
+        layer(
+          <div
+            ref={menu}
+            className="help-menu"
+            role="menu"
+            aria-label="Help and feedback"
+            style={place}
+            onKeyDown={(event) => {
+              const items = [
+                ...(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []),
+              ];
+              if (moveMenuFocus(event, items)) return;
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                close(true);
+              } else if (event.key === 'Tab') tabOut();
+            }}
+          >
+            {pages.map((page) => (
+              <button
+                key={page.kind}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  close(false);
+                  onFeedback(page.kind);
+                }}
+              >
+                <span>{page.label}</span>
+                <ArrowUpRight size={12} aria-hidden="true" />
+              </button>
+            ))}
+            <div className="help-menu-divider" role="separator" />
             <button
-              key={page.kind}
               type="button"
               role="menuitem"
-              onClick={() => {
-                close(false);
-                onFeedback(page.kind);
-              }}
+              onClick={() =>
+                void onCopyDiagnostics().then(() => {
+                  setCopied(true);
+                  window.setTimeout(() => setCopied(false), 1500);
+                })
+              }
             >
-              <span>{page.label}</span>
-              <ArrowUpRight size={12} aria-hidden="true" />
+              <span>{copied ? 'Copied' : 'Copy diagnostics'}</span>
             </button>
-          ))}
-          <div className="help-menu-divider" role="separator" />
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() =>
-              void onCopyDiagnostics().then(() => {
-                setCopied(true);
-                window.setTimeout(() => setCopied(false), 1500);
-              })
-            }
-          >
-            <span>{copied ? 'Copied' : 'Copy diagnostics'}</span>
-          </button>
-        </div>
-      )}
+          </div>,
+        )}
     </div>
   );
 }

@@ -33,6 +33,7 @@ export function ChoicePill({
   compact,
   className,
   rootClassName,
+  menuClassName,
   icon,
   optionIcon,
   sections,
@@ -48,6 +49,8 @@ export function ChoicePill({
   compact?: boolean;
   className: string;
   rootClassName?: string;
+  /** Sizes the menu, which is drawn outside the pill's own element. */
+  menuClassName?: string;
   icon?: React.ReactNode;
   optionIcon?(value: string): React.ReactNode;
   /** Titled groups shown after the main choices, each set independently. */
@@ -56,7 +59,7 @@ export function ChoicePill({
   summary?: string;
 }) {
   const current = values.find((item) => item.value === value) ?? values[0];
-  const { open, place, root, trigger, menu, toggle, close } = useAnchoredMenu({
+  const { open, place, root, trigger, menu, layer, toggle, close, tabOut } = useAnchoredMenu({
     compact,
     // Focus the chosen item, so arrow keys start from it.
     onOpened: (element) =>
@@ -76,7 +79,7 @@ export function ChoicePill({
     if (event.key === 'Escape') {
       event.preventDefault();
       close(true);
-    } else if (event.key === 'Tab') close(false);
+    } else if (event.key === 'Tab') tabOut();
   };
 
   const options = (items: PillChoice[], chosen: string, choose: (value: string) => void) =>
@@ -132,38 +135,39 @@ export function ChoicePill({
         <span className="choice-pill-value">{summary ?? current.label}</span>
         <ChevronDown size={10} className="composer-chevron" />
       </button>
-      {open && (
-        <div
-          ref={menu}
-          className="choice-menu"
-          role="menu"
-          aria-label={label}
-          style={place}
-          onKeyDown={onMenuKey}
-        >
-          {sections?.length ? (
-            <>
-              <div className="choice-section" role="group" aria-label={label}>
-                <span className="choice-section-label">{label}</span>
-                {options(values, current.value, onChange)}
-              </div>
-              {sections.map((section) => (
-                <div
-                  key={section.label}
-                  className="choice-section"
-                  role="group"
-                  aria-label={section.label}
-                >
-                  <span className="choice-section-label">{section.label}</span>
-                  {options(section.values, section.value, section.onChange)}
+      {open &&
+        layer(
+          <div
+            ref={menu}
+            className={`choice-menu ${menuClassName ?? ''}`}
+            role="menu"
+            aria-label={label}
+            style={place}
+            onKeyDown={onMenuKey}
+          >
+            {sections?.length ? (
+              <>
+                <div className="choice-section" role="group" aria-label={label}>
+                  <span className="choice-section-label">{label}</span>
+                  {options(values, current.value, onChange)}
                 </div>
-              ))}
-            </>
-          ) : (
-            options(values, current.value, onChange)
-          )}
-        </div>
-      )}
+                {sections.map((section) => (
+                  <div
+                    key={section.label}
+                    className="choice-section"
+                    role="group"
+                    aria-label={section.label}
+                  >
+                    <span className="choice-section-label">{section.label}</span>
+                    {options(section.values, section.value, section.onChange)}
+                  </div>
+                ))}
+              </>
+            ) : (
+              options(values, current.value, onChange)
+            )}
+          </div>,
+        )}
     </div>
   );
 }

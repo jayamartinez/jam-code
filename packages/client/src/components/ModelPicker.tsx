@@ -30,7 +30,7 @@ export function ModelPicker({
 }) {
   const [query, setQuery] = useState('');
   const [legacyOpen, setLegacyOpen] = useState(false);
-  const { open, place, root, trigger, menu, toggle, close } = useAnchoredMenu({
+  const { open, place, root, trigger, menu, layer, toggle, close, tabOut } = useAnchoredMenu({
     onOpened: (element) => element.querySelector<HTMLInputElement>('input')?.focus(),
   });
   const current = choices.models.find((item) => item.value === choices.model) ?? choices.models[0];
@@ -125,72 +125,75 @@ export function ModelPicker({
         <span className="choice-pill-value">{current.label}</span>
         <ChevronDown size={10} className="composer-chevron" />
       </button>
-      {open && (
-        <div
-          ref={menu}
-          className="choice-menu model-menu"
-          role="menu"
-          aria-label="Model"
-          style={place}
-          onKeyDown={(event) => {
-            if (moveMenuFocus(event, items())) return;
-            if (event.key === 'Escape') {
-              event.preventDefault();
-              finish();
-            } else if (event.key === 'Tab') close(false);
-          }}
-        >
-          <label className="model-search">
-            <Search size={13} />
-            <input
-              aria-label="Search models"
-              placeholder="Search models"
-              value={query}
-              maxLength={80}
-              onChange={(event) => setQuery(event.target.value)}
-              onKeyDown={(event) => {
-                // Enter takes the first match.
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  items()[0]?.click();
-                }
-              }}
-            />
-          </label>
-          <div className="model-list">
-            {groups.default && option(groups.default)}
-            {!!groups.favorites.length && (
-              <div className="choice-section" role="group" aria-label="Favorites">
-                <span className="choice-section-label">Favorites</span>
-                {groups.favorites.map(option)}
-              </div>
-            )}
-            {!!groups.models.length && (
-              <div className="choice-section" role="group" aria-label="Models">
-                {!!groups.favorites.length && <span className="choice-section-label">Models</span>}
-                {groups.models.map(option)}
-              </div>
-            )}
-            {!!groups.legacy.length && (
-              <div className="choice-section legacy" role="group" aria-label="Legacy models">
-                <button
-                  type="button"
-                  className="model-legacy-toggle"
-                  aria-expanded={legacyShown}
-                  disabled={searching}
-                  onClick={() => setLegacyOpen((shown) => !shown)}
-                >
-                  {legacyShown ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-                  <span className="choice-section-label">Legacy models</span>
-                  <span className="model-legacy-count">{groups.legacy.length}</span>
-                </button>
-                {legacyShown && groups.legacy.map(option)}
-              </div>
-            )}
-            {nothing && <p className="model-empty">No models match “{query.trim()}”.</p>}
-          </div>
-        </div>
-      )}
+      {open &&
+        layer(
+          <div
+            ref={menu}
+            className="choice-menu model-menu"
+            role="menu"
+            aria-label="Model"
+            style={place}
+            onKeyDown={(event) => {
+              if (moveMenuFocus(event, items())) return;
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                finish();
+              } else if (event.key === 'Tab') tabOut();
+            }}
+          >
+            <label className="model-search">
+              <Search size={13} />
+              <input
+                aria-label="Search models"
+                placeholder="Search models"
+                value={query}
+                maxLength={80}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  // Enter takes the first match.
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    items()[0]?.click();
+                  }
+                }}
+              />
+            </label>
+            <div className="model-list">
+              {groups.default && option(groups.default)}
+              {!!groups.favorites.length && (
+                <div className="choice-section" role="group" aria-label="Favorites">
+                  <span className="choice-section-label">Favorites</span>
+                  {groups.favorites.map(option)}
+                </div>
+              )}
+              {!!groups.models.length && (
+                <div className="choice-section" role="group" aria-label="Models">
+                  {!!groups.favorites.length && (
+                    <span className="choice-section-label">Models</span>
+                  )}
+                  {groups.models.map(option)}
+                </div>
+              )}
+              {!!groups.legacy.length && (
+                <div className="choice-section legacy" role="group" aria-label="Legacy models">
+                  <button
+                    type="button"
+                    className="model-legacy-toggle"
+                    aria-expanded={legacyShown}
+                    disabled={searching}
+                    onClick={() => setLegacyOpen((shown) => !shown)}
+                  >
+                    {legacyShown ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                    <span className="choice-section-label">Legacy models</span>
+                    <span className="model-legacy-count">{groups.legacy.length}</span>
+                  </button>
+                  {legacyShown && groups.legacy.map(option)}
+                </div>
+              )}
+              {nothing && <p className="model-empty">No models match “{query.trim()}”.</p>}
+            </div>
+          </div>,
+        )}
     </div>
   );
 }

@@ -528,6 +528,7 @@ function EffortPill({
     <ChoicePill
       label={main.label}
       rootClassName="effort"
+      menuClassName="effort-menu"
       className={`composer-pill ${choices.speed ? 'fast' : ''}`}
       icon={choices.speed ? bolt : undefined}
       summary={effortSummary(choices)}

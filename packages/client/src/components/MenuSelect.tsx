@@ -30,6 +30,7 @@ export function MenuSelect<T extends string>({
       disabled={disabled || !onChange}
       compact
       rootClassName="menu-select-root"
+      menuClassName="select-menu"
       className={`menu-select ${className ?? ''}`}
     />
   );

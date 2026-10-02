@@ -1,10 +1,19 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useOccludesNativeViews } from '../state/native-occlusion';
+import { placeMenu, type MenuPlacement } from './menu-placement';
+import { overlayHostFor } from './overlay-host';
 
 /**
- * A menu fixed to the pill that opens it, so a toolbar that clips its
- * overflow cannot hide it. It opens above the pill (or below, `compact`),
- * stays inside the window (flipping up when there is more room above), and
- * closes on an outside press or a resize.
+ * A menu anchored to the control that opens it. It renders into the overlay
+ * host (see `overlay-host.ts`), above every pane and outside any surface that
+ * clips or filters, and is placed from its trigger's rectangle in the window:
+ * above the trigger (or below, `compact`), flipping up when there is more room
+ * above, and never past the window's edge.
+ *
+ * It is placed when it opens rather than tracked, so anything that moves its
+ * trigger closes it: a press outside, a resized window, a scrolled list or a
+ * resized pane.
  */
 export function useAnchoredMenu({
   compact,
@@ -15,7 +24,8 @@ export function useAnchoredMenu({
   onOpened(menu: HTMLDivElement): void;
 }) {
   const [open, setOpen] = useState(false);
-  const [place, setPlace] = useState<React.CSSProperties>({});
+  const [place, setPlace] = useState<MenuPlacement>({ left: 0, maxHeight: 0 });
+  const [host, setHost] = useState<HTMLElement | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -23,53 +33,99 @@ export function useAnchoredMenu({
   useEffect(() => {
     opened.current = onOpened;
   });
+  // A native Browser page paints above everything JAM Code draws.
+  useOccludesNativeViews(open);
 
   useEffect(() => {
     if (!open) return;
+    const inside = (target: EventTarget | null) =>
+      target instanceof Node &&
+      (!!root.current?.contains(target) || !!menu.current?.contains(target));
     const outside = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
+      if (!inside(event.target)) setOpen(false);
     };
-    // The menu is placed once, so a resized window closes it.
-    const resized = () => setOpen(false);
+    const moved = () => setOpen(false);
+    // Only a list the trigger is in carries it away; a transcript that
+    // scrolls beside the composer, or the menu's own list, does not.
+    const scrolled = (event: Event) => {
+      const scroller = event.target;
+      if (scroller instanceof Node && trigger.current && scroller.contains(trigger.current))
+        setOpen(false);
+    };
     window.addEventListener('pointerdown', outside);
-    window.addEventListener('resize', resized);
+    window.addEventListener('resize', moved);
+    window.addEventListener('scroll', scrolled, true);
+    // A pane or sidebar that changes size has moved the trigger with it.
+    const surface = trigger.current?.closest('.pane, .sidebar');
+    let observed = false;
+    const observer =
+      surface && typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => {
+            // The first report is the size it already had.
+            if (observed) setOpen(false);
+            observed = true;
+          })
+        : undefined;
+    if (surface) observer?.observe(surface);
     return () => {
       window.removeEventListener('pointerdown', outside);
-      window.removeEventListener('resize', resized);
+      window.removeEventListener('resize', moved);
+      window.removeEventListener('scroll', scrolled, true);
+      observer?.disconnect();
     };
   }, [open]);
 
   useLayoutEffect(() => {
     const element = menu.current;
-    if (!open || !element) return;
-    const box = element.getBoundingClientRect();
-    const overflow = box.right - (window.innerWidth - 8);
-    if (overflow > 0) element.style.left = `${Math.max(8, box.left - overflow)}px`;
+    const anchor = trigger.current;
+    if (!open || !element || !anchor || !host) return;
+    // Now that the menu has a width, keep it inside the layer's right edge.
+    const placed = placeMenu({
+      trigger: anchor.getBoundingClientRect(),
+      layer: host.getBoundingClientRect(),
+      menuWidth: element.getBoundingClientRect().width,
+      compact,
+    });
+    setPlace((current) => (current.left === placed.left ? current : placed));
     opened.current(element);
-  }, [open]);
+  }, [open, host, compact]);
 
   return {
     open,
-    place,
+    /** Position for the menu element, relative to the overlay host. */
+    place: place as React.CSSProperties,
     root,
     trigger,
     menu,
+    /** Renders the open menu in the overlay host. */
+    layer(node: React.ReactNode) {
+      return host ? createPortal(node, host) : null;
+    },
     toggle() {
-      const box = trigger.current?.getBoundingClientRect();
-      if (!box) return;
-      // A downward menu flips up when the window has more room above it.
-      const below = window.innerHeight - box.bottom - 16;
-      const down = compact && (below >= 200 || below >= box.top - 16);
+      const anchor = trigger.current;
+      if (!anchor) return;
+      const layer = overlayHostFor(anchor);
+      setHost(layer);
       setPlace(
-        down
-          ? { left: box.left, top: box.bottom + 6, maxHeight: below }
-          : { left: box.left, bottom: window.innerHeight - box.top + 8, maxHeight: box.top - 16 },
+        placeMenu({
+          trigger: anchor.getBoundingClientRect(),
+          layer: layer.getBoundingClientRect(),
+          compact,
+        }),
       );
       setOpen((shown) => !shown);
     },
     close(refocus: boolean) {
       setOpen(false);
       if (refocus) trigger.current?.focus();
+    },
+    /**
+     * Tab leaves the menu: focus returns to the trigger first, so the key
+     * moves on from there instead of from the end of the document.
+     */
+    tabOut() {
+      trigger.current?.focus();
+      setOpen(false);
     },
   };
 }
