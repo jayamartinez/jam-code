@@ -43,6 +43,8 @@ pub(crate) struct State {
 /// The host owns one runtime. Views only subscribe; they never own provider tasks.
 pub struct Runtime {
     pub(crate) snapshots: crate::snapshots::SnapshotManager,
+    /// JAM's own copies of files the reader attached to chats.
+    pub(crate) attachments: crate::attachments::AttachmentStore,
     pub(crate) id: String,
     pub(crate) state: Mutex<State>,
     pub(crate) shutting_down: AtomicBool,
@@ -147,11 +149,11 @@ impl Runtime {
             store.seed_demo()?;
         }
         store.ensure_settings_resource()?;
-        Ok(Arc::new(Self {
+        let data_dir = path.parent().unwrap_or_else(|| Path::new("."));
+        let runtime = Arc::new(Self {
             id: new_id("runtime"),
-            snapshots: crate::snapshots::SnapshotManager::new(
-                path.parent().unwrap_or_else(|| Path::new(".")),
-            ),
+            attachments: crate::attachments::AttachmentStore::new(data_dir),
+            snapshots: crate::snapshots::SnapshotManager::new(data_dir),
             state: Mutex::new(State {
                 store,
                 sequence: 0,
@@ -163,7 +165,13 @@ impl Runtime {
             interactions: Interactions::default(),
             terminals: TerminalManager::default(),
             git: crate::git::GitManager::default(),
-        }))
+        });
+        // Staged attachments do not survive a restart; their copies go now.
+        // Failing to tidy up must not keep the workspace from opening.
+        if let Err(error) = runtime.recover_attachments() {
+            eprintln!("Attachment cleanup: {error}");
+        }
+        Ok(runtime)
     }
 
     pub(crate) fn lock(&self) -> Result<MutexGuard<'_, State>, JamError> {
@@ -195,6 +203,9 @@ impl Runtime {
         match request.method.as_str() {
             method if method.starts_with("snapshot.") => {
                 self.snapshot_request(method, request.params)
+            }
+            method if method.starts_with("attachment.") => {
+                self.attachment_request(method, request.params)
             }
             "workspace.get" => {
                 let _: Empty = parse(request.params)?;

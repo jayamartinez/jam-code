@@ -1,5 +1,7 @@
 //! JAM domain runtime. This crate has no UI framework or native host dependency.
 pub mod appearance;
+mod asset_dir;
+pub mod attachments;
 mod commands;
 mod conversation_delete;
 mod demo_cleanup;

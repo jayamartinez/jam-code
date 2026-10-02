@@ -52,6 +52,8 @@ struct Process {
     effort: Option<String>,
     auto_compact: bool,
     fast: bool,
+    /// The attachments folder this process was allowed to read, if any.
+    attachment_dir: Option<std::path::PathBuf>,
     model: Mutex<Option<String>>,
     mode: Mutex<String>,
     next_request: AtomicU64,
@@ -652,6 +654,11 @@ async fn spawn(
 ) -> Result<Arc<Process>, JamError> {
     let mode = permission_mode(&turn.options);
     let mut args = base_args(&mode);
+    // The agent opens attached files with its own tools. This conversation's
+    // attachment folder is the only one it is given beyond the project.
+    if let Some(dir) = &turn.attachment_dir {
+        args.extend(["--add-dir".into(), dir.display().to_string()]);
+    }
     let compacts = auto_compact(&turn.options);
     let fast = is_fast(&turn.options);
     // Per-session settings; the user's own settings files are untouched.
@@ -735,6 +742,7 @@ async fn spawn(
         effort,
         auto_compact: compacts,
         fast,
+        attachment_dir: turn.attachment_dir.clone(),
         model: Mutex::new(model),
         mode: Mutex::new(mode),
         next_request: AtomicU64::new(1),
@@ -770,6 +778,9 @@ async fn run(adapter: &ClaudeAdapter, turn: ProviderTurn, io: TurnIo) -> Result<
             && p.effort == turn.options.get("effort").cloned()
             && p.auto_compact == auto_compact(&turn.options)
             && p.fast == is_fast(&turn.options)
+            // A process started before this chat had attachments cannot read
+            // their folder; it is restarted and resumes the same session.
+            && (turn.attachment_dir.is_none() || p.attachment_dir == turn.attachment_dir)
     });
     if existing.is_none()
         && let Some(stale) = adapter.take(&turn.session_id)
