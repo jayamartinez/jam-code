@@ -83,6 +83,29 @@ describe('Tauri transport', () => {
     });
   });
 
+  it('keeps the runtime’s own message for every code it answers with', async () => {
+    const { transport, call } = bridgeFixture();
+    // These once fell through to the generic failure, hiding what to do next.
+    for (const [code, message] of [
+      ['unsupported', 'Codex does not accept images with this model.'],
+      ['project_folder_required', 'Add a folder to this project.'],
+      ['provider_disabled', 'Codex is turned off in Settings.'],
+      ['stale', 'That request is no longer waiting.'],
+    ] as const) {
+      call.mockRejectedValueOnce({ code, message });
+      await expect(transport.request('workspace.get', {})).rejects.toMatchObject({
+        code,
+        message,
+      });
+    }
+    // A code the protocol does not know is still not passed on.
+    call.mockRejectedValueOnce({ code: 'made_up', message: 'C:\\Users\\someone\\secret' });
+    await expect(transport.request('workspace.get', {})).rejects.toMatchObject({
+      code: 'unavailable',
+      message: 'The local runtime could not complete this request.',
+    });
+  });
+
   it('streams one terminal to one view and detaching leaves the shell alone', async () => {
     const fixture = bridgeFixture();
     fixture.call.mockResolvedValue('attachment-1');

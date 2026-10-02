@@ -72,6 +72,7 @@ export function createDesktopServices(): DesktopServices {
     startDragging: () => nativeWindow.startDragging(),
     pickDirectory: (start?: string) =>
       invoke<string | null>('pick_directory', start ? { start } : {}),
+    attachFiles: (room) => invoke('attach_files', { room }),
     openFeedback: (kind) => invoke<void>('open_feedback', { kind }),
     browser: createBrowserHost(),
     snapshots: createSnapshotHost(),

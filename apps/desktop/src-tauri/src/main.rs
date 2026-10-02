@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app_webview;
+mod attachments;
 mod attention;
 mod bridge;
 mod browser;
@@ -47,6 +48,7 @@ fn main() {
             snapshots::snapshot_host,
             snapshots::snapshot_toast_request,
             folders::pick_directory,
+            attachments::attach_files,
             feedback::open_feedback,
             attention::set_attention_badge,
             attention::notify

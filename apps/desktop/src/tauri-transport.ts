@@ -1,5 +1,6 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 import {
+  JAM_ERROR_CODES,
   JamError,
   PROTOCOL_VERSION,
   validateEvent,
@@ -33,16 +34,10 @@ const nativeBridge: NativeBridge = {
   },
 };
 
-const errorCodes = new Set<JamErrorCode>([
-  'invalid_request',
-  'unsupported_version',
-  'unknown_method',
-  'invalid_response',
-  'not_found',
-  'conflict',
-  'unavailable',
-  'internal',
-]);
+// Every code the runtime answers with keeps its own message. A shorter list
+// here turned the rest (a refused image, a disabled provider, a missing
+// project folder) into a generic failure.
+const errorCodes = new Set<string>(JAM_ERROR_CODES);
 
 function transportError(error: unknown): JamError {
   if (error instanceof JamError) return error;
@@ -53,7 +48,7 @@ function transportError(error: unknown): JamError {
     'message' in error &&
     typeof error.code === 'string' &&
     typeof error.message === 'string' &&
-    errorCodes.has(error.code as JamErrorCode)
+    errorCodes.has(error.code)
   ) {
     return new JamError(error.code as JamErrorCode, error.message);
   }
