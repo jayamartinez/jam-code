@@ -153,8 +153,8 @@ export function FontSelect({
   );
 }
 
-/** A colour role as a swatch pill: the native picker behind a swatch and its hex. */
-export function ColourInput({
+/** A color role as a swatch pill: the native picker behind a swatch and its hex. */
+export function ColorInput({
   label,
   value,
   onChange,
@@ -164,9 +164,9 @@ export function ColourInput({
   onChange(value: string): void;
 }) {
   return (
-    <label className="ap-colour">
-      <span className="ap-colour-swatch" style={{ background: value }} aria-hidden="true" />
-      <span className="ap-colour-hex">{value.toUpperCase()}</span>
+    <label className="ap-color">
+      <span className="ap-color-swatch" style={{ background: value }} aria-hidden="true" />
+      <span className="ap-color-hex">{value.toUpperCase()}</span>
       <input
         type="color"
         aria-label={label}

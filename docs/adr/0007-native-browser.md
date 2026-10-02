@@ -58,7 +58,7 @@ sends back.
   on Windows.
 - **No page-to-host channel.** Everything JAM Code learns from a page's contents
   comes from host-initiated `eval_with_callback`: history availability,
-  console ring, annotations. It is labelled as page data. Finished
+  console ring, annotations. It is labeled as page data. Finished
   annotations are collected by asking the page every 200 ms, at most 16 per
   poll. The page can replace JAM Code's script, so the host parses each
   annotation into a fixed shape with bounded fields and drops anything else

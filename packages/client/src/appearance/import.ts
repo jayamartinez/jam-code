@@ -6,14 +6,14 @@ import {
   type CustomThemeRole,
 } from '@jam/protocol';
 import { luminance, mix } from './color';
-import { coloursFromDefinition } from './custom';
+import { colorsFromDefinition } from './custom';
 import { THEMES, type Scheme } from './themes';
 
 /**
  * Theme files in and out.
  *
  * JAM's own format is the custom theme record with a version marker. A VS
- * Code colour theme is mapped onto JAM's anchor roles: workbench colours for
+ * Code color theme is mapped onto JAM's anchor roles: workbench colors for
  * surfaces, text and status, `tokenColors` scopes for syntax, the terminal
  * palette for ANSI. Roles the file does not give are taken from JAM's own
  * theme of the same brightness and reported as derived. Parsing is pure and
@@ -58,7 +58,7 @@ export function parseJsonc(text: string): unknown {
 }
 
 /** `#rgb`, `#rrggbb` or `#rrggbbaa` as opaque `#rrggbb`, blending alpha over the ground. */
-export function normalizeColour(value: unknown, ground = '#000000'): string | undefined {
+export function normalizeColor(value: unknown, ground = '#000000'): string | undefined {
   if (typeof value !== 'string') return undefined;
   const hex = value.trim().toLowerCase();
   if (/^#[0-9a-f]{3}$/.test(hex))
@@ -121,7 +121,7 @@ function tokenRules(value: unknown, ground: string): TokenRule[] {
   return value.flatMap((rule: unknown) => {
     if (!rule || typeof rule !== 'object') return [];
     const { scope, settings } = rule as { scope?: unknown; settings?: { foreground?: unknown } };
-    const foreground = normalizeColour(settings?.foreground, ground);
+    const foreground = normalizeColor(settings?.foreground, ground);
     const list = typeof scope === 'string' ? scope.split(',') : Array.isArray(scope) ? scope : [];
     const scopes = list
       .filter((item): item is string => typeof item === 'string')
@@ -132,17 +132,17 @@ function tokenRules(value: unknown, ground: string): TokenRule[] {
   });
 }
 
-/** The colour a token of `target` scope gets: the rule whose scope is its longest prefix. */
-function scopeColour(rules: TokenRule[], target: string): string | undefined {
-  let best: { length: number; colour: string } | undefined;
+/** The color a token of `target` scope gets: the rule whose scope is its longest prefix. */
+function scopeColor(rules: TokenRule[], target: string): string | undefined {
+  let best: { length: number; color: string } | undefined;
   for (const rule of rules)
     for (const scope of rule.scopes)
       if (
         (target === scope || target.startsWith(`${scope}.`)) &&
         scope.length >= (best?.length ?? 0)
       )
-        best = { length: scope.length, colour: rule.foreground };
-  return best?.colour;
+        best = { length: scope.length, color: rule.foreground };
+  return best?.color;
 }
 
 function vscodeScheme(type: unknown, canvas: string): Scheme {
@@ -152,43 +152,43 @@ function vscodeScheme(type: unknown, canvas: string): Scheme {
 }
 
 const fallback = (scheme: Scheme) =>
-  coloursFromDefinition(scheme === 'dark' ? THEMES.nightglass : THEMES.frost);
+  colorsFromDefinition(scheme === 'dark' ? THEMES.nightglass : THEMES.frost);
 
 function fromVsCode(file: Record<string, unknown>, fileName: string): ImportedTheme {
-  const colors = (file.colors && typeof file.colors === 'object' ? file.colors : {}) as Record<
+  const workbench = (file.colors && typeof file.colors === 'object' ? file.colors : {}) as Record<
     string,
     unknown
   >;
-  const canvas = normalizeColour(colors['editor.background']);
-  if (!canvas) throw new Error('This theme has no editor.background colour.');
+  const canvas = normalizeColor(workbench['editor.background']);
+  if (!canvas) throw new Error('This theme has no editor.background color.');
   const scheme = vscodeScheme(file.type, canvas);
   const rules = tokenRules(file.tokenColors, canvas);
   const base = fallback(scheme);
-  const colours = {} as CustomThemeColors;
+  const colors = {} as CustomThemeColors;
   const derivedRoles: CustomThemeRole[] = [];
   for (const role of APPEARANCE.customThemeRoles) {
     const fromWorkbench = WORKBENCH[role]
-      ?.map((key) => normalizeColour(colors[key], canvas))
+      ?.map((key) => normalizeColor(workbench[key], canvas))
       .find(Boolean);
-    const fromScopes = SCOPES[role]?.map((scope) => scopeColour(rules, scope)).find(Boolean);
+    const fromScopes = SCOPES[role]?.map((scope) => scopeColor(rules, scope)).find(Boolean);
     const found = fromWorkbench ?? fromScopes;
-    if (found) colours[role] = found;
+    if (found) colors[role] = found;
     else {
       derivedRoles.push(role);
-      colours[role] = base[role];
+      colors[role] = base[role];
     }
   }
   // A sidebar the file leaves out sits a step from the canvas, as editors draw it.
   if (derivedRoles.includes('sidebar'))
-    colours.sidebar = mix(canvas, scheme === 'dark' ? '#000000' : '#ffffff', 0.18);
+    colors.sidebar = mix(canvas, scheme === 'dark' ? '#000000' : '#ffffff', 0.18);
   if (derivedRoles.includes('raised'))
-    colours.raised = mix(canvas, scheme === 'dark' ? '#ffffff' : '#000000', 0.05);
+    colors.raised = mix(canvas, scheme === 'dark' ? '#ffffff' : '#000000', 0.05);
   const name =
     (typeof file.name === 'string' && file.name.trim()) ||
     fileName.replace(/(-color-theme)?\.jsonc?$/i, '') ||
     'Imported theme';
   return {
-    theme: { name: name.slice(0, APPEARANCE.limits.customThemeNameUtf16), [scheme]: colours },
+    theme: { name: name.slice(0, APPEARANCE.limits.customThemeNameUtf16), [scheme]: colors },
     format: 'vscode',
     mapped: APPEARANCE.customThemeRoles.length - derivedRoles.length,
     derived: derivedRoles.length,
@@ -216,7 +216,7 @@ function fromJam(file: Record<string, unknown>): ImportedTheme {
   };
 }
 
-/** Reads a JAM theme file or a VS Code colour theme. Throws with a readable reason. */
+/** Reads a JAM theme file or a VS Code color theme. Throws with a readable reason. */
 export function importTheme(text: string, fileName = ''): ImportedTheme {
   if (text.length > THEME_FILE_BYTES) throw new Error('Theme files are limited to 512 KB.');
   let file: unknown;
@@ -230,7 +230,7 @@ export function importTheme(text: string, fileName = ''): ImportedTheme {
   const record = file as Record<string, unknown>;
   if (record.jamTheme === FORMAT_VERSION) return fromJam(record);
   if (record.colors || record.tokenColors) return fromVsCode(record, fileName);
-  throw new Error('This is neither a JAM theme nor a VS Code colour theme.');
+  throw new Error('This is neither a JAM theme nor a VS Code color theme.');
 }
 
 /** The file Export writes: the theme without its local id. */

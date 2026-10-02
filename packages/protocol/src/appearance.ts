@@ -52,9 +52,9 @@ export type CustomThemeRef = `custom:${string}:${'dark' | 'light'}`;
 export type ThemeRef = ThemeId | CustomThemeRef;
 
 /**
- * The anchor colours a custom theme is written in. They are the same anchors
+ * The anchor colors a custom theme is written in. They are the same anchors
  * JAM's editor-style themes are built from, so every other role (text steps,
- * borders, fills, diff and terminal colours) is derived the same way and the
+ * borders, fills, diff and terminal colors) is derived the same way and the
  * same contrast floors apply.
  */
 export type CustomThemeRole =
@@ -242,14 +242,14 @@ export function parseCustomThemeRef(
   return match ? { id: match[1]!, scheme: match[2] as 'dark' | 'light' } : undefined;
 }
 
-function isColours(value: unknown): value is CustomThemeColors {
+function isColors(value: unknown): value is CustomThemeColors {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const keys = Object.keys(value);
   return (
     keys.length === APPEARANCE.customThemeRoles.length &&
     APPEARANCE.customThemeRoles.every((role) => {
-      const colour = (value as Record<string, unknown>)[role];
-      return typeof colour === 'string' && HEX_COLOR.test(colour);
+      const color = (value as Record<string, unknown>)[role];
+      return typeof color === 'string' && HEX_COLOR.test(color);
     })
   );
 }
@@ -277,7 +277,7 @@ export function customThemeProblem(value: unknown): string | null {
   if (theme.dark === undefined && theme.light === undefined)
     return 'A custom theme needs a dark or a light variant.';
   for (const variant of ['dark', 'light'] as const)
-    if (theme[variant] !== undefined && !isColours(theme[variant]))
+    if (theme[variant] !== undefined && !isColors(theme[variant]))
       return 'A custom theme variant must give every role as #rrggbb.';
   return null;
 }

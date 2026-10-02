@@ -1,11 +1,11 @@
 import type { BadgeTone } from '../state/chat-activity';
 
 /**
- * The colours of the badge the OS draws over JAM's icon. They are brighter
+ * The colors of the badge the OS draws over JAM's icon. They are brighter
  * than the in-app status roles on purpose: the badge sits on the taskbar,
  * outside any theme, and has to read at a glance.
  */
-const COLOURS: Record<BadgeTone, string> = {
+const COLORS: Record<BadgeTone, string> = {
   input: '#F5A524',
   error: '#F2555A',
   finished: '#3DCB84',
@@ -20,7 +20,7 @@ export function badgeIconSize() {
 export const trayBadgeSize = (size: number) => Math.floor(size / 2);
 
 /**
- * A coloured dot with a thin dark ring, drawn at exactly `size` device pixels
+ * A colored dot with a thin dark ring, drawn at exactly `size` device pixels
  * so the OS never rescales it; the dot fills `fill` of the square. Returns
  * RGBA pixels.
  */
@@ -36,7 +36,7 @@ export function drawBadge(tone: BadgeTone, size: number, fill = 1): number[] | n
     context.beginPath();
     context.arc(size / 2, size / 2, radius, 0, Math.PI * 2);
     context.fill();
-    context.fillStyle = COLOURS[tone];
+    context.fillStyle = COLORS[tone];
     context.beginPath();
     context.arc(size / 2, size / 2, radius - ring, 0, Math.PI * 2);
     context.fill();

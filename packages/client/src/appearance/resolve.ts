@@ -106,7 +106,7 @@ export interface WallpaperContext {
   palette?: WallpaperPalette;
 }
 
-/** "Match colours to image" is in effect: an image is shown and its colours are known. */
+/** "Match colors to image" is in effect: an image is shown and its colors are known. */
 function matchesImage(appearance: AppearanceSettings, wallpaper: WallpaperContext) {
   return (
     appearance.autoColors &&
@@ -120,12 +120,12 @@ function matchesImage(appearance: AppearanceSettings, wallpaper: WallpaperContex
 const MATCH_SATURATION = 0.75;
 
 /**
- * A surface colour given the image tone's hue, at its own luminance. Keeping
+ * A surface color given the image tone's hue, at its own luminance. Keeping
  * the luminance is what keeps every text role's contrast on it: only the
- * colour of the surface changes, not how light it is.
+ * color of the surface changes, not how light it is.
  */
-function recolour(hex: string, tone: string): string {
-  // A role written as something other than a hex colour is only nudged.
+function recolor(hex: string, tone: string): string {
+  // A role written as something other than a hex color is only nudged.
   if (!/^#[0-9a-f]{6}$/i.test(hex)) return mix(hex, tone, 0.3);
   const [hue, saturation] = toHsl(tone);
   const target = luminance(hex);
@@ -142,24 +142,24 @@ function recolour(hex: string, tone: string): string {
 /**
  * The theme with its grounds and surfaces in the wallpaper's own dark (or
  * light) tone: the canvas, the sidebar, raised surfaces and the rest take the
- * image's colour and keep their own lightness. Text, code and status colours
+ * image's color and keep their own lightness. Text, code and status colors
  * are untouched, so the contrast floors still hold.
  */
 function tintedTheme(theme: ThemeDefinition, palette: WallpaperPalette): ThemeDefinition {
   const tone = theme.scheme === 'dark' ? palette.groundDark : palette.groundLight;
-  const surface = ([hex, own]: [string, number]): [string, number] => [recolour(hex, tone), own];
+  const surface = ([hex, own]: [string, number]): [string, number] => [recolor(hex, tone), own];
   return {
     ...theme,
-    base: recolour(theme.base, tone),
+    base: recolor(theme.base, tone),
     surfaces: {
       sidebar: surface(theme.surfaces.sidebar),
       pane: surface(theme.surfaces.pane),
       paneMuted: surface(theme.surfaces.paneMuted),
       terminal: surface(theme.surfaces.terminal),
     },
-    raised: recolour(theme.raised, tone),
-    overlay: recolour(theme.overlay, tone),
-    badgeRing: recolour(theme.badgeRing, tone),
+    raised: recolor(theme.raised, tone),
+    overlay: recolor(theme.overlay, tone),
+    badgeRing: recolor(theme.badgeRing, tone),
   };
 }
 export function themeOf(appearance: AppearanceSettings): ThemeDefinition {

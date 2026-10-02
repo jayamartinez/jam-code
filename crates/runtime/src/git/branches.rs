@@ -219,7 +219,7 @@ fn git_accepts(root: &Path, name: &str) -> Result<(), JamError> {
 }
 
 /// Switches the checkout only when nothing could be lost. Git's own refusal
-/// (for example an untracked file in the way) is the last line of defence.
+/// (for example an untracked file in the way) is the last line of defense.
 pub(super) fn switch(root: &Path, list: &BranchList, branch: &str) -> Result<(), JamError> {
     validate_branch_name(branch)?;
     let target = list

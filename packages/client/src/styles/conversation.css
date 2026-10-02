@@ -934,7 +934,7 @@
 .approval-card.command {
   background: var(--color-surface-terminal);
 }
-/* Waiting for the reader: the accent, never an alarm colour. */
+/* Waiting for the reader: the accent, never an alarm color. */
 .approval-card,
 .ask-card.pending {
   border-color: var(--color-accent-border);
@@ -1452,7 +1452,7 @@
 .new-run-choices {
   min-width: 0;
 }
-/* Composer menus (Paper, "9 · Approvals & access"); access has one colour per level. */
+/* Composer menus (Paper, "9 · Approvals & access"); access has one color per level. */
 .choice {
   position: relative;
   flex-shrink: 0;

@@ -55,7 +55,7 @@ export function NotificationSettings({ platform }: { platform: DesktopServices['
             desktop ? (
               <>
                 A dot on the {platform === 'macos' ? 'Dock' : 'taskbar'} and tray icon while a chat
-                wants you, coloured by the most urgent reason.
+                wants you, colored by the most urgent reason.
                 <span className="notify-legend">
                   {BADGES.map((badge) => (
                     <span key={badge.tone}>

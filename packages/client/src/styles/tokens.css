@@ -44,7 +44,7 @@
   --color-provider-claude: #d48f74;
   --color-tone-violet: #a99bff;
   --color-provider-codex: #c3c9d6;
-  /* Codex's own mark gradient, from its colour icon. */
+  /* Codex's own mark gradient, from its color icon. */
   --color-provider-codex-from: #b1a7ff;
   --color-provider-codex-mid: #7a9dff;
   --color-provider-codex-to: #3941ff;
@@ -75,7 +75,7 @@
   --syntax-code: #e8b784;
   --syntax-quote: #9095a3;
   --syntax-marker: #6f9bff;
-  /* Terminal. ANSI colours belong to the theme too, independent of the accent. */
+  /* Terminal. ANSI colors belong to the theme too, independent of the accent. */
   --color-terminal-foreground: #9095a3;
   --color-terminal-cursor: #b1b6c3;
   --color-ansi-black: #444855;

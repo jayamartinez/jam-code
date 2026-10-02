@@ -11,8 +11,8 @@ import type { IconKey } from './classify';
  * icon spends all of its space on the one thing the outline could not say.
  *
  * Types separate by silhouette first and tone second. Five tones across the
- * whole set keeps a deep tree calm rather than turning it into a colour chart;
- * anything JAM has no opinion about stays grey.
+ * whole set keeps a deep tree calm rather than turning it into a color chart;
+ * anything JAM has no opinion about stays gray.
  *
  * Drawn on the same 16-unit grid as every other icon in the interface.
  */

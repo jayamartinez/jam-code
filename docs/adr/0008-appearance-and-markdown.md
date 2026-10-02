@@ -33,22 +33,22 @@ repository's Markdown is untrusted content that JAM Code's own window now render
   The old per-profile editor font is carried into the runtime record once.
 - **Forward-compatible reads.** Updates are strict whole records, but a stored
   record is read over the fixture's defaults, so fields added by a later
-  version (per-surface blur, effects, auto colours) never make an earlier
+  version (per-surface blur, effects, auto colors) never make an earlier
   record unreadable.
 - **Custom themes.** The reader's own themes live in the same record
-  (`customThemes`, at most 32). Each stores only anchor colours — the fixed
+  (`customThemes`, at most 32). Each stores only anchor colors — the fixed
   role list in the fixture, every one `#rrggbb` — for a dark variant, a light
   one or both, with a short name and a lowercase id. The active theme may be
   `custom:<id>:<dark|light>`, and both validators reject one that names a
   missing theme or variant. The client draws a custom theme with the same
   builder as the editor-style themes, so contrast floors are applied when it
-  is drawn; the stored colours are never rewritten. Import and export are
+  is drawn; the stored colors are never rewritten. Import and export are
   files the reader chooses (bytes in, a downloaded JSON out); no path is
   stored. Resetting appearance keeps the reader's themes.
 - **Tokens, not components.** Settings resolve to semantic custom properties
   (`appearance/resolve.ts`), written into one `<style>` element. Components,
   CodeMirror (through class names) and xterm (through the pane's roles) read
-  roles only; a theme change re-renders nothing that draws colour.
+  roles only; a theme change re-renders nothing that draws color.
 - **Wallpapers are copied.** A chosen image arrives through a file input, so
   the interface receives bytes and never a path. It is decoded once, drawn no
   larger than 2560 px on its long edge, re-encoded as WebP or JPEG and stored
@@ -75,7 +75,7 @@ repository's Markdown is untrusted content that JAM Code's own window now render
   documents, `file:`, custom schemes and malformed input render as text.
 - **Images.** Only inline raster `data:` images load. Remote images are not
   fetched (tracking pixels, and the content policy blocks them); project images
-  wait for a binary file service. Both render as a labelled placeholder.
+  wait for a binary file service. Both render as a labeled placeholder.
 - **Cost.** markdown-it and the preview are a lazily loaded chunk (≈44 KB
   gzip), fetched the first time a Markdown file is shown in Preview.
 

@@ -1,5 +1,5 @@
 /**
- * The little colour arithmetic themes need: mixing, alpha and contrast.
+ * The little color arithmetic themes need: mixing, alpha and contrast.
  * Everything works on `#rrggbb` so values stay exact and testable; alpha is
  * expressed as CSS `rgb(r g b / a%)`, the form tokens.css already uses.
  */
@@ -8,7 +8,7 @@ export type Rgb = [number, number, number];
 
 export function parseHex(hex: string): Rgb {
   const match = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
-  if (!match) throw new Error(`Not a #rrggbb colour: ${hex}`);
+  if (!match) throw new Error(`Not a #rrggbb color: ${hex}`);
   return [parseInt(match[1]!, 16), parseInt(match[2]!, 16), parseInt(match[3]!, 16)];
 }
 
@@ -43,22 +43,22 @@ export function luminance(hex: string): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-/** WCAG contrast ratio between two opaque colours. */
+/** WCAG contrast ratio between two opaque colors. */
 export function contrast(a: string, b: string): number {
   const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number];
   return (light + 0.05) / (dark + 0.05);
 }
 
 /**
- * `colour`, moved towards white (on a dark ground) or black (on a light one)
- * in small steps only until it reaches `ratio` against `ground`. A colour
+ * `color`, moved towards white (on a dark ground) or black (on a light one)
+ * in small steps only until it reaches `ratio` against `ground`. A color
  * that already passes is returned unchanged.
  */
-export function ensureContrast(colour: string, ground: string, ratio: number): string {
+export function ensureContrast(color: string, ground: string, ratio: number): string {
   const target = luminance(ground) < 0.2 ? '#ffffff' : '#000000';
-  let result = colour;
+  let result = color;
   for (let step = 1; step <= 50 && contrast(result, ground) < ratio; step++) {
-    result = mix(colour, target, step * 0.02);
+    result = mix(color, target, step * 0.02);
   }
   return result;
 }

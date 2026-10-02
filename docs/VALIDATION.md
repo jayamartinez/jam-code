@@ -78,7 +78,7 @@ Verified:
 - Claude Code and Codex chats: streaming, approvals, Stop and follow-up,
   closing a tab without stopping its turn, resume after Quit and relaunch, a
   Codex chat in a new worktree on its own branch.
-- Terminal over ConPTY (PowerShell 7): Unicode, colour, scrollback, copy,
+- Terminal over ConPTY (PowerShell 7): Unicode, color, scrollback, copy,
   paste, find, resize, restart, Ctrl+C.
 - Browser (WebView2): HTTPS and localhost, navigation, geometry under splits
   and resizes, two browsers, element and region annotations staged without
@@ -118,7 +118,7 @@ Verified:
 - Claude Code and Codex chats: sign-in and model detection, streaming,
   approvals and questions, Stop, resume after the app was killed and
   relaunched, compaction, file links, web preview of a local server.
-- Terminal (zsh): colour, Unicode, scrollback, copy, paste, find, resize,
+- Terminal (zsh): color, Unicode, scrollback, copy, paste, find, resize,
   several terminals, shells surviving a closed pane, Quit ending them.
 - Browser (WKWebView): positioning and clipping in every layout, overlays,
   focus, navigation, isolation from JAM Code's own IPC, annotations.
@@ -133,7 +133,7 @@ Verified:
 Not verified:
 
 - The packaged universal `.app` and `.dmg`: installation, ad-hoc signing and
-  Gatekeeper behaviour on a clean Mac.
+  Gatekeeper behavior on a clean Mac.
 - Intel Macs and macOS 14, the minimum supported version.
 - The native folder picker and the smart-quote fix (issue #8) have no
   recorded macOS check.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { APPEARANCE, customThemeProblem } from '@jam/protocol';
-import { coloursFromDefinition } from './custom';
-import { exportTheme, importTheme, normalizeColour, parseJsonc } from './import';
+import { colorsFromDefinition } from './custom';
+import { exportTheme, importTheme, normalizeColor, parseJsonc } from './import';
 import { THEMES } from './themes';
 
 const vscode = `{
@@ -36,11 +36,11 @@ describe('theme import', () => {
     });
   });
 
-  it('normalizes short, long and translucent colours', () => {
-    expect(normalizeColour('#ABC')).toBe('#aabbcc');
-    expect(normalizeColour('#112233')).toBe('#112233');
-    expect(normalizeColour('#ffffff80', '#000000')).toBe('#808080');
-    expect(normalizeColour('red')).toBeUndefined();
+  it('normalizes short, long and translucent colors', () => {
+    expect(normalizeColor('#ABC')).toBe('#aabbcc');
+    expect(normalizeColor('#112233')).toBe('#112233');
+    expect(normalizeColor('#ffffff80', '#000000')).toBe('#808080');
+    expect(normalizeColor('red')).toBeUndefined();
   });
 
   it('maps a VS Code theme onto JAM roles and reports what it derived', () => {
@@ -76,8 +76,8 @@ describe('theme import', () => {
     const theme = {
       id: 'harbour',
       name: 'Harbour',
-      dark: coloursFromDefinition(THEMES.tide),
-      light: coloursFromDefinition(THEMES.linen),
+      dark: colorsFromDefinition(THEMES.tide),
+      light: colorsFromDefinition(THEMES.linen),
     };
     const result = importTheme(exportTheme(theme));
     expect(result.format).toBe('jam');

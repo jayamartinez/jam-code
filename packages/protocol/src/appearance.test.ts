@@ -34,7 +34,7 @@ describe('appearance contract', () => {
     ).not.toThrow();
   });
 
-  it('rejects unknown names, malformed colours, unsafe font names and out-of-range values', () => {
+  it('rejects unknown names, malformed colors, unsafe font names and out-of-range values', () => {
     const bad: Partial<Record<keyof AppearanceSettings, unknown>>[] = [
       { theme: 'neon' },
       { accent: 'chartreuse' },
@@ -61,10 +61,10 @@ describe('appearance contract', () => {
   });
 
   it('accepts bounded custom themes and a custom active theme that exists', () => {
-    const colours = Object.fromEntries(
+    const colors = Object.fromEntries(
       APPEARANCE.customThemeRoles.map((role) => [role, '#336699']),
     ) as CustomThemeColors;
-    const harbour: CustomTheme = { id: 'harbour', name: 'Harbour', dark: colours };
+    const harbour: CustomTheme = { id: 'harbour', name: 'Harbour', dark: colors };
     const valid = { ...DEFAULT_APPEARANCE, customThemes: [harbour] };
     expect(() => update(valid)).not.toThrow();
     expect(() => update({ ...valid, theme: 'custom:harbour:dark' })).not.toThrow();
@@ -78,8 +78,8 @@ describe('appearance contract', () => {
       { ...harbour, name: 'a'.repeat(APPEARANCE.limits.customThemeNameUtf16 + 1) },
       { ...harbour, name: 'line\nbreak' },
       { id: 'harbour', name: 'Harbour' },
-      { ...harbour, dark: { ...colours, canvas: 'red' } },
-      { ...harbour, dark: { ...colours, extra: '#000000' } },
+      { ...harbour, dark: { ...colors, canvas: 'red' } },
+      { ...harbour, dark: { ...colors, extra: '#000000' } },
       { ...harbour, dark: { canvas: '#000000' } },
       { ...harbour, surprise: true },
     ];

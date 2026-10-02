@@ -13,7 +13,7 @@ use std::time::Duration;
 
 /// Deliberately performs no I/O, process invocation, model call or file
 /// mutation. It exists for tests, development and the browser preview, and
-/// is always labelled as a demonstration.
+/// is always labeled as a demonstration.
 pub struct MockProvider;
 
 const NOT_DEMO: &str = "Not implemented by the demo provider.";

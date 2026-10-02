@@ -41,7 +41,7 @@ const DESCRIPTION =
 
 /**
  * Snapshot preferences are runtime settings; the shortcut and capture belong to
- * the desktop host. Choices the host cannot honour yet stay visible but planned.
+ * the desktop host. Choices the host cannot honor yet stay visible but planned.
  */
 export default function SnapshotsPage({ transport, snapshots: host }: SettingsPageProps) {
   const [settings, setSettings] = useState<SnapshotSettings>();

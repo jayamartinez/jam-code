@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { APPEARANCE, type CustomTheme, type CustomThemeColors } from '@jam/protocol';
-import { coloursFromDefinition, customThemeDefinition, newCustomThemeId, themeFor } from './custom';
+import { colorsFromDefinition, customThemeDefinition, newCustomThemeId, themeFor } from './custom';
 import {
   libraryFamilies,
   libraryOrder,
   preferredVariant,
   searchLibrary,
-  specimenColours,
+  specimenColors,
 } from './library';
 import { contrast } from './color';
 import { THEMES } from './themes';
@@ -14,8 +14,8 @@ import { THEMES } from './themes';
 const harbour: CustomTheme = {
   id: 'harbour',
   name: 'Harbour',
-  dark: { ...coloursFromDefinition(THEMES.nightglass), canvas: '#0d1a1c', text: '#d2e4e3' },
-  light: coloursFromDefinition(THEMES.frost),
+  dark: { ...colorsFromDefinition(THEMES.nightglass), canvas: '#0d1a1c', text: '#d2e4e3' },
+  light: colorsFromDefinition(THEMES.frost),
 };
 
 describe('theme library', () => {
@@ -59,10 +59,10 @@ describe('theme library', () => {
 
   it("draws specimens from the theme's own roles", () => {
     for (const theme of Object.values(THEMES)) {
-      const colours = specimenColours(theme);
-      expect(colours.canvas).toBe(theme.surfaces.pane[0]);
-      expect(colours.keyword).toBe(theme.syntax.keyword);
-      expect(colours.accent).toBe(theme.accent);
+      const colors = specimenColors(theme);
+      expect(colors.canvas).toBe(theme.surfaces.pane[0]);
+      expect(colors.keyword).toBe(theme.syntax.keyword);
+      expect(colors.accent).toBe(theme.accent);
     }
   });
 });
@@ -70,7 +70,7 @@ describe('theme library', () => {
 describe('custom themes', () => {
   it('are drawn by the editor-theme builder, so contrast floors hold', () => {
     const faint: CustomThemeColors = {
-      ...coloursFromDefinition(THEMES.nightglass),
+      ...colorsFromDefinition(THEMES.nightglass),
       canvas: '#101010',
       comment: '#1a1a1a',
       keyword: '#141414',

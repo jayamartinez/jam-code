@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_APPEARANCE } from '../packages/protocol/src/appearance';
 import { appearanceTokens } from '../packages/client/src/appearance/resolve';
 
-/** `--name: value;` pairs from tokens.css, whitespace-normalised. */
+/** `--name: value;` pairs from tokens.css, whitespace-normalized. */
 function stylesheetTokens(): Map<string, string> {
   const css = readFileSync(
     new URL('../packages/client/src/styles/tokens.css', import.meta.url),

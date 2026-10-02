@@ -328,7 +328,7 @@ h2 {
   background: var(--color-fill-strong);
   border-radius: 8px;
 }
-/* Filled toggles keep their "on" colour under the generic button hover. */
+/* Filled toggles keep their "on" color under the generic button hover. */
 .sv-toggle.on:hover:not(:disabled),
 .context-switch.on:hover:not(:disabled),
 .toggle.on:hover:not(:disabled) {

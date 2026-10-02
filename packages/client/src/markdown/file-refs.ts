@@ -1,10 +1,10 @@
 /**
- * Recognises a project file named in an agent's reply, such as
+ * Recognizes a project file named in an agent's reply, such as
  * `src/math.ts:18` in inline code, so it can be offered as a link.
  *
  * Only names that look like files count: the last segment must have a
  * source-file extension or be a well-known file name. `pty.kill`, `a / b`
- * or `v1.2.3` stay code. A recognised name may still not exist; opening it
+ * or `v1.2.3` stay code. A recognized name may still not exist; opening it
  * then reports that, the way any missing file does.
  */
 

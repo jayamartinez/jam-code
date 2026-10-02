@@ -36,7 +36,7 @@ export function reportedModel(model?: string): string | undefined {
  * A model's name as people say it ("Opus 5.5", "GPT-5.5"), never its ID.
  * The provider's own label wins; a reported ID it does not list (Claude Code
  * lists aliases such as `opus` but reports `claude-opus-5-5`) is formatted
- * from the ID's shape, and anything unrecognised is shown as given.
+ * from the ID's shape, and anything unrecognized is shown as given.
  */
 export function modelLabel(id: string, descriptor?: ProviderDescriptor): string {
   const listed = descriptor?.models?.find((model) => model.id === id && !model.isDefault);

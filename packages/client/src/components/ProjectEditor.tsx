@@ -367,7 +367,7 @@ function IconPopover({
       )}
 
       {kind !== 'image' && (
-        <div className="icon-popover-tones" role="radiogroup" aria-label="Colour">
+        <div className="icon-popover-tones" role="radiogroup" aria-label="Color">
           {PROJECT_ICONS.tones.map((option) => (
             <button
               key={option}

@@ -8,18 +8,18 @@ import {
   type CustomThemeRole,
 } from '@jam/protocol';
 import { contrast, ensureContrast } from '../../appearance/color';
-import { coloursFromDefinition } from '../../appearance/custom';
+import { colorsFromDefinition } from '../../appearance/custom';
 import type { ImportedTheme } from '../../appearance/import';
 import { colorTokens } from '../../appearance/resolve';
 import { THEMES, type Scheme } from '../../appearance/themes';
 import { Card, Row, Section, Segmented } from '../settings/controls';
-import { ColourInput } from './controls';
+import { ColorInput } from './controls';
 import { MiniWindow } from './Stage';
 
 /**
- * Create, edit or finish importing a theme. The reader edits anchor colours
+ * Create, edit or finish importing a theme. The reader edits anchor colors
  * per variant; the preview is the same miniature window as the page's stage,
- * wrapped in the draft's own tokens. Colours below JAM's contrast floors are
+ * wrapped in the draft's own tokens. Colors below JAM's contrast floors are
  * flagged: JAM raises them just enough whenever it draws the theme, and
  * "Raise now" writes the raised values into the draft instead.
  */
@@ -55,10 +55,10 @@ const ANSI: CustomThemeRole[] = ['red', 'green', 'yellow', 'blue', 'magenta', 'c
 const FLOORS = [...TEXT_ROLES, ...SYNTAX];
 
 const starter = (scheme: Scheme): CustomThemeColors =>
-  coloursFromDefinition(scheme === 'dark' ? THEMES.nightglass : THEMES.frost);
+  colorsFromDefinition(scheme === 'dark' ? THEMES.nightglass : THEMES.frost);
 
-function belowFloor(colours: CustomThemeColors) {
-  return FLOORS.filter(({ role, ratio }) => contrast(colours[role], colours.canvas) < ratio);
+function belowFloor(colors: CustomThemeColors) {
+  return FLOORS.filter(({ role, ratio }) => contrast(colors[role], colors.canvas) < ratio);
 }
 
 export interface ThemeDraft {
@@ -86,18 +86,18 @@ export function ThemeEditor({
   const [theme, setTheme] = useState<CustomTheme>(draft.theme);
   const [scheme, setScheme] = useState<Scheme>(draft.theme.dark ? 'dark' : 'light');
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const colours = theme[scheme];
+  const colors = theme[scheme];
   const name = theme.name.trim();
   const valid = !!name && name.length <= APPEARANCE.limits.customThemeNameUtf16;
 
-  const setColour = (role: CustomThemeRole, value: string) =>
+  const setColor = (role: CustomThemeRole, value: string) =>
     setTheme((previous) => ({
       ...previous,
       [scheme]: { ...(previous[scheme] ?? starter(scheme)), [role]: value },
     }));
 
   const previewStyle = useMemo(() => {
-    if (!colours) return undefined;
+    if (!colors) return undefined;
     const draftTheme = { ...theme, id: 'draft', name: name || 'Untitled' };
     return colorTokens({
       ...appearance,
@@ -108,14 +108,14 @@ export function ThemeEditor({
       paneOpacity: 100,
       sidebarOpacity: 100,
     }) as CSSProperties;
-  }, [appearance, colours, name, scheme, theme]);
+  }, [appearance, colors, name, scheme, theme]);
 
-  const low = colours ? belowFloor(colours) : [];
+  const low = colors ? belowFloor(colors) : [];
   const variants = (['light', 'dark'] as const).filter((item) => theme[item]);
 
   const ratio = (role: CustomThemeRole, floor: number) => {
-    if (!colours) return null;
-    const value = contrast(colours[role], colours.canvas);
+    if (!colors) return null;
+    const value = contrast(colors[role], colors.canvas);
     const text = value.toFixed(1);
     return value < floor ? (
       <span className="sv-chip warning" title={`Drawn at ${floor}:1 or better`}>
@@ -209,7 +209,7 @@ export function ThemeEditor({
             }))}
             onChange={setScheme}
           />
-          {!colours ? (
+          {!colors ? (
             <Card>
               <Row
                 title={`No ${scheme} variant`}
@@ -230,16 +230,16 @@ export function ThemeEditor({
                 label="Surfaces"
                 {...(appearance.autoColors &&
                   appearance.background === 'image' && {
-                    hint: 'Recoloured by the image while Match colours to image is on',
+                    hint: 'Recolored by the image while Match colors to image is on',
                   })}
               >
                 <Card>
                   {SURFACES.map(({ role, label, sub }) => (
                     <Row key={role} title={label} sub={sub}>
-                      <ColourInput
+                      <ColorInput
                         label={label}
-                        value={colours[role]}
-                        onChange={(value) => setColour(role, value)}
+                        value={colors[role]}
+                        onChange={(value) => setColor(role, value)}
                       />
                     </Row>
                   ))}
@@ -250,19 +250,19 @@ export function ThemeEditor({
                   {TEXT_ROLES.map(({ role, label, ratio: floor }) => (
                     <Row key={role} title={label}>
                       {ratio(role, floor)}
-                      <ColourInput
+                      <ColorInput
                         label={label}
-                        value={colours[role]}
-                        onChange={(value) => setColour(role, value)}
+                        value={colors[role]}
+                        onChange={(value) => setColor(role, value)}
                       />
                     </Row>
                   ))}
                   {STATUS.map(({ role, label }) => (
                     <Row key={role} title={label}>
-                      <ColourInput
+                      <ColorInput
                         label={label}
-                        value={colours[role]}
-                        onChange={(value) => setColour(role, value)}
+                        value={colors[role]}
+                        onChange={(value) => setColor(role, value)}
                       />
                     </Row>
                   ))}
@@ -274,10 +274,10 @@ export function ThemeEditor({
                     <div key={role} className="ap-syntax-role">
                       <span>{label}</span>
                       {ratio(role, floor)}
-                      <ColourInput
+                      <ColorInput
                         label={label}
-                        value={colours[role]}
-                        onChange={(value) => setColour(role, value)}
+                        value={colors[role]}
+                        onChange={(value) => setColor(role, value)}
                       />
                     </div>
                   ))}
@@ -286,11 +286,11 @@ export function ThemeEditor({
               <Section label="Terminal">
                 <div className="ap-ansi">
                   {ANSI.map((role) => (
-                    <ColourInput
+                    <ColorInput
                       key={role}
                       label={`Terminal ${role}`}
-                      value={colours[role]}
-                      onChange={(value) => setColour(role, value)}
+                      value={colors[role]}
+                      onChange={(value) => setColor(role, value)}
                     />
                   ))}
                 </div>
@@ -315,9 +315,9 @@ export function ThemeEditor({
 
         <div className="ap-editor-preview">
           <div className="ap-editor-stage" style={previewStyle}>
-            {colours ? <MiniWindow /> : <p className="sv-mono">No {scheme} variant yet.</p>}
+            {colors ? <MiniWindow /> : <p className="sv-mono">No {scheme} variant yet.</p>}
           </div>
-          {colours && (
+          {colors && (
             <div className={`ap-check ${low.length ? 'warn' : ''}`} role="status">
               {low.length ? (
                 <>
@@ -348,7 +348,7 @@ export function ThemeEditor({
                   </button>
                 </>
               ) : (
-                <strong>Every text and syntax colour meets its contrast floor.</strong>
+                <strong>Every text and syntax color meets its contrast floor.</strong>
               )}
             </div>
           )}

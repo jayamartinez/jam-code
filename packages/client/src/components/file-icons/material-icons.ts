@@ -21,7 +21,7 @@ import settings from './material/settings.svg';
 import document from './material/document.svg';
 
 /**
- * A curated subset of the Material Icon Theme, vendored under its MIT licence
+ * A curated subset of the Material Icon Theme, vendored under its MIT license
  * (see `material/LICENSE.md`). Only the types JAM actually distinguishes are
  * included: the full pack is roughly a thousand icons and most of a megabyte.
  *

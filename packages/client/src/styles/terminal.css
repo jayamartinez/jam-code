@@ -4,9 +4,9 @@
  * The Files and Tiles frames define the surface: the terminal surface token,
  * Geist Mono at 12px on a 19px line, muted default text, 10px/14px padding.
  * The ANSI palette is a set of theme roles (`--color-ansi-*`), so programs'
- * colours sit inside the current theme rather than beside it, and choosing an
- * accent never recolours a program's blue. The view re-reads these roles
- * whenever the appearance changes; nothing below is a literal colour.
+ * colors sit inside the current theme rather than beside it, and choosing an
+ * accent never recolors a program's blue. The view re-reads these roles
+ * whenever the appearance changes; nothing below is a literal color.
  */
 .terminal-pane {
   /* Clip, not hide: a focused field inside must not scroll the pane. */

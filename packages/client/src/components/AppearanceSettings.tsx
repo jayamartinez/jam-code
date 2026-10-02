@@ -17,11 +17,11 @@ import { ACCENTS, legible, type Scheme } from '../appearance/themes';
 import { MONO_FONTS, UI_FONTS } from '../appearance/fonts';
 import { WALLPAPER_ACCEPT, prepareWallpaper } from '../appearance/wallpaper';
 import { effectTokens, themeOf } from '../appearance/resolve';
-import { canAddCustomTheme, coloursFromDefinition, newCustomThemeId } from '../appearance/custom';
+import { canAddCustomTheme, colorsFromDefinition, newCustomThemeId } from '../appearance/custom';
 import { libraryFamilies, libraryOrder } from '../appearance/library';
 import { THEME_FILE_BYTES, exportTheme, importTheme } from '../appearance/import';
 import { Card, Row, Section, Segmented, Toggle } from './settings/controls';
-import { ColourInput, FontSelect, NumberSelect, Slider } from './appearance/controls';
+import { ColorInput, FontSelect, NumberSelect, Slider } from './appearance/controls';
 import { Library } from './appearance/Library';
 import { Stage } from './appearance/Stage';
 import { ThemeEditor, type ThemeDraft } from './appearance/ThemeEditor';
@@ -38,12 +38,12 @@ type Update = (changes: Partial<AppearanceSettings>) => void;
 
 function AccentPicker({ appearance, update }: { appearance: AppearanceSettings; update: Update }) {
   const theme = themeOf(appearance);
-  const swatches: { id: AccentId; name: string; colour: string }[] = [
-    { id: 'theme', name: `${theme.name} accent`, colour: theme.accent },
+  const swatches: { id: AccentId; name: string; color: string }[] = [
+    { id: 'theme', name: `${theme.name} accent`, color: theme.accent },
     ...ACCENTS.map((accent) => ({
       id: accent.id,
       name: accent.name,
-      colour: accent[theme.scheme][0],
+      color: accent[theme.scheme][0],
     })),
   ];
   return (
@@ -59,7 +59,7 @@ function AccentPicker({ appearance, update }: { appearance: AppearanceSettings; 
           }`}
           title={swatch.name}
           aria-label={swatch.name}
-          style={{ '--swatch': swatch.colour } as React.CSSProperties}
+          style={{ '--swatch': swatch.color } as React.CSSProperties}
           onClick={() => update({ accent: swatch.id })}
         />
       ))}
@@ -70,7 +70,7 @@ function AccentPicker({ appearance, update }: { appearance: AppearanceSettings; 
       >
         <input
           type="color"
-          aria-label="Custom accent colour"
+          aria-label="Custom accent color"
           value={appearance.customAccent}
           onChange={(event) =>
             update({ accent: 'custom', customAccent: event.target.value.toLowerCase() })
@@ -254,9 +254,9 @@ function BackgroundSection({
           />
         </Row>
         {appearance.background === 'solid' && (
-          <Row title="Colour">
-            <ColourInput
-              label="Background colour"
+          <Row title="Color">
+            <ColorInput
+              label="Background color"
               value={appearance.backgroundColor}
               onChange={(backgroundColor) => update({ backgroundColor })}
             />
@@ -264,13 +264,13 @@ function BackgroundSection({
         )}
         {appearance.background === 'gradient' && (
           <Row title="Gradient">
-            <ColourInput
-              label="Gradient start colour"
+            <ColorInput
+              label="Gradient start color"
               value={appearance.gradientFrom}
               onChange={(gradientFrom) => update({ gradientFrom })}
             />
-            <ColourInput
-              label="Gradient end colour"
+            <ColorInput
+              label="Gradient end color"
               value={appearance.gradientTo}
               onChange={(gradientTo) => update({ gradientTo })}
             />
@@ -326,11 +326,11 @@ function BackgroundSection({
         )}
         {appearance.background === 'image' && wallpaper && (
           <Row
-            title="Match colours to image"
-            sub="Accent from the image's most vivid colour. The canvas, sidebar and raised surfaces take its dark tone."
+            title="Match colors to image"
+            sub="Accent from the image's most vivid color. The canvas, sidebar and raised surfaces take its dark tone."
           >
             <Toggle
-              label="Match colours to image"
+              label="Match colors to image"
               on={appearance.autoColors}
               onChange={(autoColors) => update({ autoColors })}
             />
@@ -502,8 +502,8 @@ export default function AppearanceSettings() {
   const startNew = () => {
     const variants: Partial<CustomTheme> = {};
     for (const variant of family?.variants ?? [])
-      variants[variant.theme.scheme] ??= coloursFromDefinition(variant.theme);
-    variants[theme.scheme] = coloursFromDefinition(theme);
+      variants[variant.theme.scheme] ??= colorsFromDefinition(variant.theme);
+    variants[theme.scheme] = colorsFromDefinition(theme);
     setDraft({ isNew: true, theme: { id: '', name: `${theme.family} copy`, ...variants } });
   };
 
@@ -580,8 +580,8 @@ export default function AppearanceSettings() {
             title="Accent"
             sub={
               appearance.autoColors && appearance.background === 'image' && wallpaper
-                ? 'Taken from the image while Match colours to image is on.'
-                : 'Focus, selection and links. Status colours never change.'
+                ? 'Taken from the image while Match colors to image is on.'
+                : 'Focus, selection and links. Status colors never change.'
             }
           >
             <AccentPicker appearance={appearance} update={update} />

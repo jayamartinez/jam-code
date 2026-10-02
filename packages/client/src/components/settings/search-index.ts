@@ -84,7 +84,7 @@ const ROWS: SettingsEntry[] = [
   {
     page: 'Appearance',
     section: 'Background & surfaces',
-    title: 'Match colours to image',
+    title: 'Match colors to image',
     keywords: 'color',
   },
   { page: 'Appearance', section: 'Background & surfaces', title: 'Brightness' },
@@ -111,7 +111,7 @@ const ROWS: SettingsEntry[] = [
     page: 'Appearance',
     section: 'Interface',
     title: 'Accent',
-    keywords: 'colour color highlight theme',
+    keywords: 'color color highlight theme',
   },
   {
     page: 'Appearance',

@@ -5,12 +5,12 @@ import type { AnsiRole, Scheme, SyntaxRole, ThemeDefinition } from './themes';
 /**
  * Editor-style themes: dark and light variants of palettes people already
  * know from their editors and tools. Each is written as a handful of anchor
- * colours — canvas, sidebar, text, accent, status, a syntax palette and six
- * ANSI colours — and `editorTheme` derives every other role the same way, so
+ * colors — canvas, sidebar, text, accent, status, a syntax palette and six
+ * ANSI colors — and `editorTheme` derives every other role the same way, so
  * the family stays consistent and cheap to extend.
  *
- * Palettes follow each source's public colour system. Where a published
- * colour would fall below JAM's contrast floors on its own canvas (tested in
+ * Palettes follow each source's public color system. Where a published
+ * color would fall below JAM's contrast floors on its own canvas (tested in
  * resolve.test.ts), it is nudged just far enough to pass; these are JAM's
  * interpretations, not official ports. Proof is JAM's own sage-and-paper
  * palette. Surfaces are opaque by default: these themes are solid, and pane
@@ -50,7 +50,7 @@ export function editorTheme(a: Anchors): ThemeDefinition {
   const dark = a.scheme === 'dark';
   const step = (amount: number) => mix(a.text, a.canvas, amount);
   // Every readable role meets JAM's floors on this theme's own canvas.
-  const read = (colour: string, ratio = 4.5) => ensureContrast(colour, a.canvas, ratio);
+  const read = (color: string, ratio = 4.5) => ensureContrast(color, a.canvas, ratio);
   const text = {
     strong: mix(a.text, dark ? '#ffffff' : '#000000', 0.35),
     primary: a.text,
@@ -64,12 +64,9 @@ export function editorTheme(a: Anchors): ThemeDefinition {
   const accent = ensureContrast(a.accent, a.canvas, 3);
   const accentText = read(accent);
   const terminalGround = mix(a.canvas, a.sidebar, 0.35);
-  const bright = (colour: string) => mix(colour, text.strong, dark ? 0.38 : 0.25);
+  const bright = (color: string) => mix(color, text.strong, dark ? 0.38 : 0.25);
   const console = Object.fromEntries(
-    Object.entries(a.ansi).map(([role, colour]) => [
-      role,
-      ensureContrast(colour, terminalGround, 3),
-    ]),
+    Object.entries(a.ansi).map(([role, color]) => [role, ensureContrast(color, terminalGround, 3)]),
   ) as Anchors['ansi'];
   const ansi: Record<AnsiRole, string> = {
     black: dark ? text.ghost : text.strong,
@@ -85,9 +82,9 @@ export function editorTheme(a: Anchors): ThemeDefinition {
     'bright-cyan': bright(a.ansi.cyan),
   };
   const s = Object.fromEntries(
-    Object.entries(a.syntax).map(([role, colour]) => [
+    Object.entries(a.syntax).map(([role, color]) => [
       role,
-      read(colour, role === 'comment' || role === 'punctuation' ? 3.5 : 4.5),
+      read(color, role === 'comment' || role === 'punctuation' ? 3.5 : 4.5),
     ]),
   ) as Syntax;
   const status = { success: read(a.success), warning: read(a.warning), danger: read(a.danger) };

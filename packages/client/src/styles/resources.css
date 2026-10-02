@@ -3,7 +3,7 @@
  *
  * Anchored under the resource tab bar rather than presented as a modal: the
  * question is "what do I want to open?", and the answer lands in this window's
- * tabs. Global history search keeps its own centred dialog.
+ * tabs. Global history search keeps its own centered dialog.
  * Geometry follows the approved launcher frame: 600px wide, 42px below the top
  * of the main region, a 362px open list and a 236px project column.
  */
@@ -516,9 +516,9 @@ span.icon-slot {
 }
 
 /*
- * Git status letters. The colour carries the meaning, as the Files frame
+ * Git status letters. The color carries the meaning, as the Files frame
  * shows: added green, modified amber, deleted red, untracked quiet. A changed
- * file's name takes a faint tint of the same colour so the row reads at a
+ * file's name takes a faint tint of the same color so the row reads at a
  * glance, not only at its right edge.
  */
 .file-status {

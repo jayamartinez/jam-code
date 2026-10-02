@@ -166,7 +166,7 @@ export function ProjectBadge({
 /**
  * Square an arbitrary image in the browser before it is stored.
  *
- * The centre is cropped to a square and drawn at a fixed size, so a tall or
+ * The center is cropped to a square and drawn at a fixed size, so a tall or
  * wide picture is never stretched and the stored record stays small.
  */
 export async function squareProjectImage(file: File, size = 64): Promise<string> {

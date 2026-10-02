@@ -245,7 +245,7 @@ function ProjectDetail({
             {draft.kind !== 'image' && (
               <div className="sv-icon-line">
                 <span className="sv-icon-line-label">Tone</span>
-                <div className="sv-tones" role="radiogroup" aria-label="Colour">
+                <div className="sv-tones" role="radiogroup" aria-label="Color">
                   {PROJECT_ICONS.tones.map((tone) => (
                     <button
                       key={tone}

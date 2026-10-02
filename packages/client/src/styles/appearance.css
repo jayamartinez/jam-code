@@ -597,7 +597,7 @@
   border-radius: 3px;
   box-shadow: inset 0 0 0 1px var(--color-border-strong);
 }
-.ap-colour {
+.ap-color {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -608,18 +608,18 @@
   background: var(--color-fill);
   cursor: pointer;
 }
-.ap-colour-swatch {
+.ap-color-swatch {
   width: 16px;
   height: 16px;
   border-radius: 4px;
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 12%);
 }
-.ap-colour-hex {
+.ap-color-hex {
   color: var(--color-text-secondary);
   font-family: var(--font-mono-stack);
   font-size: calc(11px * var(--ui-scale));
 }
-.ap-colour input {
+.ap-color input {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -652,10 +652,10 @@
 .ap-syntax-role > span:first-child {
   flex: 1;
 }
-.ap-syntax-role .ap-colour-hex {
+.ap-syntax-role .ap-color-hex {
   display: none;
 }
-.ap-syntax-role .ap-colour {
+.ap-syntax-role .ap-color {
   padding-right: 4px;
 }
 .ap-ansi {
@@ -663,10 +663,10 @@
   flex-wrap: wrap;
   gap: 6px;
 }
-.ap-ansi .ap-colour-hex {
+.ap-ansi .ap-color-hex {
   display: none;
 }
-.ap-ansi .ap-colour {
+.ap-ansi .ap-color {
   padding-right: 4px;
 }
 .ap-remove-variant {

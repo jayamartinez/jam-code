@@ -7,7 +7,7 @@ import {
   customThemeRef,
 } from '@jam/protocol';
 import { contrast, luminance, mix, toHex, toHsl } from './color';
-import { coloursFromDefinition } from './custom';
+import { colorsFromDefinition } from './custom';
 import { extractPalette } from './palette';
 import {
   backgroundTokens,
@@ -40,7 +40,7 @@ describe('theme tokens', () => {
     for (const theme of Object.values(THEMES)) {
       const [pane, opacity] = theme.surfaces.pane;
       const ground = mix(theme.base, pane, opacity / 100);
-      const ratio = (colour: string) => contrast(colour, ground);
+      const ratio = (color: string) => contrast(color, ground);
       expect(ratio(theme.text.body), `${theme.id} body`).toBeGreaterThanOrEqual(7);
       expect(ratio(theme.text.secondary), `${theme.id} secondary`).toBeGreaterThanOrEqual(4.5);
       expect(ratio(theme.text.muted), `${theme.id} muted`).toBeGreaterThanOrEqual(4.5);
@@ -65,7 +65,7 @@ describe('theme tokens', () => {
     }
   });
 
-  it('let the accent change only accent roles, never status, code or terminal colours', () => {
+  it('let the accent change only accent roles, never status, code or terminal colors', () => {
     const base = colorTokens(settings());
     for (const accent of [...ACCENTS.map((item) => item.id), 'custom'] as const) {
       const tokens = colorTokens(settings({ accent, customAccent: '#ff3366' }));
@@ -86,7 +86,7 @@ describe('theme tokens', () => {
       const adjusted = legible(hostile, theme);
       expect(contrast(adjusted, theme.surfaces.pane[0])).toBeGreaterThanOrEqual(3);
     }
-    // A colour that already reads is left alone.
+    // A color that already reads is left alone.
     expect(legible('#6f9bff', THEMES.nightglass)).toBe('#6f9bff');
   });
 
@@ -235,7 +235,7 @@ describe('background effects', () => {
   });
 });
 
-describe('match colours to image', () => {
+describe('match colors to image', () => {
   // A mostly dark-teal picture with a patch of vivid orange.
   const pixels: number[] = [];
   for (let index = 0; index < 400; index++)
@@ -271,9 +271,9 @@ describe('match colours to image', () => {
       colorTokens({ ...on, autoColors: false }),
     );
   });
-  it('gives every surface the image tone at its own lightness, a grey theme included', () => {
-    const grey: CustomThemeColors = {
-      ...coloursFromDefinition(THEMES.nightglass),
+  it('gives every surface the image tone at its own lightness, a gray theme included', () => {
+    const gray: CustomThemeColors = {
+      ...colorsFromDefinition(THEMES.nightglass),
       canvas: '#424242',
       sidebar: '#090a0f',
       raised: '#4d5150',
@@ -281,8 +281,8 @@ describe('match colours to image', () => {
     const on = settings({
       background: 'image',
       autoColors: true,
-      theme: customThemeRef('grey', 'dark'),
-      customThemes: [{ id: 'grey', name: 'Grey', dark: grey }],
+      theme: customThemeRef('gray', 'dark'),
+      customThemes: [{ id: 'gray', name: 'Gray', dark: gray }],
     });
     const plain = colorTokens({ ...on, autoColors: false }, { present: true, palette });
     const matched = colorTokens(on, { present: true, palette });
