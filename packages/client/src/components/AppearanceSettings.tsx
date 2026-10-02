@@ -679,6 +679,23 @@ export default function AppearanceSettings() {
           </Row>
         </Card>
       </Section>
+      <ThemeColors
+        surfaces={drawnSurfaces(appearance, image)}
+        saved={
+          mine
+            ? `Changes save to your theme “${mine.name}”.`
+            : full
+              ? `${APPEARANCE.limits.customThemes} of your own themes is the most JAM Code keeps. Delete one to change these.`
+              : `Changing a color saves ${theme.family} as your own theme, “${copyName}”.`
+        }
+        full={full}
+        onChange={setSurface}
+        {...(matching && {
+          onFollowImage: (role: SurfaceRole) =>
+            update({ ownSurfaces: appearance.ownSurfaces.filter((item) => item !== role) }),
+        })}
+        onAllColors={() => (mine ? setDraft({ isNew: false, theme: mine }) : startNew())}
+      />
 
       <BackgroundSection appearance={appearance} update={update} />
 
@@ -699,23 +716,6 @@ export default function AppearanceSettings() {
           if (custom) setDraft({ isNew: false, theme: custom });
         }}
         canAdd={canAdd}
-      />
-      <ThemeColors
-        surfaces={drawnSurfaces(appearance, image)}
-        saved={
-          mine
-            ? `Changes save to your theme “${mine.name}”.`
-            : full
-              ? `${APPEARANCE.limits.customThemes} of your own themes is the most JAM Code keeps. Delete one to change these.`
-              : `Changing a color saves ${theme.family} as your own theme, “${copyName}”.`
-        }
-        full={full}
-        onChange={setSurface}
-        {...(matching && {
-          onFollowImage: (role: SurfaceRole) =>
-            update({ ownSurfaces: appearance.ownSurfaces.filter((item) => item !== role) }),
-        })}
-        onAllColors={() => (mine ? setDraft({ isNew: false, theme: mine }) : startNew())}
       />
 
       <div className="ap-footer">
