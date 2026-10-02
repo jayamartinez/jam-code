@@ -97,6 +97,8 @@ export class BrowserPreviewTransport implements JamTransport {
         throw new JamError('unavailable', 'Snapshots require the desktop app.');
       case 'attachment.remove':
       case 'attachment.asset':
+      case 'attachment.text':
+      case 'attachment.reveal':
         // The preview cannot read this computer's files, so nothing is ever attached.
         throw new JamError('unavailable', 'Attaching files requires the desktop app.');
       case 'workspace.get':

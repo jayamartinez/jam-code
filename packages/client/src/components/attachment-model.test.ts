@@ -8,10 +8,12 @@ import {
 } from '@jam/protocol';
 import {
   attachmentDetail,
+  attachmentNamed,
   formatBytes,
   imagesRefused,
   refusalMessage,
   sendsImage,
+  sentAttachments,
 } from './attachment-model';
 
 const attachment = (kind: 'file' | 'image', mediaType: string, bytes = 18_432): ContextItem => ({
@@ -149,5 +151,75 @@ describe('the attachment contract', () => {
       'file:///C:/Users/someone/secret.png',
     ])
       expect(() => asset(hostile)).toThrow();
+  });
+});
+
+describe('attachments named in a reply', () => {
+  const sent = (id: string, name: string): ContextItem => ({
+    id,
+    kind: 'attachment',
+    label: name,
+    source: {},
+    assetId: id,
+    attachment: { name, mediaType: 'application/pdf', kind: 'file', bytes: 10 },
+  });
+  const resume = sent('attachment-0b0e6a52-7a3c-4c8e-9f0a-1d2e3f4a5b6c', 'My Resume.pdf');
+  const older = sent('attachment-11111111-1111-4111-8111-111111111111', 'notes.txt');
+  const newer = sent('attachment-22222222-2222-4222-8222-222222222222', 'notes.txt');
+  const all = [older, resume, newer];
+
+  it('collects what user messages sent, in order, and nothing else', () => {
+    const message = (role: 'user' | 'assistant', items: ContextItem[]) => ({
+      id: `${role}-${items.length}`,
+      role,
+      createdAt: '2026-10-01T00:00:00Z',
+      blocks: [
+        { type: 'text' as const, text: 'see attached' },
+        { type: 'context' as const, items },
+      ],
+    });
+    expect(
+      sentAttachments([
+        message('user', [older, file]),
+        message('assistant', [resume]),
+        message('user', [newer]),
+      ]),
+    ).toEqual([older, newer]);
+  });
+
+  it('matches a file name exactly, spaces included', () => {
+    expect(attachmentNamed('My Resume.pdf', all)).toBe(resume);
+    expect(attachmentNamed(' My Resume.pdf ', all)).toBe(resume);
+    expect(attachmentNamed('my resume.pdf', all)).toBeUndefined();
+    expect(attachmentNamed('Resume.pdf', all)).toBeUndefined();
+    expect(attachmentNamed('', all)).toBeUndefined();
+    expect(attachmentNamed('notes.txt', [])).toBeUndefined();
+  });
+
+  it('prefers the copy sent last when a name repeats', () => {
+    expect(attachmentNamed('notes.txt', all)).toBe(newer);
+  });
+
+  it('matches the path of the copy by its ID, not by its folder', () => {
+    const path = `C:\\Users\\me\\AppData\\Roaming\\jam\\attachments\\conv-1\\${older.id}.txt`;
+    expect(attachmentNamed(path, all)).toBe(older);
+    expect(attachmentNamed(`/data/attachments/conv-1/${resume.id}.pdf`, all)).toBe(resume);
+    expect(
+      attachmentNamed('C:\\x\\attachment-99999999-9999-4999-8999-999999999999.txt', all),
+    ).toBeUndefined();
+  });
+
+  it('declares the preview and reveal requests in the contract', () => {
+    for (const method of ['attachment.text', 'attachment.reveal'] as const) {
+      expect(() =>
+        validateRequest({ protocolVersion: 1, method, params: { id: resume.id } }),
+      ).not.toThrow();
+      expect(() => validateRequest({ protocolVersion: 1, method, params: {} })).toThrow();
+    }
+    expect(() =>
+      validateResponse('attachment.text', { text: 'ok', truncated: false }),
+    ).not.toThrow();
+    expect(() => validateResponse('attachment.text', { text: 'ok' })).toThrow();
+    expect(() => validateResponse('attachment.reveal', { revealed: true })).not.toThrow();
   });
 });

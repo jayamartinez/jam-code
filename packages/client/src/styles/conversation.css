@@ -262,9 +262,170 @@
   font-size: calc(9.5px * var(--ui-scale));
   color: var(--color-text-faint);
 }
-.attachment-preview-frame .snapshot-image {
+/*
+ * Attachment preview (Paper, "24 · Attachment preview"). An image is a
+ * lightbox: the picture alone over the scrim. Any other file opens in a
+ * viewer: one header row, then the document edge to edge.
+ */
+.dialog.attachment-lightbox,
+.dialog.attachment-viewer {
+  top: 0;
+  bottom: 0;
+  margin: auto;
+  max-width: calc(100vw - 96px);
+  max-height: calc(100vh - 96px);
+}
+.dialog.attachment-lightbox {
+  overflow: visible;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+.attachment-lightbox figure {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+}
+.attachment-lightbox img {
+  display: block;
+  max-width: min(1200px, calc(100vw - 96px));
+  max-height: calc(100vh - 176px);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 30px 80px rgb(0 0 0 / 55%);
+}
+.attachment-lightbox figcaption {
   max-width: 100%;
-  object-fit: contain;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono-stack);
+  font-size: calc(12px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.attachment-lightbox .lightbox-close {
+  position: absolute;
+  top: -36px;
+  right: -4px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  background: var(--color-surface-overlay);
+  color: var(--color-text-primary);
+}
+.attachment-lightbox .lightbox-loading {
+  display: grid;
+  place-items: center;
+  width: min(480px, 60vw);
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-overlay);
+  color: var(--color-text-subtle);
+  font-size: calc(12px * var(--ui-scale));
+}
+.dialog.attachment-viewer {
+  display: flex;
+  flex-direction: column;
+  width: min(900px, calc(100vw - 96px));
+  overflow: hidden;
+}
+/* A document gets the height; text and notices take only what they need. */
+.dialog.attachment-viewer.document {
+  height: calc(100vh - 96px);
+}
+.attachment-viewer-bar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  height: 40px;
+  padding: 0 6px 0 14px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-subtle);
+  font-size: calc(12px * var(--ui-scale));
+}
+.attachment-viewer-bar > svg {
+  flex-shrink: 0;
+  color: var(--color-text-faint);
+}
+.attachment-viewer-bar strong {
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+.attachment-viewer-origin,
+.attachment-viewer-size {
+  flex-shrink: 0;
+}
+.attachment-viewer-size {
+  margin-left: 6px;
+  font-family: var(--font-mono-stack);
+  font-size: calc(11px * var(--ui-scale));
+}
+.attachment-viewer-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+  margin-left: auto;
+  padding-left: 12px;
+}
+.attachment-viewer-actions .icon-button:hover {
+  background: var(--color-fill-strong);
+  color: var(--color-text-primary);
+}
+.attachment-viewer-notice {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: calc(11.5px * var(--ui-scale));
+  line-height: calc(16px * var(--ui-scale));
+}
+.attachment-viewer-frame {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border: 0;
+  /* A PDF page is paper, whatever the theme. */
+  background: #fff;
+}
+.attachment-viewer-text {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 14px 16px;
+  overflow: auto;
+  color: var(--color-text-body);
+  font-family: var(--font-mono-stack);
+  font-size: calc(12px * var(--ui-scale));
+  line-height: calc(18px * var(--ui-scale));
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.attachment-viewer-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 220px;
+  padding: 32px;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: calc(12px * var(--ui-scale));
+  line-height: calc(18px * var(--ui-scale));
+}
+.attachment-viewer-empty strong {
+  color: var(--color-text-primary);
+  font-size: calc(13px * var(--ui-scale));
+  font-weight: 500;
+}
+.attachment-viewer-empty p {
+  margin: 0;
 }
 .new-chat-body {
   flex: 1;

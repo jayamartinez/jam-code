@@ -568,8 +568,18 @@ export interface RequestMap
    * copy of it. One that was sent belongs to its conversation (`conflict`).
    */
   'attachment.remove': { params: { id: string }; result: { accepted: true } };
-  /** An image attachment as a data URL, for its preview. */
+  /**
+   * A raster image or a PDF attachment, whole, as a data URL for its preview.
+   * The runtime decides by content; anything else is `invalid_request`.
+   */
   'attachment.asset': { params: { id: string }; result: { dataUrl: string } };
+  /**
+   * The first 256 KB of a text attachment, for its preview; `truncated` when the
+   * file continues. Refused (`invalid_request`) for anything that is not text.
+   */
+  'attachment.text': { params: { id: string }; result: { text: string; truncated: boolean } };
+  /** Shows the runtime's copy in Finder or Explorer. It never opens the file. */
+  'attachment.reveal': { params: { id: string }; result: { revealed: true } };
   'turn.interrupt': {
     params: { sessionId: string };
     result: { sessionId: string; interrupted: boolean };

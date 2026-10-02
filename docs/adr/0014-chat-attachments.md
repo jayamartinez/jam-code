@@ -108,4 +108,23 @@ characters; at most 64 attachments waiting to be sent.
   through the same host import.
 - Closing a new chat that has staged attachments leaves their copies until
   the retention limit or the next start removes them.
-- Image previews are served as data URLs of the raster types above, by ID.
+- Previews are served by ID from JAM Code's copy, and the runtime decides what
+  a copy may be shown as from its first bytes, never from its name or recorded
+  type. A PNG, JPEG, GIF or WebP is shown as an image. A PDF is shown in the
+  web view's built-in PDF viewer, in a frame. A file that is UTF-8 text shows
+  its first 256 KB as text. Everything else has no preview. HTML and SVG are
+  only ever shown as text. JAM Code never opens an attachment with another
+  program; any attachment can be shown in Finder or Explorer, which selects
+  the copy without opening it.
+- The PDF frame is the one frame in the interface, so the content security
+  policy allows `frame-src blob:` and nothing else. The interface makes a blob
+  only from bytes the runtime served as `application/pdf`. A blob document
+  inherits the policy of the page that made it, so it cannot load scripts the
+  application could not. How the viewer looks is the web view's: WebView2's
+  on Windows, WebKit's on macOS.
+- An image or PDF preview crosses the transport whole as a data URL, up to the
+  25 MB file limit. That is acceptable for an explicit click; it is not a
+  streaming path.
+- A reply that names an attached file in inline code, by its name or by the
+  path of the copy, links to that preview. Matching is exact and happens in
+  the interface; nothing is added to what the agent wrote.

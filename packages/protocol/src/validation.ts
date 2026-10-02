@@ -761,6 +761,8 @@ const params: Record<RequestMethod, Check> = {
   'conversation.delete': (value) => shape(value, { resourceId: id }),
   'attachment.remove': (value) => shape(value, { id }),
   'attachment.asset': (value) => shape(value, { id }),
+  'attachment.text': (value) => shape(value, { id }),
+  'attachment.reveal': (value) => shape(value, { id }),
   'session.compact': (value) => shape(value, { resourceId: id, requestId: id }),
   'provider.list': (value) => shape(value, {}, { refresh: boolean }),
   'provider.configure': (value) =>
@@ -905,14 +907,17 @@ const responses: Record<RequestMethod, Check> = {
   'conversation.create': (value) => shape(value, { resource, session, conversation }, { worktree }),
   'conversation.delete': (value) => shape(value, { resourceId: id }),
   'attachment.remove': accepted,
+  // At most the preview's 256 KB of UTF-8; a file of only blank lines is text too.
+  'attachment.text': (value) => shape(value, { text: text(270_000, true), truncated: boolean }),
+  'attachment.reveal': (value) => shape(value, { revealed: oneOf(true) }),
   'attachment.asset': (value) =>
     shape(value, {
       dataUrl: (data) => {
         // The largest attachment, as base64.
-        text(8_000_000)(data);
-        // Only the raster types the runtime imports; never SVG or HTML.
-        if (!/^data:image\/(?:png|jpeg|gif|webp);base64,/.test(data as string))
-          invalid('Invalid attachment image.');
+        text(36_000_000)(data);
+        // Only raster images and PDF; never SVG or HTML.
+        if (!/^data:(?:image\/(?:png|jpeg|gif|webp)|application\/pdf);base64,/.test(data as string))
+          invalid('Invalid attachment preview.');
       },
     }),
   'turn.start': (value) => shape(value, { accepted: oneOf(true), sessionId: id, requestId: id }),

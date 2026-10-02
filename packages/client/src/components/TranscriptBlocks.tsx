@@ -19,7 +19,7 @@ import {
   Wrench,
   X,
 } from 'lucide-react';
-import type { FileChange, Interaction, Message, MessageBlock } from '@jam/protocol';
+import type { ContextItem, FileChange, Interaction, Message, MessageBlock } from '@jam/protocol';
 import { InteractionCard, type InteractionAnswer } from './InteractionCard';
 import { FileLink, type FileLinkActions } from './FileLink';
 import { localUrls } from './local-urls';
@@ -35,6 +35,9 @@ export interface BlockActions extends FileLinkActions {
   onOpenUrl?(url: string): void;
   /** Opens a local address in the default browser instead of JAM's. */
   onOpenExternal?(url: string): void;
+  /** Files sent in this conversation; one named in a reply opens its preview. */
+  attachments?: readonly ContextItem[];
+  onPreviewSent?(item: ContextItem): void;
 }
 
 const ROW_ICONS = {
@@ -609,6 +612,8 @@ function Markdown({ text, actions }: { text: string; actions: BlockActions }) {
         onOpenUrl={actions.onOpenUrl}
         onOpenFile={actions.onOpenFile}
         onFileMenu={actions.onFileMenu}
+        attachments={actions.attachments}
+        onPreviewAttachment={actions.onPreviewSent}
       />
     </Suspense>
   );

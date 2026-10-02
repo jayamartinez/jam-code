@@ -11,7 +11,7 @@ import {
   TriangleAlert,
   Zap,
 } from 'lucide-react';
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ContextItem,
   JamTransport,
@@ -29,7 +29,7 @@ import { IconButton, Shortcut } from './Controls';
 import { PaneChrome, type PaneChromeProps } from './PaneChrome';
 import { ProviderIcon, WorktreeIcon, sessionProviderName } from './icons';
 import { ContextChip, ContextIcon } from './ContextChip';
-import { attachmentDetail, imagesRefused } from './attachment-model';
+import { attachmentDetail, imagesRefused, sentAttachments } from './attachment-model';
 import { ProjectBadge } from './ProjectBadge';
 import type { InteractionAnswer } from './InteractionCard';
 import { AgentBlocks, type BlockActions } from './TranscriptBlocks';
@@ -125,6 +125,9 @@ export function ConversationPane(props: ConversationProps) {
   const demo = session?.providerId === 'mock';
   const name = sessionProviderName(session);
   const messages = conversation?.messages ?? [];
+  // Stable while the transcript is, so replies are not re-rendered for it.
+  const sent = useMemo(() => sentAttachments(conversation?.messages ?? []), [conversation]);
+  const actions = { ...props, attachments: sent };
   const statusText = session?.needsInput ? 'needs input' : (session?.status ?? 'idle');
   return (
     <PaneChrome
@@ -192,7 +195,7 @@ export function ConversationPane(props: ConversationProps) {
                     }
                     streamReplies={props.streamReplies}
                     timeFormat={props.timeFormat}
-                    actions={props}
+                    actions={actions}
                   />
                 </Fragment>
               ))
@@ -569,7 +572,7 @@ function MessageView({
   live: boolean;
   streamReplies: boolean;
   timeFormat: TimeFormat;
-  actions: BlockActions & Pick<ConversationProps, 'onPreviewSent'>;
+  actions: BlockActions;
 }) {
   if (message.role === 'user')
     return (

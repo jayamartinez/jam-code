@@ -2039,24 +2039,37 @@ export function JamApp({ transport, desktop }: JamAppProps) {
           </Dialog>
         )}
         {(previewSent ?? (previewContext?.kind === 'attachment' ? previewContext : null)) && (
-          <Dialog
-            title="Attachment"
-            className="context-dialog snapshot-preview-dialog"
+          <AttachmentPreview
+            item={(previewSent ?? previewContext)!}
+            sent={!!previewSent}
+            transport={transport}
+            revealLabel={desktop.platform === 'windows' ? 'Show in Explorer' : 'Reveal in Finder'}
+            onReveal={(item) => {
+              if (item.assetId)
+                void transport
+                  .request('attachment.reveal', { id: item.assetId })
+                  .catch(client.reportError);
+            }}
+            {...(!previewSent && {
+              // A staged attachment is on exactly one draft.
+              onRemove: (item: ContextItem) => {
+                releaseAttachment(item);
+                setContext((current) =>
+                  Object.fromEntries(
+                    Object.entries(current).map(([id, items]) => [
+                      id,
+                      items.filter((staged) => staged.id !== item.id),
+                    ]),
+                  ),
+                );
+                setPreviewContext(null);
+              },
+            })}
             onClose={() => {
               setPreviewSent(null);
               setPreviewContext(null);
             }}
-          >
-            <AttachmentPreview
-              item={(previewSent ?? previewContext)!}
-              sent={!!previewSent}
-              transport={transport}
-              onClose={() => {
-                setPreviewSent(null);
-                setPreviewContext(null);
-              }}
-            />
-          </Dialog>
+          />
         )}
         {previewContext && !['snapshot', 'attachment'].includes(previewContext.kind) && (
           <Dialog

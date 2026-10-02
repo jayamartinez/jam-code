@@ -981,3 +981,78 @@ async fn the_demo_provider_keeps_an_attachment_without_reading_it() {
         vec![format!("conv-layout/{}.txt", id_of(&attached))]
     );
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_text_attachment_previews_its_start_and_other_types_do_not() {
+    let temp = Temp::new();
+    let agent = Scripted::new("supported");
+    let runtime = open(&temp, agent.clone());
+    let preview = |id: &str| request(&runtime, "attachment.text", json!({"id": id}));
+
+    // A short text file is shown whole, staged and after it is sent.
+    let log = item(
+        &runtime,
+        &temp.chosen("build.log", "ok ✓\nwarning: unused\n".as_bytes()),
+    );
+    let shown = preview(id_of(&log)).unwrap();
+    assert_eq!(
+        shown,
+        json!({"text":"ok ✓\nwarning: unused\n","truncated":false})
+    );
+    let resource = chat(&runtime, "preview-chat");
+    let mut events = runtime.subscribe(SubscriptionScope::default()).unwrap();
+    send(
+        &runtime,
+        &resource,
+        "read it",
+        std::slice::from_ref(&log),
+        "preview-send",
+    )
+    .unwrap();
+    settled(&mut events.receiver).await;
+    assert_eq!(preview(id_of(&log)).unwrap(), shown);
+
+    // A long one shows only its start, cut on a whole character.
+    let long = "é".repeat(200_000);
+    let big = item(&runtime, &temp.chosen("long.txt", long.as_bytes()));
+    let start = preview(id_of(&big)).unwrap();
+    assert_eq!(start["truncated"], json!(true));
+    let text = start["text"].as_str().unwrap();
+    assert!(text.len() <= 256 * 1024 && text.len() > 250 * 1024);
+    assert!(long.starts_with(text));
+
+    // Anything that is not text has no text preview, whatever it is called.
+    for (name, bytes) in [
+        ("report.pdf", PDF),
+        ("shot.png", PNG),
+        ("notes.txt", b"a\0b".as_slice()),
+    ] {
+        let binary = item(&runtime, &temp.chosen(name, bytes));
+        assert_eq!(code(preview(id_of(&binary))), "invalid_request", "{name}");
+    }
+    // A PDF is served whole, recognized by its content rather than its name.
+    use base64::Engine;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(PDF);
+    let asset = |id: &str| request(&runtime, "attachment.asset", json!({"id": id}));
+    let pdf = item(&runtime, &temp.chosen("misnamed.dat", PDF));
+    assert_eq!(
+        asset(id_of(&pdf)).unwrap()["dataUrl"],
+        json!(format!("data:application/pdf;base64,{encoded}"))
+    );
+    // Text called a PDF, or a page of HTML, is never handed over to render.
+    for (name, bytes) in [
+        ("fake.pdf", b"not a pdf".as_slice()),
+        ("page.html", b"<script>alert(1)</script>".as_slice()),
+        (
+            "drawing.svg",
+            b"<svg xmlns='http://www.w3.org/2000/svg'/>".as_slice(),
+        ),
+    ] {
+        let other = item(&runtime, &temp.chosen(name, bytes));
+        assert_eq!(code(asset(id_of(&other))), "invalid_request", "{name}");
+    }
+    assert_eq!(
+        code(preview("attachment-00000000-0000-4000-8000-000000000000")),
+        "not_found"
+    );
+}
