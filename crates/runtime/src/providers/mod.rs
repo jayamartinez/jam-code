@@ -57,6 +57,13 @@ pub struct ProviderTurn {
     /// The reader's words plus any text context, already composed.
     pub text: String,
     pub images: Vec<ImageInput>,
+    /// Every file attached to this turn, as JAM's own copy. Their paths are
+    /// already in `text`, which is how any agent can open them; an adapter
+    /// whose provider takes a type natively may send it from here as well.
+    pub files: Vec<crate::attachments::AttachedFile>,
+    /// The one folder holding this conversation's attachments, for an agent
+    /// that must be told which folders it may read. Absent until it has any.
+    pub attachment_dir: Option<PathBuf>,
     /// Session options (`model`, `effort`, provider-specific ids).
     pub options: BTreeMap<String, String>,
     pub config: ProviderConfig,

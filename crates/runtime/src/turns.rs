@@ -1,4 +1,5 @@
 use crate::{
+    attachments::AttachedFile,
     commands::StartTurn,
     error::JamError,
     protocol::*,
@@ -142,8 +143,12 @@ impl Runtime {
         state
             .store
             .attach_snapshots(&mut input.context, &resource.id, false)?;
+        let attachments = state
+            .store
+            .send_attachments(&mut input.context, &resource.id, false)?;
         // Images the reader explicitly sent, resolved only now, on Send.
         let mut images = Vec::new();
+        let mut image_slots: Vec<(String, usize)> = Vec::new();
         if provider_id != "mock" {
             for item in &input.context {
                 if !matches!(item.kind, ContextKind::Snapshot) {
@@ -158,6 +163,19 @@ impl Runtime {
                     path: self.snapshots.assets.image_path(asset).ok(),
                     label: item.label.clone(),
                 });
+            }
+            // An attached image is also sent natively, from JAM's own copy.
+            for attachment in &attachments {
+                if attachment.kind == AttachmentKind::Image {
+                    // Its path is set once the copy is in its final folder.
+                    image_slots.push((attachment.id.clone(), images.len()));
+                    images.push(ImageInput {
+                        media_type: attachment.media_type.clone(),
+                        bytes: Arc::new(self.attachments.read(attachment)?),
+                        path: None,
+                        label: attachment.name.clone(),
+                    });
+                }
             }
         }
         if !images.is_empty()
@@ -179,14 +197,12 @@ impl Runtime {
                 return Err(JamError::new(
                     "unsupported",
                     format!(
-                        "{} does not accept images with this model. Remove the snapshot or choose another model.",
+                        "{} does not accept images with this model. Remove the image or choose another model.",
                         descriptor.name
                     ),
                 ));
             }
         }
-        let provider_text = compose(&input.text, &input.context, !images.is_empty());
-
         resource.updated_at = now();
         // Continuing an archived thread is the clearest sign it is in use again.
         resource.closed_at = None;
@@ -225,10 +241,39 @@ impl Runtime {
         session.needs_input = false;
         let native_id = state.store.binding(&session.id)?.map(|b| b.native_id);
         let receipt = json!({"accepted":true,"sessionId":session.id,"requestId":input.request_id});
-        state.store.transaction(|| {
+        // Nothing can refuse the turn from here except the database. The
+        // attachments move into this conversation's folder, so the paths the
+        // agent is given are final; a failed save moves them back.
+        self.attachments.claim(&attachments)?;
+        let mut files = Vec::new();
+        if provider_id != "mock" {
+            for attachment in &attachments {
+                let path = match self.attachments.path(attachment) {
+                    Ok(path) => path,
+                    Err(error) => {
+                        self.attachments.release(&attachments);
+                        return Err(error);
+                    }
+                };
+                if let Some((_, slot)) = image_slots.iter().find(|(id, _)| *id == attachment.id) {
+                    images[*slot].path = Some(path.clone());
+                }
+                files.push(AttachedFile {
+                    name: attachment.name.clone(),
+                    media_type: attachment.media_type.clone(),
+                    path,
+                });
+            }
+        }
+        let provider_text = compose(&input.text, &attached_context, &files, !images.is_empty());
+        let saved = state.store.transaction(|| {
             state
                 .store
                 .attach_snapshots(&mut attached_context, &resource.id, true)?;
+            // From here the attachments belong to this conversation's history.
+            state
+                .store
+                .send_attachments(&mut attached_context, &resource.id, true)?;
             state.store.save_resource(&resource)?;
             state.store.save_session(&session)?;
             if !compact {
@@ -237,7 +282,11 @@ impl Runtime {
             state
                 .store
                 .save_receipt(&input.request_id, &fingerprint, &receipt)
-        })?;
+        });
+        if let Err(error) = saved {
+            self.attachments.release(&attachments);
+            return Err(error);
+        }
         if !compact {
             self.publish(
                 &mut state,
@@ -260,6 +309,8 @@ impl Runtime {
             cwd,
             text: provider_text,
             images,
+            files,
+            attachment_dir: self.attachments.conversation_dir(&resource.id),
             options,
             config: settings.config(&provider_id),
             compact,
@@ -527,15 +578,26 @@ fn waiting_for_reader(blocks: &[MessageBlock]) -> bool {
     })
 }
 
-/// The text a provider receives: the reader's words, then text context they
-/// staged, each with its provenance. Images travel separately.
-fn compose(text: &str, context: &[ContextItem], has_images: bool) -> String {
+/// The text a provider receives: the reader's words, then the context they
+/// staged, each with its provenance, then where each attached file is.
+/// Images also travel separately, to a provider that takes them.
+fn compose(
+    text: &str,
+    context: &[ContextItem],
+    files: &[AttachedFile],
+    has_images: bool,
+) -> String {
     let mut out = text.to_string();
     let mut notes = Vec::new();
     for item in context {
-        if matches!(item.kind, ContextKind::Snapshot) {
-            notes.push(format!("- Snapshot: {} (attached image)", item.label));
-            continue;
+        match item.kind {
+            ContextKind::Snapshot => {
+                notes.push(format!("- Snapshot: {} (attached image)", item.label));
+                continue;
+            }
+            // Listed below with the path of JAM's copy.
+            ContextKind::Attachment => continue,
+            _ => {}
         }
         let mut note = format!("- {}", item.label);
         if let Some(uri) = &item.source.uri {
@@ -546,12 +608,29 @@ fn compose(text: &str, context: &[ContextItem], has_images: bool) -> String {
         }
         notes.push(note);
     }
-    if !notes.is_empty() {
+    let section = |out: &mut String, heading: &str, body: &str| {
         if !out.trim().is_empty() {
             out.push_str("\n\n");
         }
-        out.push_str("Context attached in JAM:\n");
-        out.push_str(&notes.join("\n"));
+        out.push_str(heading);
+        out.push_str(body);
+    };
+    if !notes.is_empty() {
+        section(&mut out, "Context attached in JAM:\n", &notes.join("\n"));
+    }
+    if !files.is_empty() {
+        // Any agent can open a file by its path, whatever its provider's
+        // protocol carries; the file is not pasted in, so it costs no context
+        // until the agent reads what it needs.
+        let lines: Vec<String> = files
+            .iter()
+            .map(|file| format!("- {}: {}", file.name, file.path.display()))
+            .collect();
+        section(
+            &mut out,
+            "Files attached in JAM (copies saved at these paths; open them as needed):\n",
+            &lines.join("\n"),
+        );
     }
     if out.trim().is_empty() && has_images {
         out = "See the attached image.".into();
@@ -575,12 +654,56 @@ mod tests {
                 selection: Some("fn a() {}".into()),
             },
             asset_id: None,
+            attachment: None,
         };
-        let text = compose("Explain this", &[item], false);
+        let text = compose("Explain this", &[item], &[], false);
         assert!(
             text.starts_with("Explain this\n\nContext attached in JAM:\n- src/a.rs:1-2 (src/a.rs)")
         );
         assert!(text.contains("fn a() {}"));
-        assert_eq!(compose("", &[], true), "See the attached image.");
+        assert_eq!(compose("", &[], &[], true), "See the attached image.");
+    }
+
+    #[test]
+    fn attached_files_are_listed_by_the_path_of_jams_copy() {
+        let attached = |name: &str, kind| ContextItem {
+            id: name.into(),
+            kind: ContextKind::Attachment,
+            label: name.into(),
+            source: ContextSource {
+                resource_id: None,
+                uri: None,
+                selection: None,
+            },
+            asset_id: Some(name.into()),
+            attachment: Some(AttachmentInfo {
+                name: name.into(),
+                media_type: "x".into(),
+                kind,
+                bytes: 1,
+            }),
+        };
+        let context = [
+            attached("spec.pdf", AttachmentKind::File),
+            attached("failure.png", AttachmentKind::Image),
+        ];
+        let file = |name: &str| AttachedFile {
+            name: name.into(),
+            media_type: "x".into(),
+            path: std::path::PathBuf::from("copies").join(name),
+        };
+        let files = [file("spec.pdf"), file("failure.png")];
+        let separator = std::path::MAIN_SEPARATOR;
+        assert_eq!(
+            compose("Why?", &context, &files, true),
+            format!(
+                "Why?\n\nFiles attached in JAM (copies saved at these paths; open them as needed):\n\
+                 - spec.pdf: copies{separator}spec.pdf\n- failure.png: copies{separator}failure.png"
+            )
+        );
+        // Files alone are a complete message, and nothing is pasted in.
+        assert!(compose("", &context, &files, false).starts_with("Files attached in JAM"));
+        // The demo provider is given no paths.
+        assert_eq!(compose("Hi", &context, &[], false), "Hi");
     }
 }

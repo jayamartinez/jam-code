@@ -172,6 +172,8 @@ pub enum ContextKind {
     Terminal,
     Message,
     Snapshot,
+    /// A file the reader chose outside the project, copied into JAM's storage.
+    Attachment,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -183,6 +185,29 @@ pub struct ContextItem {
     pub source: ContextSource,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub asset_id: Option<String>,
+    /// What an attachment is, as the runtime recorded it at import.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attachment: Option<AttachmentInfo>,
+}
+
+/// What an attachment is to an agent: a file it opens by path, or an image
+/// that is also sent natively when the model accepts images.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum AttachmentKind {
+    File,
+    Image,
+}
+
+/// Display metadata for an attached file. Never its original location.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AttachmentInfo {
+    pub name: String,
+    pub media_type: String,
+    pub kind: AttachmentKind,
+    /// The chosen file's size.
+    pub bytes: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

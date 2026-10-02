@@ -8,6 +8,7 @@
 //! the database never changes under a live provider task.
 use crate::{
     JamError,
+    attachments::Attachment,
     commands::{parse, validate_id},
     protocol::SessionStatus,
     runtime::Runtime,
@@ -29,7 +30,7 @@ impl Runtime {
     pub(crate) fn delete_conversation(&self, params: Value) -> Result<Value, JamError> {
         let input: DeleteConversation = parse(params)?;
         validate_id(&input.resource_id)?;
-        let (provider_id, session_id, assets) = {
+        let (provider_id, session_id, assets, attachments) = {
             let state = self.lock()?;
             let resource = state.store.resource(&input.resource_id)?;
             let session_id = match (&resource.kind[..], resource.session_id) {
@@ -56,13 +57,16 @@ impl Runtime {
             let assets = state
                 .store
                 .transaction(|| state.store.delete_conversation(&resource.id, &session_id))?;
-            (session.provider_id, session_id, assets)
+            (session.provider_id, session_id, assets.0, assets.1)
         };
         // The records are gone; what follows cannot bring them back. An asset
         // file left behind here has no row, and is removed by the snapshot
         // store's recovery at the next start.
         for asset in assets {
             let _ = self.snapshots.assets.delete(&asset);
+        }
+        for attachment in &attachments {
+            let _ = self.attachments.remove(attachment);
         }
         // A process kept idle for this session's next turn has no next turn.
         if let Some(adapter) = self.providers.adapter(&provider_id) {
@@ -74,19 +78,19 @@ impl Runtime {
 
 impl Store {
     /// Removes everything owned only by this conversation, inside the
-    /// caller's transaction, and returns the snapshot assets whose files can
-    /// be deleted once it commits.
+    /// caller's transaction, and returns the snapshot assets and attachments
+    /// whose files can be deleted once it commits.
     ///
     /// Removed: its resource, conversation, sessions, messages, search
     /// documents (and through them the FTS index), provider binding, request
-    /// receipts and the snapshots sent in it. A snapshot still staged for it
+    /// receipts and the snapshots and attachments sent in it. A snapshot still staged for it
     /// goes back to the inbox. Projects, worktrees, file edits, other
     /// conversations and every other resource are left as they are.
     fn delete_conversation(
         &self,
         resource_id: &str,
         session_id: &str,
-    ) -> Result<Vec<String>, JamError> {
+    ) -> Result<(Vec<String>, Vec<Attachment>), JamError> {
         let connection = &self.connection;
         const OWNED: &str = "json_extract(data,'$.resourceId')=?1";
         let assets = {
@@ -118,7 +122,13 @@ impl Store {
                OR json_extract(receipt,'$.sessionId')=?2",
             params![resource_id, session_id],
         )?;
+        // Every attachment it sent belongs to it alone: one copy, one message.
+        let attachments = self.attachments("resource_id=?1", [resource_id])?;
+        connection.execute(
+            "DELETE FROM attachments WHERE resource_id=?1",
+            [resource_id],
+        )?;
         delete_conversation_rows(connection, resource_id)?;
-        Ok(assets)
+        Ok((assets, attachments))
     }
 }

@@ -4,7 +4,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use std::{path::Path, time::Duration};
 
-pub(crate) const SCHEMA_VERSION: i64 = 7;
+pub(crate) const SCHEMA_VERSION: i64 = 8;
 /// Projects that have not been removed from JAM.
 const ACTIVE_PROJECT: &str = "json_extract(data,'$.removedAt') IS NULL";
 
@@ -604,7 +604,7 @@ enum Migration {
     Code(fn(&rusqlite::Transaction<'_>) -> Result<(), JamError>),
 }
 
-const MIGRATIONS: [Migration; 7] = [
+const MIGRATIONS: [Migration; 8] = [
     Migration::Sql(include_str!("migrations/001-foundation.sql")),
     Migration::Sql(include_str!("migrations/002-file-edits.sql")),
     Migration::Sql(include_str!("migrations/003-settings.sql")),
@@ -612,6 +612,7 @@ const MIGRATIONS: [Migration; 7] = [
     Migration::Sql(include_str!("migrations/005-provider-bindings.sql")),
     Migration::Sql(include_str!("migrations/006-worktrees.sql")),
     Migration::Code(crate::demo_cleanup::remove_demo_seed),
+    Migration::Sql(include_str!("migrations/008-attachments.sql")),
 ];
 
 /// A copy of the database as it was before an upgrade, beside it, so a

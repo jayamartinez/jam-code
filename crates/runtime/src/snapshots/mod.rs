@@ -263,6 +263,7 @@ impl Runtime {
                 selection: None,
             },
             asset_id: Some(id.clone()),
+            attachment: None,
         };
         let record = Snapshot {
             id: id.clone(),
