@@ -25,6 +25,8 @@ describe('new chat workspaces', () => {
     expect(() =>
       create({ kind: 'worktree', baseBranch: 'origin/main', nameHint: '' }),
     ).not.toThrow();
+    // An existing worktree is named by the branch it has checked out.
+    expect(() => create({ kind: 'existing', branch: 'feat/x' })).not.toThrow();
   });
 
   it.each([
@@ -42,12 +44,30 @@ describe('new chat workspaces', () => {
   ])('rejects the branch name %j before it reaches Git', (branch) => {
     expect(() => create({ kind: 'checkout', branch })).toThrow();
     expect(() => create({ kind: 'worktree', baseBranch: branch, nameHint: 'x' })).toThrow();
+    expect(() => create({ kind: 'existing', branch })).toThrow();
+  });
+
+  it('moves a started chat by branch, to the checkout or to a new worktree, never by folder', () => {
+    const move = (workspace: unknown) =>
+      validateRequest({
+        protocolVersion: 1,
+        method: 'conversation.workspace',
+        params: { resourceId: 'conversation-1', workspace },
+      });
+    expect(() => move({ kind: 'branch', branch: 'feat/x' })).not.toThrow();
+    expect(() => move({ kind: 'checkout' })).not.toThrow();
+    expect(() => move({ kind: 'worktree', nameHint: 'Split it' })).not.toThrow();
+    expect(() => move({ kind: 'branch', branch: '--force' })).toThrow();
+    expect(() => move({ kind: 'checkout', path: 'C:/' })).toThrow();
+    expect(() => move({ kind: 'branch' })).toThrow();
   });
 
   it('never lets a client choose a worktree folder or branch name', () => {
     expect(() => create({ kind: 'worktree', nameHint: 'x', path: 'C:/' })).toThrow();
     expect(() => create({ kind: 'worktree', nameHint: 'x', branch: 'jam/mine' })).toThrow();
     expect(() => create({ kind: 'elsewhere' })).toThrow();
+    expect(() => create({ kind: 'existing' })).toThrow();
+    expect(() => create({ kind: 'existing', branch: 'feat/x', path: 'C:/' })).toThrow();
   });
 
   it('addresses worktrees by ID in Git, file and resource requests, never for a browser', () => {

@@ -2,6 +2,7 @@
 pub mod appearance;
 mod asset_dir;
 pub mod attachments;
+mod chat_workspace;
 mod commands;
 mod conversation_delete;
 mod demo_cleanup;

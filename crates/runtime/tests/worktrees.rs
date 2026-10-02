@@ -1,5 +1,5 @@
 //! New chats that choose where they work: branch listing, a checkout switch
-//! on Send that never discards work, and worktrees created on Send that the
+//! on Send that never discards work, chats sharing a checkout, and worktrees created on Send that the
 //! agent, Review, files and terminals then use. Runs the installed Git.
 use jam_runtime::{
     Runtime,
@@ -274,32 +274,37 @@ async fn a_checkout_switch_waits_for_send_and_never_discards_work() {
     let runtime = runtime(&temp, agent).await;
     let before = conversations(&runtime).await;
 
-    // Uncommitted changes refuse the switch; nothing is created or changed.
+    // A branch whose a.txt differs from main's.
+    temp.git(&["switch", "-q", "-c", "feat/differs"]);
+    temp.write("a.txt", "two\n");
+    temp.git(&["commit", "-q", "-am", "two"]);
+    temp.git(&["switch", "-q", "main"]);
+    let edited = || std::fs::read_to_string(temp.repo().join("a.txt")).unwrap();
+
+    // A switch that would overwrite an uncommitted change is Git's to refuse;
+    // nothing is created or changed.
     temp.write("a.txt", "edited\n");
     let refused = call(
         &runtime,
         "conversation.create",
-        chat(json!({"kind":"checkout","branch":"feat/other"})),
+        chat(json!({"kind":"checkout","branch":"feat/differs"})),
     )
     .await
     .unwrap_err();
     assert!(
-        refused.starts_with("conflict: 1 file has uncommitted changes"),
+        refused.starts_with("conflict: Git refused to switch to feat/differs")
+            && refused.ends_with("or use a new worktree for this chat."),
         "{refused}"
     );
     assert_eq!(temp.branch(), "main");
-    assert_eq!(
-        std::fs::read_to_string(temp.repo().join("a.txt")).unwrap(),
-        "edited\n"
-    );
+    assert_eq!(edited(), "edited\n");
     assert_eq!(conversations(&runtime).await, before);
     let listed = call(&runtime, "git.branches", json!({"projectId":"project-jam"}))
         .await
         .unwrap();
     assert_eq!(listed["changed"], 1);
 
-    // Untracked files never block it; a clean checkout switches on Send.
-    temp.git(&["checkout", "--", "a.txt"]);
+    // Otherwise uncommitted and untracked files come along on Send.
     temp.write("scratch.txt", "untracked\n");
     let created = call(
         &runtime,
@@ -309,6 +314,7 @@ async fn a_checkout_switch_waits_for_send_and_never_discards_work() {
     .await
     .unwrap();
     assert_eq!(temp.branch(), "feat/other");
+    assert_eq!(edited(), "edited\n");
     assert!(temp.repo().join("scratch.txt").exists());
     assert!(created["resource"]["worktreeId"].is_null());
     assert!(
@@ -316,7 +322,8 @@ async fn a_checkout_switch_waits_for_send_and_never_discards_work() {
         "optional fields are omitted, not null"
     );
 
-    // Not while a chat works in this checkout.
+    // Chats share the checkout: while one is running, another starts beside
+    // it, and one that asks for another branch moves the folder for both.
     let resource = created["resource"]["id"].as_str().unwrap().to_owned();
     call(
         &runtime,
@@ -325,17 +332,26 @@ async fn a_checkout_switch_waits_for_send_and_never_discards_work() {
     )
     .await
     .unwrap();
-    let busy = call(
+    call(
+        &runtime,
+        "conversation.create",
+        chat(json!({"kind":"checkout"})),
+    )
+    .await
+    .unwrap();
+    assert_eq!(temp.branch(), "feat/other");
+    call(
         &runtime,
         "conversation.create",
         chat(json!({"kind":"checkout","branch":"main"})),
     )
     .await
-    .unwrap_err();
-    assert!(busy.starts_with("conflict: A chat is working"), "{busy}");
-    assert_eq!(temp.branch(), "feat/other");
+    .unwrap();
+    assert_eq!(temp.branch(), "main");
+    assert_eq!(edited(), "edited\n");
     hold.notify_one();
     finish(&runtime, &resource).await;
+    temp.git(&["switch", "-q", "feat/other"]);
 
     // The current branch, or none, leaves the checkout as it is.
     call(
@@ -353,6 +369,211 @@ async fn a_checkout_switch_waits_for_send_and_never_discards_work() {
     .await
     .unwrap();
     assert_eq!(temp.branch(), "feat/other");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_chat_joins_a_worktree_that_already_exists() {
+    let temp = Temp::new();
+    // Made outside JAM, as a terminal or another tool would.
+    let elsewhere = temp.0.join("elsewhere");
+    temp.git(&[
+        "worktree",
+        "add",
+        "-q",
+        elsewhere.to_str().unwrap(),
+        "feat/other",
+    ]);
+    let agent = Arc::new(Agent::default());
+    let folders = Arc::clone(&agent.folders);
+    let runtime = runtime(&temp, agent).await;
+    let join = || chat(json!({"kind":"existing","branch":"feat/other"}));
+
+    let created = call(&runtime, "conversation.create", join()).await.unwrap();
+    let worktree = created["worktree"].clone();
+    assert_eq!(worktree["branch"], "feat/other");
+    assert_eq!(PathBuf::from(worktree["path"].as_str().unwrap()), elsewhere);
+    assert_eq!(created["resource"]["worktreeId"], worktree["id"]);
+    assert_eq!(temp.branch(), "main", "the checkout is untouched");
+    assert_eq!(temp.worktree_count(), 2, "nothing was created");
+
+    // The agent runs in that folder.
+    let resource = created["resource"]["id"].as_str().unwrap().to_owned();
+    call(
+        &runtime,
+        "turn.start",
+        json!({"resourceId": resource, "text":"go", "context": [], "requestId":"t1"}),
+    )
+    .await
+    .unwrap();
+    finish(&runtime, &resource).await;
+    assert_eq!(
+        folders.lock().unwrap().last().cloned().flatten(),
+        Some(elsewhere.clone())
+    );
+
+    // A second chat there shares the one record, and so does a chat joining
+    // a worktree JAM created itself.
+    let second = call(&runtime, "conversation.create", join()).await.unwrap();
+    assert_eq!(second["worktree"]["id"], worktree["id"]);
+    assert_ne!(second["resource"]["id"], created["resource"]["id"]);
+    let made = call(
+        &runtime,
+        "conversation.create",
+        chat(json!({"kind":"worktree","baseBranch":"main","nameHint":"Fix it"})),
+    )
+    .await
+    .unwrap();
+    let joined = call(
+        &runtime,
+        "conversation.create",
+        chat(json!({"kind":"existing","branch":"jam/fix-it"})),
+    )
+    .await
+    .unwrap();
+    assert_eq!(joined["worktree"]["id"], made["worktree"]["id"]);
+    let workspace = call(&runtime, "workspace.get", json!({})).await.unwrap();
+    assert_eq!(workspace["worktrees"].as_array().unwrap().len(), 2);
+    assert_eq!(temp.worktree_count(), 3);
+
+    // A branch with no worktree of its own, the checkout's included, is
+    // refused, and a request never names a folder.
+    for branch in ["main", "missing"] {
+        let refused = call(
+            &runtime,
+            "conversation.create",
+            chat(json!({"kind":"existing","branch":branch})),
+        )
+        .await
+        .unwrap_err();
+        assert!(refused.starts_with("conflict: "), "{refused}");
+    }
+    let named = call(
+        &runtime,
+        "conversation.create",
+        chat(json!({"kind":"existing","branch":"feat/other","path":elsewhere})),
+    )
+    .await
+    .unwrap_err();
+    assert!(named.starts_with("invalid"), "{named}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_started_chat_changes_branch_and_worktree_between_turns() {
+    let temp = Temp::new();
+    let elsewhere = temp.0.join("elsewhere");
+    temp.git(&[
+        "worktree",
+        "add",
+        "-q",
+        elsewhere.to_str().unwrap(),
+        "feat/other",
+    ]);
+    temp.git(&["branch", "feat/free"]);
+    let hold = Arc::new(Notify::new());
+    let agent = Arc::new(Agent {
+        hold: Some(Arc::clone(&hold)),
+        ..Agent::default()
+    });
+    let folders = Arc::clone(&agent.folders);
+    let runtime = runtime(&temp, agent).await;
+    let created = call(
+        &runtime,
+        "conversation.create",
+        chat(json!({"kind":"checkout"})),
+    )
+    .await
+    .unwrap();
+    let resource = created["resource"]["id"].as_str().unwrap().to_owned();
+    let go = |workspace: Value| {
+        call(
+            &runtime,
+            "conversation.workspace",
+            json!({"resourceId": resource, "workspace": workspace}),
+        )
+    };
+    let turn = |request: &'static str| {
+        call(
+            &runtime,
+            "turn.start",
+            json!({"resourceId": resource, "text":"go", "context": [], "requestId": request}),
+        )
+    };
+    let ran_in = || folders.lock().unwrap().last().cloned().flatten();
+
+    // Never under a running turn.
+    turn("t1").await.unwrap();
+    let busy = go(json!({"kind":"branch","branch":"feat/free"}))
+        .await
+        .unwrap_err();
+    assert!(busy.starts_with("conflict: Wait for the agent"), "{busy}");
+    hold.notify_one();
+    finish(&runtime, &resource).await;
+    assert_eq!(ran_in(), Some(temp.repo()));
+
+    // A branch no folder has: the chat's folder switches to it.
+    let moved = go(json!({"kind":"branch","branch":"feat/free"}))
+        .await
+        .unwrap();
+    assert_eq!(temp.branch(), "feat/free");
+    assert!(moved["resource"]["worktreeId"].is_null());
+    assert!(moved.get("worktree").is_none());
+
+    // A branch another worktree has: the chat moves there, and the agent's
+    // next turn runs in that folder.
+    let moved = go(json!({"kind":"branch","branch":"feat/other"}))
+        .await
+        .unwrap();
+    let worktree = moved["worktree"]["id"].clone();
+    assert_eq!(moved["resource"]["worktreeId"], worktree);
+    assert_eq!(temp.branch(), "feat/free", "the checkout is left alone");
+    turn("t2").await.unwrap();
+    hold.notify_one();
+    finish(&runtime, &resource).await;
+    assert_eq!(ran_in(), Some(elsewhere.clone()));
+
+    // Inside a worktree a free branch switches that worktree, and its record
+    // follows.
+    temp.git(&["branch", "feat/second"]);
+    let moved = go(json!({"kind":"branch","branch":"feat/second"}))
+        .await
+        .unwrap();
+    assert_eq!(moved["worktree"]["id"], worktree);
+    assert_eq!(moved["worktree"]["branch"], "feat/second");
+    let head = Command::new("git")
+        .current_dir(&elsewhere)
+        .args(["branch", "--show-current"])
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8_lossy(&head.stdout).trim(), "feat/second");
+
+    // The checkout's branch, or the checkout itself, brings it back.
+    let back = go(json!({"kind":"branch","branch":"feat/free"}))
+        .await
+        .unwrap();
+    assert!(back["resource"]["worktreeId"].is_null());
+    go(json!({"kind":"branch","branch":"feat/second"}))
+        .await
+        .unwrap();
+    let back = go(json!({"kind":"checkout"})).await.unwrap();
+    assert!(back["resource"]["worktreeId"].is_null());
+
+    // A new worktree mid-chat starts from the branch the chat was on.
+    let made = go(json!({"kind":"worktree","nameHint":"Split this out"}))
+        .await
+        .unwrap();
+    assert_eq!(made["worktree"]["branch"], "jam/split-this-out");
+    assert_eq!(made["worktree"]["baseBranch"], "feat/free");
+    assert_eq!(made["resource"]["worktreeId"], made["worktree"]["id"]);
+
+    // Unknown branches, folders in the request and demo chats are refused.
+    let missing = go(json!({"kind":"branch","branch":"nope"}))
+        .await
+        .unwrap_err();
+    assert!(missing.starts_with("not_found"), "{missing}");
+    let named = go(json!({"kind":"checkout","path":"C:/"}))
+        .await
+        .unwrap_err();
+    assert!(named.starts_with("invalid"), "{named}");
 }
 
 #[tokio::test(flavor = "multi_thread")]

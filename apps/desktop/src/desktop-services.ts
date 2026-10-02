@@ -73,6 +73,9 @@ export function createDesktopServices(): DesktopServices {
     pickDirectory: (start?: string) =>
       invoke<string | null>('pick_directory', start ? { start } : {}),
     attachFiles: (room) => invoke('attach_files', { room }),
+    // The bytes go as the request's raw body; a header carries the name.
+    attachPasted: (name, bytes) =>
+      invoke('attach_pasted', bytes, { headers: { 'x-jam-name': encodeURIComponent(name) } }),
     openFeedback: (kind) => invoke<void>('open_feedback', { kind }),
     browser: createBrowserHost(),
     snapshots: createSnapshotHost(),

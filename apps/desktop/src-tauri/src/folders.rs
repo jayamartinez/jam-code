@@ -6,10 +6,11 @@
 use jam_runtime::JamError;
 
 /// `start` opens the chooser in that folder, to swap a project folder for a
-/// nearby one. A folder that no longer exists is ignored.
+/// nearby one. A folder that no longer exists is ignored. The window is a
+/// `Window` so the chooser also opens while a Browser pane's webview exists.
 #[tauri::command]
 pub async fn pick_directory(
-    window: tauri::WebviewWindow,
+    window: tauri::Window,
     start: Option<String>,
 ) -> Result<Option<String>, JamError> {
     let mut dialog = rfd::AsyncFileDialog::new()

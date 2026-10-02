@@ -192,7 +192,7 @@ Settings → Providers shows who each agent is signed in as and its plan, only a
 - Codex questions need its experimental API and are unsupported.
 - Claude Code streams no command output while a command runs (only `task_started` and `task_notification`), and replaces an interrupted command's result with a rejection message, so its partial output never reaches JAM Code. Codex streams command output as it runs.
 - Claude subagent text is not shown (only the sub-agent's tool card), and Codex sub-agent items show as sub-agent cards without their inner activity.
-- A project needs a folder before an agent chat can start; agents run in that folder, or in the chat's own worktree when it started in one (ADR 0012), with the provider's own sandbox and permission rules.
+- A project needs a folder before an agent chat can start; agents run in that folder, or in the worktree the chat works in (ADR 0012), with the provider's own sandbox and permission rules.
 - Account-level usage and rate limits (Settings → Usage) are not collected.
 - Windows was validated with native `claude.exe` and `codex.exe` (see VALIDATION.md). `.cmd`/`.ps1` shims were not exercised. Windows has no process groups: JAM Code ends a provider's live process tree with `taskkill /T`, so a descendant already orphaned by its own parent cannot be reached.
 

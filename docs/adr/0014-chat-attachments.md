@@ -35,6 +35,14 @@ host API, not a `JamTransport` request. The interface passes no path in and
 gets none back, so nothing it sends can make the runtime read a file. Where
 there is no host (the browser preview), the control is disabled and says so.
 
+**A paste is bytes, not a path.** A file or image pasted into the message is
+already in the interface's hands: the reader put it on the clipboard and
+pasted it. The interface sends those bytes and a name to the host
+(`attach_pasted`, as a raw request body), which gives them to
+`Runtime::import_pasted_attachment`. Nothing is read from disk, the name only
+names the attachment, and the limits and everything after are those of a
+chosen file. A paste that also carries text stays text.
+
 **Import is a copy.** The runtime reads the file once and copies it, byte for
 byte, into `attachments/` in the application-data folder under an opaque
 `attachment-<uuid>` ID with the file's own short extension. It records a
@@ -104,8 +112,11 @@ characters; at most 64 attachments waiting to be sent.
 - Codex is given no folder grant; it relies on its sandbox allowing reads
   outside the workspace. This has not been verified on Windows with "Ask for
   approval" and is listed in VALIDATION.md.
-- Drag and drop and clipboard paste are not implemented; they would enter
-  through the same host import.
+- Drag and drop is not implemented; it would enter through the same host
+  import.
+- The file and folder choosers take the window as a Tauri `Window`. A
+  `WebviewWindow` exists only while a window has a single webview, so with a
+  Browser pane open neither chooser could be opened.
 - Closing a new chat that has staged attachments leaves their copies until
   the retention limit or the next start removes them.
 - Previews are served by ID from JAM Code's copy, and the runtime decides what

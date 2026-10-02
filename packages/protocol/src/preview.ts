@@ -116,6 +116,7 @@ export class BrowserPreviewTransport implements JamTransport {
       case 'git.branches':
       case 'git.diff':
       case 'git.setStaged':
+      case 'conversation.workspace':
         throw new JamError('unavailable', 'Git runs in the jam desktop app.');
       case 'conversation.get':
         return { ...this.getConversation(request.params.resourceId), cursor: this.cursor() };

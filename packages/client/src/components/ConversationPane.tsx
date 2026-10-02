@@ -29,7 +29,7 @@ import { IconButton, Shortcut } from './Controls';
 import { PaneChrome, type PaneChromeProps } from './PaneChrome';
 import { ProviderIcon, WorktreeIcon, sessionProviderName } from './icons';
 import { ContextChip, ContextIcon } from './ContextChip';
-import { attachmentDetail, imagesRefused, sentAttachments } from './attachment-model';
+import { attachmentDetail, imagesRefused, pastedFiles, sentAttachments } from './attachment-model';
 import { ProjectBadge } from './ProjectBadge';
 import type { InteractionAnswer } from './InteractionCard';
 import { AgentBlocks, type BlockActions } from './TranscriptBlocks';
@@ -69,6 +69,8 @@ interface ConversationProps extends Pick<
   project?: Project;
   /** The worktree the chat works in, when it started in a new one. */
   worktree?: Worktree;
+  /** The workspace and branch pills under the message box. */
+  target?: React.ReactNode;
   session?: Session;
   conversation?: Conversation;
   draft: string;
@@ -92,6 +94,8 @@ interface ConversationProps extends Pick<
   onAddContext(): void;
   /** Opens the system file chooser; absent where the host has none. */
   onAttach?(): void;
+  /** Attaches files or images pasted into the message; absent where the host cannot. */
+  onPasteFiles?(files: readonly File[]): void;
   onPreviewContext(item: ContextItem): void;
   /** Opens an attachment that is already part of a message. */
   onPreviewSent?(item: ContextItem): void;
@@ -237,6 +241,7 @@ type ComposerProps = Pick<
   | 'onStop'
   | 'onAddContext'
   | 'onAttach'
+  | 'onPasteFiles'
   | 'onPreviewContext'
   | 'onRemoveContext'
 > & {
@@ -249,7 +254,10 @@ type ComposerProps = Pick<
   presentation?: Presentation;
   /** New chats only: choose the agent before the first Send. */
   onProvider?(providerId: ProviderId): void;
-  /** New chats only: where the chat will work, in place of the folder name. */
+  /**
+   * Where the chat works: a new chat's choice in place of the folder name,
+   * or a started chat's workspace and branch, changed from its next Send.
+   */
   target?: React.ReactNode;
   onCompact?(): Promise<void>;
 };
@@ -339,6 +347,13 @@ export function Composer(props: ComposerProps) {
           rows={props.isNew ? 2 : 1}
           disabled={props.busy}
           maxLength={20000}
+          onPaste={(event) => {
+            // A copied file or image becomes an attachment; text pastes as text.
+            const files = props.onPasteFiles ? pastedFiles(event.clipboardData) : [];
+            if (!files.length) return;
+            event.preventDefault();
+            props.onPasteFiles?.(files);
+          }}
           onKeyDown={(event) => {
             const { key, shiftKey, keyCode, nativeEvent } = event;
             if (sendsMessage({ key, shiftKey, keyCode, isComposing: nativeEvent.isComposing })) {
@@ -501,6 +516,13 @@ export function Composer(props: ComposerProps) {
               </span>
             )}
             <SendHint mac={mac} />
+          </div>
+        )}
+        {!props.isNew && props.target && (
+          // A started chat keeps its workspace and branch in the same place;
+          // a change there applies when the next message is sent.
+          <div className="new-run-target">
+            <span className="new-run-choices">{props.target}</span>
           </div>
         )}
       </form>

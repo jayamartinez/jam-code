@@ -26,6 +26,13 @@ export interface DesktopServices {
     refused: { name: string; reason: string }[];
   }>;
   /**
+   * Stages a file or image the reader pasted into a chat. The interface hands
+   * over the pasted bytes and a name; the host reads nothing from disk and
+   * answers with staged context, or rejects with the reason. Absent where
+   * there is no host to keep the copy.
+   */
+  attachPasted?(name: string, bytes: Uint8Array): Promise<ContextItem>;
+  /**
    * Opens JAM Code's GitHub page for a bug report (prefilled with version,
    * OS and WebView only), a feature idea, or the documentation.
    */

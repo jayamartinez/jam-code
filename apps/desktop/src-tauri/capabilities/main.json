@@ -23,6 +23,7 @@
     "allow-snapshot-host",
     "allow-pick-directory",
     "allow-attach-files",
+    "allow-attach-pasted",
     "allow-open-feedback",
     "allow-set-attention-badge",
     "allow-notify",

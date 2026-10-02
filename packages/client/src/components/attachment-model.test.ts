@@ -9,8 +9,11 @@ import {
 import {
   attachmentDetail,
   attachmentNamed,
+  errorText,
   formatBytes,
   imagesRefused,
+  pastedFiles,
+  pasteRefusal,
   refusalMessage,
   sendsImage,
   sentAttachments,
@@ -67,6 +70,37 @@ describe('attachment display', () => {
       ]),
     ).toBe(
       'notes was not attached: Folders can’t be attached. huge.png was not attached: The file is too large.',
+    );
+  });
+});
+
+describe('pasting into a message', () => {
+  const clipboard = (text: string, files: File[]) => ({
+    files: files as unknown as FileList,
+    getData: (type: string) => (type === 'text/plain' ? text : ''),
+  });
+  const shot = new File([new Uint8Array(4)], 'image.png', { type: 'image/png' });
+
+  it('attaches a copied file or image, and leaves a paste with text as text', () => {
+    expect(pastedFiles(clipboard('', [shot]))).toEqual([shot]);
+    // Copying cells or a paragraph also puts a picture of them on the clipboard.
+    expect(pastedFiles(clipboard('a\tb', [shot]))).toEqual([]);
+    expect(pastedFiles(clipboard('just text', []))).toEqual([]);
+    expect(pastedFiles(null)).toEqual([]);
+  });
+
+  it('refuses an empty or oversized paste before reading it', () => {
+    expect(pasteRefusal(18_432)).toBeNull();
+    expect(pasteRefusal(0)).toMatch(/empty, or a folder/);
+    expect(pasteRefusal(ATTACHMENT_LIMITS.fileBytes + 1)).toMatch(/at most 25 MB/);
+  });
+
+  it('reads the reason from a host refusal', () => {
+    expect(errorText({ code: 'invalid', message: 'The file is empty.' }, 'x')).toBe(
+      'The file is empty.',
+    );
+    expect(errorText('current webview is not a WebviewWindow', 'Could not read it.')).toBe(
+      'Could not read it.',
     );
   });
 });

@@ -1,4 +1,9 @@
-import type { ContextItem, Message, ProviderDescriptor } from '@jam/protocol';
+import {
+  ATTACHMENT_LIMITS,
+  type ContextItem,
+  type Message,
+  type ProviderDescriptor,
+} from '@jam/protocol';
 
 /** A file size as people read it: 512 B, 18 KB, 1.4 MB. */
 export function formatBytes(bytes: number): string {
@@ -56,6 +61,33 @@ export function imagesRefused(
 /** One sentence for the files the chooser would not attach. */
 export function refusalMessage(refused: readonly { name: string; reason: string }[]): string {
   return refused.map(({ name, reason }) => `${name} was not attached: ${reason}`).join(' ');
+}
+
+/**
+ * The files a paste attaches. A paste that also carries text is text: copying
+ * from a document or a spreadsheet puts a picture of the text beside it.
+ */
+export function pastedFiles(clipboard: Pick<DataTransfer, 'files' | 'getData'> | null): File[] {
+  if (!clipboard || clipboard.getData('text/plain')) return [];
+  return [...clipboard.files];
+}
+
+/** Why a pasted file of this size is not attached, or null. The runtime checks again. */
+export function pasteRefusal(bytes: number): string | null {
+  if (!bytes) return 'It is empty, or a folder.';
+  return bytes > ATTACHMENT_LIMITS.fileBytes
+    ? `The file is too large. Attachments can be at most ${formatBytes(ATTACHMENT_LIMITS.fileBytes)}.`
+    : null;
+}
+
+/** The message of a host refusal, which arrives as a plain object. */
+export function errorText(cause: unknown, fallback: string): string {
+  return cause &&
+    typeof cause === 'object' &&
+    'message' in cause &&
+    typeof cause.message === 'string'
+    ? cause.message
+    : fallback;
 }
 
 /** The files sent in a conversation, oldest first. */

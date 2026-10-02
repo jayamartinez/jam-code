@@ -12,7 +12,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { Folder, Plus, X } from 'lucide-react';
-import { JamError } from '@jam/protocol';
+import { ATTACHMENT_LIMITS, JamError } from '@jam/protocol';
 import type {
   ContextItem,
   JamTransport,
@@ -26,9 +26,11 @@ import type {
 } from '@jam/protocol';
 import {
   type ChatDraft,
+  checkoutBusy,
   type DraftWorkspace,
   draftProvider,
   inProject,
+  moveRequest,
   presentationFor,
   workspaceProblem,
   workspaceRequest,
@@ -81,7 +83,7 @@ import { useSnapshots, snapshotFocus } from './state/snapshots';
 import { archiveBlocked, deleteBlocked, isArchived } from './state/threads';
 import { DeleteChatDialog } from './components/DeleteChatDialog';
 import { AttachmentPreview } from './components/AttachmentPreview';
-import { refusalMessage } from './components/attachment-model';
+import { errorText, pasteRefusal, refusalMessage } from './components/attachment-model';
 import { SettingsPanel } from './components/SettingsPanel';
 import { NewResourceLauncher } from './components/NewResourceLauncher';
 import { NewChat } from './components/NewChat';
@@ -157,6 +159,9 @@ const browserRatio = (paneId: string | undefined) => {
     : BROWSER_WIDTH / 1160;
 };
 
+/** A started chat with no change staged: it stays where it works. */
+const noMove: DraftWorkspace = {};
+
 /** A new chat's workspace from the Settings choice; "Ask each time" leaves it open. */
 function startingWorkspace(choice: NewThreadWorkspace): DraftWorkspace {
   return choice === 'ask' ? {} : { kind: choice };
@@ -196,6 +201,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   );
   const [settingsMode, setSettingsMode] = useState<'dedicated' | null>(null);
   const [newChats, setNewChats] = useState<Record<string, ChatDraft>>({});
+  // Where started chats will work from their next Send, when that changes.
+  const [moves, setMoves] = useState<Record<string, DraftWorkspace>>({});
   /** Model, effort or provider options chosen since a session's last Send. */
   const [pendingOptions, setPendingOptions] = useState<Record<string, Record<string, string>>>({});
   const [context, setContext] = useState<Record<string, ContextItem[]>>({});
@@ -1135,6 +1142,23 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         });
         setContext((current) => ({ ...current, [resourceId]: staged }));
       }
+      // A started chat that chose another branch or worktree moves there
+      // first; if that is refused, nothing is sent.
+      const move = draft ? undefined : moveRequest(moves[resourceId] ?? noMove, text);
+      if (move) {
+        const moved = await transport.request('conversation.workspace', {
+          resourceId,
+          workspace: move,
+        });
+        client.moveConversation(moved);
+        setMoves((current) => {
+          const rest = { ...current };
+          delete rest[resourceId];
+          return rest;
+        });
+        // A switched folder is on another branch now; labels read it again.
+        if (moved.resource.projectId) void git.refresh(moved.resource.projectId);
+      }
       // Choices made since the last Send apply from this turn on.
       const options = draft ? undefined : pendingOptions[resourceId];
       const payload = JSON.stringify({ text, context: staged, options });
@@ -1180,17 +1204,53 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       return;
     }
     try {
-      const { attached, refused } = await desktop.attachFiles(room);
-      if (attached.length)
-        setContext((current) => ({
-          ...current,
-          [resourceId]: [...(current[resourceId] ?? emptyContext), ...attached],
-        }));
-      // A file that was not attached is named with its reason, never dropped quietly.
-      if (refused.length) client.reportError(new Error(refusalMessage(refused)));
+      stageAttachments(resourceId, await desktop.attachFiles(room));
     } catch (cause) {
       client.reportError(cause);
     }
+  }
+  /**
+   * Attach what was pasted into the composer: the host stages each file's
+   * bytes, under the same limits as the chooser. Nothing is sent.
+   */
+  async function attachPasted(resourceId: string, files: readonly File[]) {
+    const paste = desktop.attachPasted;
+    if (!paste) return;
+    const room = Math.min(
+      MAX_CONTEXT - contextFor(resourceId).length,
+      ATTACHMENT_LIMITS.filesPerPick,
+    );
+    const attached: ContextItem[] = [];
+    const refused: { name: string; reason: string }[] = [];
+    for (const file of files) {
+      const name = file.name || 'Pasted file';
+      const reason =
+        attached.length >= room
+          ? 'There is no room for more context in this message.'
+          : pasteRefusal(file.size);
+      if (reason) {
+        refused.push({ name, reason });
+        continue;
+      }
+      try {
+        attached.push(await paste(name, new Uint8Array(await file.arrayBuffer())));
+      } catch (cause) {
+        refused.push({ name, reason: errorText(cause, 'JAM Code could not read it.') });
+      }
+    }
+    stageAttachments(resourceId, { attached, refused });
+  }
+  function stageAttachments(
+    resourceId: string,
+    { attached, refused }: { attached: ContextItem[]; refused: { name: string; reason: string }[] },
+  ) {
+    if (attached.length)
+      setContext((current) => ({
+        ...current,
+        [resourceId]: [...(current[resourceId] ?? emptyContext), ...attached],
+      }));
+    // A file that was not attached is named with its reason, never dropped quietly.
+    if (refused.length) client.reportError(new Error(refusalMessage(refused)));
   }
   /** Lets the runtime delete its copy of an attachment that will not be sent. */
   const releaseAttachment = (item: ContextItem) => {
@@ -1289,6 +1349,9 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     },
     onAddContext: () => setContextTarget(resourceId),
     ...(desktop.attachFiles ? { onAttach: () => void attach(resourceId) } : {}),
+    ...(desktop.attachPasted
+      ? { onPasteFiles: (files: readonly File[]) => void attachPasted(resourceId, files) }
+      : {}),
     onPreviewContext: setPreviewContext,
     onPreviewSent: setPreviewSent,
     onRemoveContext: (id: string) => {
@@ -1550,6 +1613,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
                     transport={transport}
                     projectId={draft.projectId}
                     workspace={draft.workspace}
+                    chatRunning={checkoutBusy(workspace, draft.projectId)}
                     disabled={busy.has(resourceId)}
                     onChange={(next: DraftWorkspace) =>
                       setNewChats((current) => {
@@ -1607,6 +1671,32 @@ export function JamApp({ transport, desktop }: JamAppProps) {
             composer={{
               ...composerFor(resource.id, session?.id),
               worktree: workspace.worktrees.find((item) => item.id === resource.worktreeId),
+              // The demo provider never changes a repository.
+              ...(session && session.providerId !== 'mock' && resource.projectId
+                ? {
+                    target: (
+                      <DraftWorkspacePicker
+                        // Where it works changed: its branches are read anew.
+                        key={`${resource.projectId}:${resource.worktreeId ?? ''}`}
+                        transport={transport}
+                        projectId={resource.projectId}
+                        worktreeId={resource.worktreeId}
+                        home={resource.worktreeId ? 'existing' : 'checkout'}
+                        checkoutFolder={
+                          workspace.projects.find((item) => item.id === resource.projectId)
+                            ?.paths?.[0]
+                        }
+                        workspace={moves[resource.id] ?? noMove}
+                        chatRunning={session.status === 'running'}
+                        // A turn works in the folder it started in.
+                        disabled={busy.has(resource.id) || session.status === 'running'}
+                        onChange={(next: DraftWorkspace) =>
+                          setMoves((current) => ({ ...current, [resource.id]: next }))
+                        }
+                      />
+                    ),
+                  }
+                : {}),
               onOpenUrl: (url: string) => void openPreviewFrom(url, paneId, resource.projectId),
               onOpenFile: (path: string, line?: number) =>
                 void openFileFrom(path, paneId, resource.projectId, line, resource.worktreeId),

@@ -52,6 +52,7 @@ fn main() {
             "snapshot_toast_request",
             "pick_directory",
             "attach_files",
+            "attach_pasted",
             "open_feedback",
             "set_attention_badge",
             "notify",

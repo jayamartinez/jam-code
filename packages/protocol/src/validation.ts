@@ -222,6 +222,18 @@ const branchName: Check = (value) => {
 const newWorkspace: Check = (value) => {
   const kind = object(value).kind;
   if (kind === 'checkout') shape(value, { kind: oneOf('checkout') }, { branch: branchName });
+  else if (kind === 'existing') shape(value, { kind: oneOf('existing'), branch: branchName });
+  else
+    shape(
+      value,
+      { kind: oneOf('worktree'), nameHint: text(20_000, true) },
+      { baseBranch: branchName },
+    );
+};
+const moveWorkspace: Check = (value) => {
+  const kind = object(value).kind;
+  if (kind === 'branch') shape(value, { kind: oneOf('branch'), branch: branchName });
+  else if (kind === 'checkout') shape(value, { kind: oneOf('checkout') });
   else
     shape(
       value,
@@ -760,6 +772,7 @@ const params: Record<RequestMethod, Check> = {
       { projectId: id, presentation },
       { providerId, options: optionMap, workspace: newWorkspace, requestId: id },
     ),
+  'conversation.workspace': (value) => shape(value, { resourceId: id, workspace: moveWorkspace }),
   'conversation.delete': (value) => shape(value, { resourceId: id }),
   'attachment.remove': (value) => shape(value, { id }),
   'attachment.asset': (value) => shape(value, { id }),
@@ -907,6 +920,7 @@ const responses: Record<RequestMethod, Check> = {
   'workspace.get': workspace,
   'conversation.get': conversation,
   'conversation.create': (value) => shape(value, { resource, session, conversation }, { worktree }),
+  'conversation.workspace': (value) => shape(value, { resource }, { worktree }),
   'conversation.delete': (value) => shape(value, { resourceId: id }),
   'attachment.remove': accepted,
   // At most the preview's 256 KB of UTF-8; a file of only blank lines is text too.

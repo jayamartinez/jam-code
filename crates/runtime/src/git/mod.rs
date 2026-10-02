@@ -19,8 +19,18 @@ use std::{
 const STATUS_BYTES: usize = 4 * 1024 * 1024;
 const DIFF_BYTES: usize = 512 * 1024;
 
+/// Where a local branch is checked out, seen from one folder.
+pub enum BranchPlace {
+    /// In that folder.
+    Here,
+    /// In another folder of the same repository, verified to be a checkout.
+    Elsewhere(PathBuf),
+    /// Nowhere: the folder can switch to it.
+    Free,
+}
+
 /// The folder a Git request works in: the project's first folder, or a
-/// worktree the runtime created and has already verified.
+/// worktree the runtime recorded and has already verified.
 pub struct GitTarget<'a> {
     pub project_id: &'a str,
     pub worktree_id: Option<&'a str>,
@@ -328,7 +338,43 @@ impl GitManager {
             None => Ok(empty("not-repository")),
         }
     }
-    /// Switches the target checkout's branch only when no work can be lost.
+    /// The folder of the other worktree that has `branch` checked out, checked
+    /// to still be a Git checkout.
+    pub fn worktree_of(&self, target: &GitTarget, branch: &str) -> Result<PathBuf, JamError> {
+        match self.place_of(target, branch) {
+            Ok(BranchPlace::Elsewhere(folder)) => Ok(folder),
+            _ => Err(JamError::new(
+                "conflict",
+                format!(
+                    "{branch} is no longer checked out in a worktree. Choose where this chat works again."
+                ),
+            )),
+        }
+    }
+    /// Where a local branch is, seen from the target's folder.
+    pub fn place_of(&self, target: &GitTarget, branch: &str) -> Result<BranchPlace, JamError> {
+        validate_branch_name(branch)?;
+        let _guard = self.gate()?;
+        let (_, list) = self.repository(target)?;
+        let found = list
+            .branches
+            .iter()
+            .find(|b| !b.remote && b.name == branch)
+            .ok_or_else(|| {
+                JamError::new("not_found", format!("There is no local branch {branch:?}."))
+            })?;
+        Ok(match &found.worktree {
+            _ if found.current => BranchPlace::Here,
+            Some(folder) => BranchPlace::Elsewhere(verify(Path::new(folder))?),
+            None => BranchPlace::Free,
+        })
+    }
+    /// The top of the checkout the target's folder is in.
+    pub fn root(&self, target: &GitTarget) -> Result<PathBuf, JamError> {
+        let _guard = self.gate()?;
+        self.repository(target).map(|(root, _)| root)
+    }
+    /// Switches the target checkout's branch as Git does: changes come along.
     pub fn switch_branch(&self, target: &GitTarget, branch: &str) -> Result<BranchList, JamError> {
         let _guard = self.gate()?;
         let (root, list) = self.repository(target)?;

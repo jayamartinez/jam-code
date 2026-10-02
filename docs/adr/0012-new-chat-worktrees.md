@@ -12,13 +12,20 @@ in Git changes until that Send: `conversation.create` carries an optional
 records the chat. A draft that is never sent leaves the repository untouched.
 
 - **Current checkout, another branch.** The runtime switches the checkout on
-  Send only when nothing can be lost: no staged or unstaged changes to tracked
-  files, no merge, rebase, cherry-pick, revert or bisect in progress, no chat
-  running in that checkout, and the branch is not checked out in another
-  worktree. Otherwise it refuses with the reason and creates nothing. It runs
+  Send the way Git itself does. It runs
   `git switch --no-guess --end-of-options <branch>` and never passes
-  `--force`, `--discard-changes` or `reset`. Untracked files do not block a
-  switch; Git itself refuses rather than overwrite one.
+  `--force`, `--discard-changes` or `reset`, so uncommitted and untracked
+  files come along, and Git refuses, changing nothing, when the switch would
+  overwrite one of them. JAM Code refuses first only while a merge, rebase,
+  cherry-pick, revert or bisect is in progress, or when the branch is checked
+  out in another worktree. A refusal creates nothing.
+- **Chats share the checkout.** Any number of chats work in the current
+  checkout at once, as sessions of a command-line agent in one folder do. A
+  folder has one branch, so a chat that switches it on Send moves the chats
+  already running there as well; a running chat does not prevent the switch.
+  This replaces the first version of this decision, which refused a switch
+  whenever a tracked file had changes or a chat was running: with an agent at
+  work both are nearly always true, so the branch could not be chosen.
 - **New worktree.** The runtime creates `jam/<name>` from the chosen base (a
   local branch, or a remote-tracking branch as Git last fetched it; JAM Code does
   not fetch) in `<main checkout's parent>/<repository>-worktrees/<name>`, with
@@ -26,6 +33,35 @@ records the chat. A draft that is never sent leaves the repository untouched.
   `<name>` is a lowercase slug of the first message; taken branch or folder
   names get `-2`, `-3`…, and an existing folder is never reused. The client
   never supplies a folder or the new branch name.
+- **Existing worktree.** `{ kind: "existing", branch }` starts the chat in the
+  worktree that already has that branch checked out, beside any chats working
+  there. Nothing is created or switched. The client names only the branch;
+  the runtime asks Git where that worktree is and checks the folder is still
+  a checkout. A worktree JAM Code did not create (one made in a terminal or by
+  another tool) is recorded on that Send, and later chats share the record.
+  In the composer it is not a third menu: a branch a worktree has checked out
+  is picked in the branch menu, and the workspace pill then reads Worktree.
+
+## A started chat can change where it works
+
+The same two pills stay under a started chat's message box. A change there is
+staged, like a new chat's choice, and applied when the next message is sent
+(`conversation.workspace`), never to a turn that is running:
+
+- **A branch** is worked on wherever it is. If another folder has it checked
+  out (a worktree, or the project's checkout) the chat moves to that folder.
+  If no folder has, the folder the chat works in switches to it, as above; a
+  worktree's record follows its branch.
+- **Current checkout** returns a worktree chat to the project's checkout.
+- **New worktree** makes one, from the branch the chat was on unless a base
+  is picked, and moves the chat into it.
+
+The agent keeps its session: the Claude Code process is restarted in the new
+folder and resumes (Claude Code finds a session from another worktree of the
+same repository; checked with 2.1.287), and Codex is given the folder with
+every turn (`turn/start` `cwd`, 0.157). Files, Review and terminals already
+opened from the chat keep the folder they were opened for; new ones use the
+chat's new folder, and so do the links in its earlier messages.
 
 ## Ownership and identity
 
@@ -55,9 +91,8 @@ arrays with no shell, `--end-of-options`, bounded output, Git environment
 routing removed, hooks disabled, stderr never exposed. Creating a worktree has
 a 120-second deadline because it writes a checkout; other commands keep 15.
 
-Git runs outside the database lock and serialized by `GitManager`. The
-running-chat check and the switch are not atomic with a turn starting in the
-same instant; Git's own refusals remain the backstop. A retried Send with the
+Git runs outside the database lock and serialized by `GitManager`. Git's own
+refusals are what protect uncommitted work. A retried Send with the
 same `requestId` returns the chat it created; if saving fails after the
 worktree was created, the worktree is kept and the error names it.
 
@@ -65,8 +100,9 @@ worktree was created, the worktree is kept and the error names it.
 
 - `git.branches` lists local and remote-tracking branches (at most 500), the
   current branch, uncommitted tracked-file count and in-progress state. It is
-  read when a draft appears, its project changes, or a branch menu opens;
-  never on a timer.
+  read when a draft appears, its project changes, a branch menu opens, the
+  window regains focus, or a chat in the checkout starts or stops (its agent
+  may have switched branches); never on a timer.
 - Settings → General “New threads start in” (Current checkout, New worktree,
   Ask each time) is a client reader preference like the other General
   choices; Ask each time preselects nothing and Send asks for a choice.

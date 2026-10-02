@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, FolderOpen, GitBranch, Search, TriangleAlert } from 'lucide-react';
 import type { GitBranch as Branch, GitBranches, JamTransport, Project } from '@jam/protocol';
 import { moveMenuFocus, useAnchoredMenu } from './anchored-menu';
 import { ChoicePill } from './ChoicePill';
 import { ProjectBadge } from './ProjectBadge';
 import { WorktreeIcon } from './icons';
-import type { DraftWorkspace } from '../state/chat-draft';
-import { filterBranches, switchProblem, useBranches } from '../state/branches';
+import type { ChatHome, DraftWorkspace } from '../state/chat-draft';
+import { filterBranches, sameFolder, switchProblem, useBranches } from '../state/branches';
 
 /**
  * Where a new chat works (Paper, "14 · New chat: project, workspace &
@@ -141,26 +141,56 @@ const WORKSPACES = [
   },
 ];
 
-/** A draft's workspace and branch, reading the project's branches itself. */
+/** Shown only while the chat is in, or is going to, a worktree that exists. */
+const EXISTING = {
+  value: 'existing',
+  label: 'Worktree',
+  description: 'A worktree that already exists, with its own branch and folder',
+};
+
+/**
+ * A chat's workspace and branch, reading the branches itself: a draft's
+ * choice for its first Send, or a started chat's (`home`) for its next one.
+ */
 export function DraftWorkspacePicker({
   transport,
   projectId,
+  worktreeId,
+  home,
+  checkoutFolder,
   workspace,
+  chatRunning,
   disabled,
   onChange,
 }: {
   transport: JamTransport;
   projectId: string;
+  /** The worktree a started chat works in; its branches are read from there. */
+  worktreeId?: string;
+  home?: ChatHome;
+  checkoutFolder?: string;
   workspace: DraftWorkspace;
+  /** A chat is at work in the folder: the project's checkout, or this chat's. */
+  chatRunning: boolean;
   disabled?: boolean;
   onChange(workspace: DraftWorkspace): void;
 }) {
-  const { list, error, refresh } = useBranches(transport, projectId);
+  const { list, error, refresh } = useBranches(transport, projectId, worktreeId);
+  // A chat's agent may switch the checkout's branch itself, so the branch is
+  // read again whenever one starts or stops there.
+  const wasRunning = useRef(chatRunning);
+  useEffect(() => {
+    if (wasRunning.current === chatRunning) return;
+    wasRunning.current = chatRunning;
+    refresh();
+  }, [chatRunning, refresh]);
   return (
     <WorkspaceTarget
       workspace={workspace}
       branches={list}
       error={error}
+      home={home}
+      checkoutFolder={checkoutFolder}
       disabled={disabled}
       onChange={onChange}
       onRefresh={refresh}
@@ -168,11 +198,17 @@ export function DraftWorkspacePicker({
   );
 }
 
-/** The footer's workspace and branch pills for a new chat. */
+/**
+ * The footer's workspace and branch pills. For a new chat they choose where
+ * it starts. For a started chat (`home` says where it works) they stage a
+ * change for its next Send, and an empty `workspace` means it stays.
+ */
 export function WorkspaceTarget({
   workspace,
   branches,
   error,
+  home,
+  checkoutFolder,
   disabled,
   onChange,
   onRefresh,
@@ -180,6 +216,9 @@ export function WorkspaceTarget({
   workspace: DraftWorkspace;
   branches?: GitBranches;
   error?: string;
+  home?: ChatHome;
+  /** The project's own folder, to tell its checkout from a worktree. */
+  checkoutFolder?: string;
   disabled?: boolean;
   onChange(workspace: DraftWorkspace): void;
   /** Reads the branches again, when the branch menu opens. */
@@ -201,40 +240,73 @@ export function WorkspaceTarget({
       </span>
     );
   }
-  const worktree = workspace.kind === 'worktree';
+  const locals = branches?.branches.filter((branch) => !branch.remote) ?? [];
+  const chosen = locals.find((branch) => branch.name === workspace.branch);
+  // Seen from a worktree, the project's checkout is the folder elsewhere.
+  const checkoutBranch = locals.find((branch) => sameFolder(branch.worktree, checkoutFolder));
+  // A started chat that picked a branch goes where that branch is checked out.
+  const kind =
+    workspace.kind ??
+    (home && chosen?.worktree ? (chosen === checkoutBranch ? 'checkout' : 'existing') : home);
+  const worktree = kind === 'worktree';
+  // Returning to the checkout takes the branch it is on.
+  const returning = home === 'existing' && workspace.kind === 'checkout';
+  const pick = (branch: Branch) => {
+    if (worktree)
+      return onChange({ ...workspace, branch: branch.current ? undefined : branch.name });
+    if (home) return onChange(branch.current ? {} : { branch: branch.name });
+    if (branch.worktree) return onChange({ kind: 'existing', branch: branch.name });
+    onChange({ kind: 'checkout', ...(branch.current ? {} : { branch: branch.name }) });
+  };
+  // Only a branch no folder has is switched to; otherwise the chat goes to
+  // the folder that has the branch, and nothing is switched.
+  const onSend: PendingBranch =
+    returning || chosen?.worktree
+      ? {
+          note: 'works in its folder on Send',
+          title: returning
+            ? `Works in the checkout, on ${checkoutBranch?.name}, when you send`
+            : `Works in ${chosen?.name}’s folder when you send`,
+        }
+      : {
+          note: 'switches on Send',
+          title: `Switches ${home === 'existing' ? 'this worktree' : 'the checkout'} to ${workspace.branch} when you send`,
+        };
   return (
     <span className="workspace-target">
       <ChoicePill
         label="Workspace"
         rootClassName="workspace-choice"
-        className={`workspace-pill ${worktree ? 'worktree' : ''} ${workspace.kind ? '' : 'unchosen'}`}
-        icon={worktree ? <WorktreeIcon /> : <FolderOpen size={12} />}
-        value={workspace.kind ?? ''}
-        values={
-          workspace.kind
-            ? WORKSPACES
-            : [{ value: '', label: 'Choose where it works' }, ...WORKSPACES]
-        }
-        onChange={(kind) =>
-          // Each workspace starts from the checkout's current branch.
-          onChange({ kind: kind === 'worktree' ? 'worktree' : 'checkout' })
-        }
+        className={`workspace-pill ${worktree || kind === 'existing' ? 'worktree' : ''} ${kind ? '' : 'unchosen'}`}
+        icon={worktree || kind === 'existing' ? <WorktreeIcon /> : <FolderOpen size={12} />}
+        value={kind ?? ''}
+        values={[
+          ...(kind ? [] : [{ value: '', label: 'Choose where it works' }]),
+          ...(kind === 'existing' || home === 'existing' ? [EXISTING] : []),
+          ...WORKSPACES,
+        ]}
+        onChange={(next) => {
+          // Another worktree is reached through its branch; choosing this one
+          // only keeps a started chat where it is.
+          if (next === 'existing') {
+            if (home === 'existing') onChange({});
+            return;
+          }
+          // Each workspace starts from the folder's current branch.
+          onChange(next === home ? {} : { kind: next === 'worktree' ? 'worktree' : 'checkout' });
+        }}
         disabled={disabled}
         compact
       />
-      {workspace.kind && (
+      {kind && (
         <BranchPicker
           worktree={worktree}
-          chosen={workspace.branch}
+          chosen={returning ? checkoutBranch?.name : workspace.branch}
+          onSend={onSend}
           branches={branches}
-          disabled={disabled}
+          disabled={disabled || returning}
           onOpen={onRefresh}
-          onChange={(branch) =>
-            onChange({
-              ...workspace,
-              ...(branch === undefined ? { branch: undefined } : { branch }),
-            })
-          }
+          onPick={pick}
           onWorktree={() => onChange({ kind: 'worktree' })}
         />
       )}
@@ -243,25 +315,36 @@ export function WorkspaceTarget({
 }
 
 /**
- * Searchable branches. For the checkout, picking another branch switches it
- * on Send, and only when nothing could be lost; for a new worktree, it picks
- * the base, local or as Git last fetched it.
+ * Searchable branches. Picking a branch no folder has switches the chat's
+ * folder to it on Send, taking uncommitted changes along; picking one that a
+ * worktree has checked out works in that worktree. For a new worktree, it
+ * picks the base, local or as Git last fetched it.
  */
+/** What Send will do with a branch other than the folder's current one. */
+interface PendingBranch {
+  /** Ends the pill's spoken label: "switches on Send". */
+  note: string;
+  /** The pill's tooltip, in full. */
+  title: string;
+}
+
 function BranchPicker({
   worktree,
   chosen,
+  onSend,
   branches,
   disabled,
   onOpen,
-  onChange,
+  onPick,
   onWorktree,
 }: {
   worktree: boolean;
   chosen?: string;
+  onSend: PendingBranch;
   branches?: GitBranches;
   disabled?: boolean;
   onOpen(): void;
-  onChange(branch: string | undefined): void;
+  onPick(branch: Branch): void;
   onWorktree(): void;
 }) {
   const [query, setQuery] = useState('');
@@ -288,14 +371,13 @@ function BranchPicker({
   };
   const choose = (branch: Branch) => {
     finish();
-    // Returning to the current branch clears the switch.
-    onChange(branch.name === current ? undefined : branch.name);
+    onPick(branch);
   };
 
   const option = (branch: Branch) => {
     const selected = branch.name === target;
-    // The checkout cannot take a branch another worktree has checked out.
-    const unavailable = !worktree && (!!problem || !!branch.worktree) && !branch.current;
+    // A folder that cannot switch can still hand the chat to another folder.
+    const unavailable = !worktree && !!problem && !branch.worktree && !branch.current;
     return (
       <button
         key={`${branch.remote ? 'r' : 'l'}:${branch.name}`}
@@ -332,8 +414,8 @@ function BranchPicker({
         className={`choice-pill branch-pill ${pending ? 'pending' : ''}`}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`${worktree ? 'Base branch' : 'Branch'}: ${target ?? 'none'}${pending ? ', switches on Send' : ''}`}
-        title={pending ? `Switches the checkout to ${chosen} when you send` : undefined}
+        aria-label={`${worktree ? 'Base branch' : 'Branch'}: ${target ?? 'none'}${pending ? `, ${onSend.note}` : ''}`}
+        title={pending ? onSend.title : undefined}
         disabled={disabled}
         onClick={() => {
           if (open) return finish();

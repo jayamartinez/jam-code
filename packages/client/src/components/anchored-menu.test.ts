@@ -7,6 +7,7 @@ import { nativeViewsOccluded } from '../state/native-occlusion';
 import { ChoicePill } from './ChoicePill';
 import { MenuSelect } from './MenuSelect';
 import { WorkspaceTarget } from './NewChatTarget';
+import type { DraftWorkspace } from '../state/chat-draft';
 
 /**
  * The shared anchored menu, in a DOM. Layout is not computed here, so every
@@ -290,5 +291,147 @@ describe('the branch menu', () => {
     expect(menu()!.parentElement!.className).toBe('overlay-host');
     expect(menu()!.style.left).toBe('620px');
     expect(menu()!.textContent).toContain('feat/panes');
+  });
+
+  it('offers every branch with uncommitted changes, but not during a merge or rebase', () => {
+    const option = (name: string) =>
+      [...menu()!.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')].find((item) =>
+        item.textContent.includes(name),
+      )!;
+    const open = (list: GitBranches) => {
+      render(
+        createElement(WorkspaceTarget, {
+          workspace: { kind: 'checkout' },
+          branches: list,
+          onChange: vi.fn(),
+          onRefresh: vi.fn(),
+        }),
+      );
+      if (!menu()) click(trigger('Branch'));
+    };
+    // Uncommitted changes come along; Git decides on Send.
+    open({ ...branches, changed: 2 });
+    expect(option('feat/panes').disabled).toBe(false);
+    expect(menu()!.querySelector('[role="note"]')).toBeNull();
+
+    open({ ...branches, busy: true });
+    expect(option('feat/panes').disabled).toBe(true);
+    expect(option('main').disabled).toBe(false);
+    expect(menu()!.querySelector('[role="note"]')!.textContent).toContain('in progress');
+  });
+
+  const option = (name: string) =>
+    [...menu()!.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')].find((item) =>
+      item.textContent.includes(name),
+    )!;
+  const withWorktree: GitBranches = {
+    ...branches,
+    branches: [
+      ...branches.branches,
+      { name: 'feat/chat', remote: false, current: false, worktree: 'C:/work/jam-worktrees/chat' },
+    ],
+  };
+
+  it('starts a new chat in the worktree that has the picked branch', () => {
+    const onChange = vi.fn();
+    const target = (workspace: DraftWorkspace) =>
+      render(
+        createElement(WorkspaceTarget, {
+          workspace,
+          branches: withWorktree,
+          onChange,
+          onRefresh: vi.fn(),
+        }),
+      );
+    target({ kind: 'checkout' });
+    click(trigger('Branch'));
+    expect(option('feat/chat').disabled).toBe(false);
+    click(option('feat/chat'));
+    expect(onChange).toHaveBeenLastCalledWith({ kind: 'existing', branch: 'feat/chat' });
+
+    // The same two pills name it; a branch no folder has returns to the checkout.
+    target({ kind: 'existing', branch: 'feat/chat' });
+    expect(trigger('Workspace').textContent).toContain('Worktree');
+    // Nothing is switched: the chat goes to the folder that has the branch.
+    expect(trigger('Branch').getAttribute('aria-label')).toBe(
+      'Branch: feat/chat, works in its folder on Send',
+    );
+    expect(trigger('Branch').title).toBe('Works in feat/chat’s folder when you send');
+    target({ kind: 'checkout', branch: 'feat/panes' });
+    expect(trigger('Branch').getAttribute('aria-label')).toBe(
+      'Branch: feat/panes, switches on Send',
+    );
+    expect(trigger('Branch').title).toBe('Switches the checkout to feat/panes when you send');
+    target({ kind: 'existing', branch: 'feat/chat' });
+    click(trigger('Branch'));
+    click(option('feat/panes'));
+    expect(onChange).toHaveBeenLastCalledWith({ kind: 'checkout', branch: 'feat/panes' });
+  });
+
+  it('stages a started chat’s branch or worktree for its next Send', () => {
+    const onChange = vi.fn();
+    const target = (workspace: DraftWorkspace, home: 'checkout' | 'existing' = 'checkout') =>
+      render(
+        createElement(WorkspaceTarget, {
+          workspace,
+          home,
+          checkoutFolder: 'C:\\work\\jam',
+          branches: withWorktree,
+          onChange,
+          onRefresh: vi.fn(),
+        }),
+      );
+    // Nothing staged: it shows where the chat works.
+    target({});
+    expect(trigger('Workspace').textContent).toContain('Current checkout');
+    expect(trigger('Branch').getAttribute('aria-label')).toBe('Branch: main');
+    click(trigger('Branch'));
+    click(option('feat/chat'));
+    expect(onChange).toHaveBeenLastCalledWith({ branch: 'feat/chat' });
+
+    // A branch a worktree has moves the chat there; the current one stays.
+    target({ branch: 'feat/chat' });
+    expect(trigger('Workspace').textContent).toContain('Worktree');
+    click(trigger('Branch'));
+    click(option('main'));
+    expect(onChange).toHaveBeenLastCalledWith({});
+
+    // From a worktree, the project's checkout is the folder elsewhere.
+    const fromWorktree: GitBranches = {
+      ...branches,
+      current: 'feat/chat',
+      branches: [
+        { name: 'main', remote: false, current: false, worktree: 'C:/work/jam' },
+        { name: 'feat/chat', remote: false, current: true },
+      ],
+    };
+    render(
+      createElement(WorkspaceTarget, {
+        workspace: { branch: 'main' },
+        home: 'existing',
+        checkoutFolder: 'C:\\work\\jam',
+        branches: fromWorktree,
+        onChange,
+        onRefresh: vi.fn(),
+      }),
+    );
+    expect(trigger('Workspace').textContent).toContain('Current checkout');
+
+    // Returning to the checkout switches nothing either, and the pill says so.
+    render(
+      createElement(WorkspaceTarget, {
+        workspace: { kind: 'checkout' },
+        home: 'existing',
+        checkoutFolder: 'C:\\work\\jam',
+        branches: fromWorktree,
+        onChange,
+        onRefresh: vi.fn(),
+      }),
+    );
+    expect(trigger('Branch').disabled).toBe(true);
+    expect(trigger('Branch').getAttribute('aria-label')).toBe(
+      'Branch: main, works in its folder on Send',
+    );
+    expect(trigger('Branch').title).toBe('Works in the checkout, on main, when you send');
   });
 });
