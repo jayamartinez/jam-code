@@ -13,6 +13,7 @@ import {
   backgroundTokens,
   effectTokens,
   colorTokens,
+  drawnSurfaces,
   fontStack,
   MONO_STACK,
   normalizeAppearance,
@@ -314,6 +315,43 @@ describe('match colors to image', () => {
         role,
       ).toBeLessThan(0.25);
     }
+  });
+  it('leaves a surface the reader set by hand alone and still recolors the rest', () => {
+    const on = settings({ background: 'image', autoColors: true });
+    const context = { present: true, palette };
+    const plain = colorTokens({ ...on, autoColors: false }, context);
+    const all = colorTokens(on, context);
+    const own = colorTokens({ ...on, ownSurfaces: ['canvas'] }, context);
+    for (const role of [
+      '--color-surface-pane',
+      '--color-surface-pane-muted',
+      '--color-surface-terminal',
+    ])
+      expect(own[role], role).toBe(plain[role]);
+    for (const role of [
+      '--color-surface-sidebar',
+      '--color-surface-raised',
+      '--color-surface-overlay',
+    ]) {
+      expect(own[role], role).toBe(all[role]);
+      expect(own[role], role).not.toBe(plain[role]);
+    }
+    // The accent is the image's either way.
+    expect(own['--color-accent']).toBe(all['--color-accent']);
+
+    const shown = drawnSurfaces({ ...on, ownSurfaces: ['canvas'] }, context);
+    expect(shown.canvas).toEqual({ color: THEMES.nightglass.surfaces.pane[0], fromImage: false });
+    expect(shown.sidebar.fromImage).toBe(true);
+    expect(shown.sidebar.color).not.toBe(THEMES.nightglass.surfaces.sidebar[0]);
+    expect(shown.raised.color).toMatch(/^#[0-9a-f]{6}$/);
+    // Not matching: every surface is the theme's own and none is the image's.
+    expect(Object.values(drawnSurfaces(on)).some((item) => item.fromImage)).toBe(false);
+  });
+  it('keeps only known surfaces, once each, from a stored record', () => {
+    expect(
+      normalizeAppearance({ ownSurfaces: ['raised', 'text', 'canvas', 'raised', 4] }).ownSurfaces,
+    ).toEqual(['canvas', 'raised']);
+    expect(normalizeAppearance({ ownSurfaces: 'canvas' }).ownSurfaces).toEqual([]);
   });
   it('gives tabs their own surface only over a custom background', () => {
     const tab = (tokens: Record<string, string>) => [

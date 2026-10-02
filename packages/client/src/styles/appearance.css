@@ -519,6 +519,21 @@
 .ap-disclosure.open span {
   transform: rotate(90deg);
 }
+/* Theme colors on the main page. */
+.ap-from-image {
+  margin-left: 8px;
+  font-weight: 400;
+}
+.ap-colors-saved {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+.ap-color.disabled {
+  opacity: 0.5;
+}
+.ap-color.disabled input {
+  cursor: default;
+}
 .ap-footer {
   display: flex;
   align-items: center;

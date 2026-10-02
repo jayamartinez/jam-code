@@ -3,6 +3,7 @@ import {
   APPEARANCE,
   APPEARANCE_RANGES,
   DEFAULT_APPEARANCE,
+  SURFACE_ROLES,
   customThemeRef,
   parseCustomThemeRef,
   type AccentId,
@@ -10,19 +11,27 @@ import {
   type BackgroundMode,
   type BackgroundPattern,
   type CustomTheme,
+  type SurfaceRole,
   type ThemeRef,
 } from '@jam/protocol';
 import { useAppearance, useAppearanceStore } from '../appearance/store';
 import { ACCENTS, legible, type Scheme } from '../appearance/themes';
 import { MONO_FONTS, UI_FONTS } from '../appearance/fonts';
 import { WALLPAPER_ACCEPT, prepareWallpaper } from '../appearance/wallpaper';
-import { effectTokens, themeOf } from '../appearance/resolve';
-import { canAddCustomTheme, colorsFromDefinition, newCustomThemeId } from '../appearance/custom';
+import { drawnSurfaces, effectTokens, matchesImage, themeOf } from '../appearance/resolve';
+import {
+  canAddCustomTheme,
+  colorsFromDefinition,
+  newCustomThemeId,
+  ownCopyName,
+  withThemeColor,
+} from '../appearance/custom';
 import { libraryFamilies, libraryOrder } from '../appearance/library';
 import { THEME_FILE_BYTES, exportTheme, importTheme } from '../appearance/import';
 import { Card, Row, Section, Segmented, Toggle } from './settings/controls';
 import { ColorInput, FontSelect, NumberSelect, Slider } from './appearance/controls';
 import { Library } from './appearance/Library';
+import { ThemeColors } from './appearance/ThemeColors';
 import { Stage } from './appearance/Stage';
 import { ThemeEditor, type ThemeDraft } from './appearance/ThemeEditor';
 
@@ -481,7 +490,7 @@ function download(theme: CustomTheme) {
 }
 
 export default function AppearanceSettings() {
-  const { appearance, wallpaper, error } = useAppearance();
+  const { appearance, wallpaper, palette, error } = useAppearance();
   const store = useAppearanceStore();
   const update: Update = (changes) => store?.update(changes);
   const [draft, setDraft] = useState<ThemeDraft | null>(null);
@@ -544,6 +553,28 @@ export default function AppearanceSettings() {
       ...(active ? { theme: DEFAULT_APPEARANCE.theme } : {}),
     });
     setDraft(null);
+  };
+
+  // The theme's surface colors, changed in place: no draft and no Save.
+  const image = { present: !!wallpaper, ...(palette ? { palette } : {}) };
+  const matching = matchesImage(appearance, image);
+  const mine = appearance.customThemes.find(
+    (item) => item.id === parseCustomThemeRef(appearance.theme)?.id,
+  );
+  const copyName = ownCopyName(theme);
+  const full = !mine && !canAdd && !appearance.customThemes.some((item) => item.name === copyName);
+  const setSurface = (role: SurfaceRole, value: string) => {
+    const next = withThemeColor(appearance, role, value);
+    if (!next) return;
+    update({
+      ...next,
+      // Set by hand while the image is matching: the image leaves it alone now.
+      ...(matching && {
+        ownSurfaces: SURFACE_ROLES.filter(
+          (item) => item === role || appearance.ownSurfaces.includes(item),
+        ),
+      }),
+    });
   };
 
   if (draft)
@@ -668,6 +699,23 @@ export default function AppearanceSettings() {
           if (custom) setDraft({ isNew: false, theme: custom });
         }}
         canAdd={canAdd}
+      />
+      <ThemeColors
+        surfaces={drawnSurfaces(appearance, image)}
+        saved={
+          mine
+            ? `Changes save to your theme “${mine.name}”.`
+            : full
+              ? `${APPEARANCE.limits.customThemes} of your own themes is the most JAM Code keeps. Delete one to change these.`
+              : `Changing a color saves ${theme.family} as your own theme, “${copyName}”.`
+        }
+        full={full}
+        onChange={setSurface}
+        {...(matching && {
+          onFollowImage: (role: SurfaceRole) =>
+            update({ ownSurfaces: appearance.ownSurfaces.filter((item) => item !== role) }),
+        })}
+        onAllColors={() => (mine ? setDraft({ isNew: false, theme: mine }) : startNew())}
       />
 
       <div className="ap-footer">

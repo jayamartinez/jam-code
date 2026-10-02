@@ -4,10 +4,12 @@ import {
   DEFAULT_APPEARANCE,
   FONT_FAMILY,
   HEX_COLOR,
+  SURFACE_ROLES,
   appearanceThemeProblem,
   customThemeProblem,
   type AppearanceSettings,
   type CustomTheme,
+  type SurfaceRole,
 } from '@jam/protocol';
 import { themeFor } from './custom';
 import { alpha, fromHsl, luminance, mix, toHsl } from './color';
@@ -72,6 +74,10 @@ export function normalizeAppearance(value: unknown): AppearanceSettings {
   pick('background', (item) => APPEARANCE.backgrounds.includes(item as never));
   pick('backgroundPattern', (item) => APPEARANCE.patterns.includes(item as never));
   pick('autoColors', (item) => typeof item === 'boolean');
+  if (Array.isArray(input.ownSurfaces))
+    result.ownSurfaces = SURFACE_ROLES.filter((role) =>
+      (input.ownSurfaces as unknown[]).includes(role),
+    );
   for (const key of ['customAccent', 'backgroundColor', 'gradientFrom', 'gradientTo'] as const)
     pick(key, (item) => typeof item === 'string' && HEX_COLOR.test(item));
   for (const key of ['uiFont', 'codeFont', 'terminalFont'] as const)
@@ -107,7 +113,7 @@ export interface WallpaperContext {
 }
 
 /** "Match colors to image" is in effect: an image is shown and its colors are known. */
-function matchesImage(appearance: AppearanceSettings, wallpaper: WallpaperContext) {
+export function matchesImage(appearance: AppearanceSettings, wallpaper: WallpaperContext) {
   return (
     appearance.autoColors &&
     appearance.background === 'image' &&
@@ -143,25 +149,67 @@ function recolor(hex: string, tone: string): string {
  * The theme with its grounds and surfaces in the wallpaper's own dark (or
  * light) tone: the canvas, the sidebar, raised surfaces and the rest take the
  * image's color and keep their own lightness. Text, code and status colors
- * are untouched, so the contrast floors still hold.
+ * are untouched, so the contrast floors still hold. A surface the reader set
+ * by hand (`own`) is left exactly as the theme has it, with the roles drawn
+ * from it.
  */
-function tintedTheme(theme: ThemeDefinition, palette: WallpaperPalette): ThemeDefinition {
+function tintedTheme(
+  theme: ThemeDefinition,
+  palette: WallpaperPalette,
+  own: readonly SurfaceRole[],
+): ThemeDefinition {
   const tone = theme.scheme === 'dark' ? palette.groundDark : palette.groundLight;
-  const surface = ([hex, own]: [string, number]): [string, number] => [recolor(hex, tone), own];
+  const follows = (role: SurfaceRole) => !own.includes(role);
+  const color = (role: SurfaceRole, hex: string) => (follows(role) ? recolor(hex, tone) : hex);
+  const surface = (role: SurfaceRole, [hex, alphaOwn]: [string, number]): [string, number] => [
+    color(role, hex),
+    alphaOwn,
+  ];
   return {
     ...theme,
     base: recolor(theme.base, tone),
     surfaces: {
-      sidebar: surface(theme.surfaces.sidebar),
-      pane: surface(theme.surfaces.pane),
-      paneMuted: surface(theme.surfaces.paneMuted),
-      terminal: surface(theme.surfaces.terminal),
+      sidebar: surface('sidebar', theme.surfaces.sidebar),
+      pane: surface('canvas', theme.surfaces.pane),
+      paneMuted: surface('canvas', theme.surfaces.paneMuted),
+      terminal: surface('canvas', theme.surfaces.terminal),
     },
-    raised: recolor(theme.raised, tone),
-    overlay: recolor(theme.overlay, tone),
+    raised: color('raised', theme.raised),
+    overlay: color('raised', theme.overlay),
     badgeRing: recolor(theme.badgeRing, tone),
   };
 }
+
+/** The theme as it is drawn: recolored by the image where that is in effect. */
+function drawnTheme(appearance: AppearanceSettings, wallpaper: WallpaperContext) {
+  const own = themeOf(appearance);
+  return matchesImage(appearance, wallpaper)
+    ? tintedTheme(own, wallpaper.palette!, appearance.ownSurfaces)
+    : own;
+}
+
+/**
+ * The three surface anchors as they are drawn now, for the Appearance page:
+ * each one's color, and whether the image is what is setting it.
+ */
+export function drawnSurfaces(
+  appearance: AppearanceSettings,
+  wallpaper: WallpaperContext = { present: false },
+): Record<SurfaceRole, { color: string; fromImage: boolean }> {
+  const theme = drawnTheme(appearance, wallpaper);
+  const matched = matchesImage(appearance, wallpaper);
+  const hex = (value: string) => (/^#[0-9a-f]{6}$/i.test(value) ? value : theme.surfaces.pane[0]);
+  const entry = (role: SurfaceRole, color: string) => ({
+    color: hex(color),
+    fromImage: matched && !appearance.ownSurfaces.includes(role),
+  });
+  return {
+    canvas: entry('canvas', theme.surfaces.pane[0]),
+    sidebar: entry('sidebar', theme.surfaces.sidebar[0]),
+    raised: entry('raised', theme.raised),
+  };
+}
+
 export function themeOf(appearance: AppearanceSettings): ThemeDefinition {
   return themeFor(appearance.theme, appearance.customThemes);
 }
@@ -181,8 +229,7 @@ export function colorTokens(
   wallpaper: WallpaperContext = { present: false },
 ): Record<string, string> {
   const matched = matchesImage(appearance, wallpaper);
-  const own = themeOf(appearance);
-  const theme = matched ? tintedTheme(own, wallpaper.palette!) : own;
+  const theme = drawnTheme(appearance, wallpaper);
   const { surfaces, text, status, diff, provider } = theme;
   const pane = ([hex, alphaOwn]: [string, number]) =>
     alpha(hex, paneAlpha(theme, alphaOwn, appearance.paneOpacity));
