@@ -288,6 +288,10 @@ describe('match colours to image', () => {
     ];
     expect(tab(backgroundTokens(settings(), false).tokens)).toEqual(plain);
     expect(backgroundTokens(settings(), false).tokens['--tab-strip-fade']).toContain('gradient');
+    expect(backgroundTokens(settings(), false).tokens['--window-control-inset']).toBe('0px');
+    expect(
+      backgroundTokens(settings({ background: 'image' }), true).tokens['--window-control-inset'],
+    ).toBe('8px');
     expect(
       backgroundTokens(settings({ background: 'image' }), true).tokens['--tab-strip-fade'],
     ).toBe('none');

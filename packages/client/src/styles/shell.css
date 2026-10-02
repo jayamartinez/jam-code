@@ -790,23 +790,65 @@ button.thread-group-label {
   color: var(--color-text-primary);
   background: var(--color-fill-strong);
 }
+/*
+ * The window controls keep 44px hit areas flush with the window's corner.
+ * What is drawn is inset by `--window-control-inset`: nothing over the
+ * theme's own background, so hover fills the whole cell as before; over a
+ * custom background, a chip like the tabs', clear of the pane below it.
+ */
 .window-controls {
+  position: relative;
   display: flex;
   flex-shrink: 0;
   height: 44px;
   border-left: 1px solid var(--color-border-subtle);
   margin-left: 5px;
+}
+.window-controls::before,
+.window-controls .icon-button::before {
+  content: '';
+  position: absolute;
+  inset: var(--window-control-inset) 0;
+  pointer-events: none;
+}
+.window-controls::before {
+  right: calc(var(--window-control-inset) * 0.75);
+  border: 1px solid var(--color-tab-border);
+  border-radius: calc(var(--window-control-inset) * 0.875);
   background: var(--color-tab-surface);
   -webkit-backdrop-filter: var(--tab-backdrop);
   backdrop-filter: var(--tab-backdrop);
 }
 .window-controls .icon-button {
+  position: relative;
   width: 44px;
   height: 44px;
   border-radius: 0;
   color: var(--color-tab-text);
 }
-.window-controls .icon-button:last-child:hover:not(:disabled) {
+.window-controls .icon-button > svg {
+  position: relative;
+}
+.window-controls .icon-button:first-child::before {
+  border-radius: calc(var(--window-control-inset) * 0.875) 0 0
+    calc(var(--window-control-inset) * 0.875);
+}
+.window-controls .icon-button:last-child {
+  padding-right: calc(var(--window-control-inset) * 0.75);
+}
+.window-controls .icon-button:last-child::before {
+  right: calc(var(--window-control-inset) * 0.75);
+  border-radius: 0 calc(var(--window-control-inset) * 0.875)
+    calc(var(--window-control-inset) * 0.875) 0;
+}
+/* Hover is drawn by the inset layer, not by the cell. */
+.window-controls .icon-button:hover:not(:disabled) {
+  background: none;
+}
+.window-controls .icon-button:hover:not(:disabled)::before {
+  background: var(--color-fill);
+}
+.window-controls .icon-button:last-child:hover:not(:disabled)::before {
   background: var(--color-danger-soft);
 }
 /*

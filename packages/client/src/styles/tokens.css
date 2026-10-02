@@ -130,6 +130,7 @@
   --color-tab-quiet-text: var(--color-text-subtle);
   --color-tab-active-surface: var(--color-fill-strong);
   --tab-backdrop: none;
+  --window-control-inset: 0px;
   --tab-strip-fade: linear-gradient(to right, #000 0, #000 calc(100% - 28px), transparent 100%);
   --wallpaper-effects: none;
   --wallpaper-effects-size: auto;

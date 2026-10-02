@@ -358,6 +358,9 @@ export function backgroundTokens(
         ? 'var(--color-surface-pane)'
         : 'var(--color-fill-strong)',
       '--tab-backdrop': custom ? 'var(--sidebar-backdrop)' : 'none',
+      // The window controls keep their full corner hit area; over a custom
+      // background their surface is drawn inset, as a chip like the tabs.
+      '--window-control-inset': custom ? '8px' : '0px',
       // A mask on the strip would cut its tabs off from what they blur.
       '--tab-strip-fade': custom
         ? 'none'
