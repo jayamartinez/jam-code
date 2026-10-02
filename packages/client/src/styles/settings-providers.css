@@ -542,7 +542,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--color-text-faint);
-  font-family: var(--font-mono);
+  font-family: var(--font-mono-stack);
   font-size: calc(11px * var(--ui-scale));
 }
 .sv-model-traits {

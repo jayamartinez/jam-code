@@ -1710,7 +1710,7 @@ button.context-action:disabled:not(:has(.context-spinner)) > span {
   border: 1px solid var(--color-border);
   border-radius: 4px;
   color: var(--color-text-faint);
-  font-family: var(--font-mono);
+  font-family: var(--font-mono-stack);
   font-size: calc(10.5px * var(--ui-scale));
   line-height: calc(15px * var(--ui-scale));
   white-space: nowrap;
