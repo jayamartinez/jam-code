@@ -62,15 +62,18 @@ export function recentChats(
 }
 
 /**
- * Why a chat cannot be archived right now, or null when it can. Archiving
- * never stops an agent, so a chat that is working or waiting for an answer is
- * settled first rather than put away mid-turn.
+ * Why a chat cannot be archived or deleted right now, or null when it can.
+ * Neither stops an agent, so a chat that is working or waiting for an answer
+ * is settled first rather than put away, or removed, mid-turn.
  */
-export function archiveBlocked(session: Session | undefined): string | null {
-  if (session?.needsInput) return 'Answer the agent’s request before archiving this chat.';
-  if (session?.status === 'running') return 'Stop the agent or let it finish before archiving.';
+function settleFirst(session: Session | undefined, doing: string): string | null {
+  if (session?.needsInput) return `Answer the agent’s request before ${doing} this chat.`;
+  if (session?.status === 'running')
+    return `Stop the agent or let it finish before ${doing} this chat.`;
   return null;
 }
+export const archiveBlocked = (session: Session | undefined) => settleFirst(session, 'archiving');
+export const deleteBlocked = (session: Session | undefined) => settleFirst(session, 'deleting');
 
 /** Pinned projects first; otherwise the runtime's order is kept. */
 export function orderProjects(projects: Project[]): Project[] {

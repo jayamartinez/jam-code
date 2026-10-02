@@ -148,6 +148,24 @@ function removeLeaf(node: LayoutNode, paneId: string): LayoutNode | null {
   return first === node.first && second === node.second ? node : { ...node, first, second };
 }
 
+/**
+ * A tree without any pane showing `resourceId`: those panes are removed and
+ * their splits collapse. A tree that showed nothing else keeps one empty pane.
+ */
+function withoutResource(node: LayoutNode, resourceId: string): LayoutNode {
+  const prune = (target: LayoutNode): LayoutNode | null => {
+    if (target.type === 'leaf') return target.resourceId === resourceId ? null : target;
+    const first = prune(target.first);
+    const second = prune(target.second);
+    if (!first) return second;
+    if (!second) return first;
+    return first === target.first && second === target.second
+      ? target
+      : { ...target, first, second };
+  };
+  return prune(node) ?? leaf(leaves(node)[0]!.id);
+}
+
 function mapLeaves(node: LayoutNode, map: (target: LeafNode) => LeafNode): LayoutNode {
   if (node.type === 'leaf') return map(node);
   const first = mapLeaves(node.first, map);
@@ -171,6 +189,12 @@ export type LayoutAction =
   | { type: 'reopenTab' }
   | { type: 'moveTab'; from: number; to: number }
   | { type: 'replaceDraft'; draftId: string; resourceId: string }
+  /**
+   * A resource no longer exists (it was deleted, not closed). Every tab, pane
+   * and remembered closed tab that showed it lets go of it, so nothing can
+   * bring it back.
+   */
+  | { type: 'removeResource'; resourceId: string }
   /** Load a resource into a pane of the active tab. */
   | { type: 'assignPane'; resourceId: string; paneId?: string }
   | {
@@ -307,6 +331,44 @@ export function layoutReducer(state: LayoutState, action: LayoutAction): LayoutS
             : tab,
         ),
         activeTabId: state.activeTabId === oldTabId ? newTabId : state.activeTabId,
+      };
+    }
+    case 'removeResource': {
+      const { resourceId } = action;
+      const gone = (tab: ResourceTab) => tab.resourceId === resourceId;
+      const tabs = state.tabs.filter((tab) => !gone(tab));
+      const trees: Record<string, LayoutNode> = {};
+      const focused: Record<string, string> = {};
+      for (const tab of tabs) {
+        const tree = state.trees[tab.id];
+        if (!tree) continue;
+        const kept = withoutResource(tree, resourceId);
+        trees[tab.id] = kept;
+        // Focus stays where it was unless that pane is the one that went.
+        const wanted = state.focused[tab.id];
+        if (wanted) focused[tab.id] = (findLeaf(kept, wanted) ?? leaves(kept)[0]!).id;
+      }
+      const drafts = { ...state.drafts };
+      delete drafts[resourceId];
+      const activeIndex = state.tabs.findIndex((tab) => tab.id === state.activeTabId);
+      const activeGone = activeIndex >= 0 && gone(state.tabs[activeIndex]!);
+      // Like closing it: the tab that takes its place comes forward.
+      const before = state.tabs.slice(0, Math.max(0, activeIndex)).filter((tab) => !gone(tab));
+      return {
+        ...state,
+        tabs,
+        trees,
+        focused,
+        drafts,
+        activeTabId: activeGone
+          ? (tabs[Math.min(before.length, tabs.length - 1)]?.id ?? null)
+          : state.activeTabId,
+        // Reopen closed tab must never offer a resource that no longer exists.
+        closed: state.closed
+          .filter((entry) => !gone(entry.tab))
+          .map((entry) =>
+            entry.tree ? { ...entry, tree: withoutResource(entry.tree, resourceId) } : entry,
+          ),
       };
     }
     case 'assignPane':

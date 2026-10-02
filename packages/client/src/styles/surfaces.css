@@ -221,6 +221,16 @@
   font-size: calc(12.5px * var(--ui-scale));
   line-height: calc(19px * var(--ui-scale));
 }
+/* Two paragraphs read as one message; the first says what happens. */
+.confirm-dialog p:has(+ p) {
+  margin-bottom: 0;
+}
+.confirm-dialog .confirm-lead {
+  color: var(--color-text-secondary);
+}
+.confirm-dialog .confirm-error {
+  color: var(--color-danger);
+}
 .confirm-dialog footer {
   display: flex;
   justify-content: flex-end;

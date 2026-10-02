@@ -469,6 +469,15 @@ export interface RequestMap
       worktree?: Worktree;
     };
   };
+  /**
+   * Permanently removes JAM's own record of a conversation: its transcript,
+   * session, provider binding, search entries and the snapshots sent in it.
+   * Project files, Git branches and worktrees, and the provider's own history
+   * are never touched. Refused (`conflict`) while its agent is working,
+   * waiting for an answer or still stopping; a conversation that is already
+   * gone is `not_found`.
+   */
+  'conversation.delete': { params: { resourceId: string }; result: { resourceId: string } };
   'turn.start': {
     params: {
       resourceId: string;

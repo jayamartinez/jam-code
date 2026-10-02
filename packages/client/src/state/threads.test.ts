@@ -3,6 +3,7 @@ import type { Project, Resource, Session } from '@jam/protocol';
 import {
   archiveBlocked,
   compactAge,
+  deleteBlocked,
   currentChats,
   orderProjects,
   pinnedChats,
@@ -83,6 +84,14 @@ describe('project threads', () => {
     expect(archiveBlocked(session('failed'))).toBeNull();
     expect(archiveBlocked(session('running'))).toMatch(/Stop the agent/);
     expect(archiveBlocked(session('running', { needsInput: true }))).toMatch(/Answer/);
+  });
+
+  it('refuses to delete a chat that is working or waiting, and says why', () => {
+    expect(deleteBlocked(undefined)).toBeNull();
+    expect(deleteBlocked(session('idle'))).toBeNull();
+    expect(deleteBlocked(session('interrupted'))).toBeNull();
+    expect(deleteBlocked(session('running'))).toMatch(/Stop the agent.*deleting/);
+    expect(deleteBlocked(session('running', { needsInput: true }))).toMatch(/Answer.*deleting/);
   });
 
   it('puts pinned projects first without reordering the rest', () => {

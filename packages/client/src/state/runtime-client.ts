@@ -37,6 +37,8 @@ export class RuntimeClient {
   private metadataAgain = false;
   private bufferOverflow = false;
   private providersChecked?: Promise<void>;
+  /** Conversations deleted in this session; a late read or event never restores one. */
+  private deleted = new Set<string>();
 
   constructor(readonly transport: JamTransport) {}
 
@@ -123,7 +125,11 @@ export class RuntimeClient {
       const existingIds = [
         ...new Set([...this.state.conversations.keys(), ...this.conversationListeners.keys()]),
       ].filter(Boolean);
-      this.update({ workspace, conversations: new Map(), error: null });
+      this.update({
+        workspace: this.withoutDeleted(workspace),
+        conversations: new Map(),
+        error: null,
+      });
       if (
         typeof performance !== 'undefined' &&
         !performance.getEntriesByName('jam-workspace-loaded').length
@@ -150,6 +156,7 @@ export class RuntimeClient {
       this.bufferEvent(event);
       return;
     }
+    if (this.deleted.has(event.resourceId)) return;
     if (
       !this.cursor ||
       event.cursor.runtimeId !== this.cursor.runtimeId ||
@@ -213,7 +220,12 @@ export class RuntimeClient {
             !this.state.workspace
           )
             return;
-          this.update({ workspace: { ...this.state.workspace, resources: snapshot.resources } });
+          this.update({
+            workspace: {
+              ...this.state.workspace,
+              resources: snapshot.resources.filter((item) => !this.deleted.has(item.id)),
+            },
+          });
         },
         (error: unknown) => {
           if (generation === this.generation) this.reportError(error);
@@ -226,7 +238,12 @@ export class RuntimeClient {
   }
 
   async loadConversation(resourceId: string) {
-    if (this.state.conversations.has(resourceId) || this.loading.has(resourceId)) return;
+    if (
+      this.deleted.has(resourceId) ||
+      this.state.conversations.has(resourceId) ||
+      this.loading.has(resourceId)
+    )
+      return;
     const token = Symbol(resourceId);
     this.loading.set(resourceId, token);
     const generation = this.generation;
@@ -246,6 +263,8 @@ export class RuntimeClient {
         void this.loadConversation(resourceId);
         return;
       }
+      // Deleted while its transcript was being read: it is not shown again.
+      if (this.deleted.has(resourceId)) return;
       for (const event of this.recent)
         if (event.resourceId === resourceId) conversation = applyEvent(conversation, event);
       const conversations = new Map(this.state.conversations);
@@ -328,6 +347,34 @@ export class RuntimeClient {
         resources: workspace.resources.map((item) => (item.id === resource.id ? resource : item)),
       },
     });
+  }
+
+  /**
+   * Forget a conversation the runtime just deleted: its resource, session and
+   * cached transcript. A workspace read or an event that was already on its
+   * way is filtered, so the conversation cannot reappear.
+   */
+  removeConversation(resourceId: string) {
+    this.deleted.add(resourceId);
+    this.loading.delete(resourceId);
+    const workspace = this.state.workspace;
+    const conversations = new Map(this.state.conversations);
+    conversations.delete(resourceId);
+    this.update({
+      ...(workspace ? { workspace: this.withoutDeleted(workspace) } : {}),
+      conversations,
+    });
+  }
+
+  private withoutDeleted(workspace: WorkspaceSnapshot): WorkspaceSnapshot {
+    if (!this.deleted.size) return workspace;
+    const sessions = workspace.sessions.filter((item) => !this.deleted.has(item.resourceId));
+    return {
+      ...workspace,
+      resources: workspace.resources.filter((item) => !this.deleted.has(item.id)),
+      sessions,
+      providers: withRunning(workspace.providers, sessions),
+    };
   }
 
   /** Cache a resource the runtime just created so the tab can render at once. */

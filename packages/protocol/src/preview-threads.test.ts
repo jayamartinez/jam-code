@@ -61,6 +61,51 @@ describe('thread lifecycle through the preview transport', () => {
     ).rejects.toMatchObject({ code: 'conflict' });
   });
 
+  it('deletes an idle conversation for good, and refuses one that is working', async () => {
+    const transport = new BrowserPreviewTransport();
+    const before = await transport.request('workspace.get', {});
+    const doomed = before.resources.find((item) => item.id === 'conv-layout')!;
+
+    await transport.request('turn.start', {
+      resourceId: 'conv-layout',
+      text: 'Keep working',
+      context: [],
+      requestId: 'delete-while-running',
+    });
+    await expect(
+      transport.request('conversation.delete', { resourceId: 'conv-layout' }),
+    ).rejects.toMatchObject({ code: 'conflict' });
+    const session = before.sessions.find((item) => item.id === doomed.sessionId)!;
+    await transport.request('turn.interrupt', { sessionId: session.id });
+
+    await expect(
+      transport.request('conversation.delete', { resourceId: 'conv-layout' }),
+    ).resolves.toEqual({ resourceId: 'conv-layout' });
+    const after = await transport.request('workspace.get', {});
+    expect(after.resources.map((item) => item.id)).toEqual(
+      before.resources.map((item) => item.id).filter((id) => id !== 'conv-layout'),
+    );
+    expect(after.sessions.some((item) => item.id === session.id)).toBe(false);
+    expect(after.projects).toEqual(before.projects);
+    await expect(
+      transport.request('conversation.get', { resourceId: 'conv-layout' }),
+    ).rejects.toMatchObject({ code: 'not_found' });
+    // A retry is recognizable; other kinds of resource are never deleted this way.
+    await expect(
+      transport.request('conversation.delete', { resourceId: 'conv-layout' }),
+    ).rejects.toMatchObject({ code: 'not_found' });
+    await expect(
+      transport.request('conversation.delete', { resourceId: 'diff-pane' }),
+    ).rejects.toMatchObject({ code: 'invalid_request' });
+    expect(() =>
+      validateRequest({
+        protocolVersion: 1,
+        method: 'conversation.delete',
+        params: { resourceId: 'conv-layout', force: true },
+      }),
+    ).toThrow();
+  });
+
   it('pins and unpins a project', async () => {
     const transport = new BrowserPreviewTransport();
     const pinned = await transport.request('project.update', {
