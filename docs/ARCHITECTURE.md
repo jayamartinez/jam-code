@@ -128,8 +128,9 @@ provider binding, request receipts and the snapshots and attachments sent in
 it; a snapshot
 still staged for it returns to the inbox. It never touches the project's
 folder or files, Git branches or worktrees (the `worktrees` record stays), the
-provider's own history, or any other conversation; a provider-history entry
-linked to it stays in the index, unlinked (ADR 0015). It is refused while the
+provider's own history, or any other conversation. A conversation bound to a
+provider conversation leaves a tombstone in the provider-history index, so a
+later scan does not bring it back (ADR 0015). It is refused while the
 agent is working, waiting for an answer or still stopping an interrupted turn,
 so the database never changes under a live provider task, and a conversation
 that is already gone is `not_found`, which a retrying client treats as done.
