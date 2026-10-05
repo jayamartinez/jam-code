@@ -791,6 +791,7 @@ const historyEntry: Check = (value) =>
       changed: boolean,
     },
   );
+const historyTarget: Check = (value) => shape(value, { historyId: id });
 const historyEntryResult: Check = (value) => shape(value, { entry: historyEntry });
 
 const params: Record<RequestMethod, Check> = {
@@ -801,11 +802,14 @@ const params: Record<RequestMethod, Check> = {
       {},
       {
         providerId,
+        ignored: boolean,
         cursor: text(512),
         limit: range(1, HISTORY_LIST_LIMIT),
       },
     ),
   'providerHistory.associate': (value) => shape(value, { historyId: id, projectId: id }),
+  'providerHistory.ignore': historyTarget,
+  'providerHistory.restore': historyTarget,
   'git.status': (value) => shape(value, { projectId: id }, { worktreeId: id }),
   'git.branches': (value) => shape(value, { projectId: id }, { worktreeId: id }),
   'git.diff': (value) =>
@@ -969,6 +973,8 @@ const responses: Record<RequestMethod, Check> = {
   'providerHistory.list': (value) =>
     shape(value, { entries: array(historyEntry, HISTORY_LIST_LIMIT) }, { cursor: text(512) }),
   'providerHistory.associate': historyEntryResult,
+  'providerHistory.ignore': historyEntryResult,
+  'providerHistory.restore': historyEntryResult,
   'git.status': gitStatus,
   'git.branches': gitBranches,
   'git.diff': gitDiff,

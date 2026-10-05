@@ -104,6 +104,8 @@ export class BrowserPreviewTransport implements JamTransport {
       case 'providerHistory.scan':
       case 'providerHistory.list':
       case 'providerHistory.associate':
+      case 'providerHistory.ignore':
+      case 'providerHistory.restore':
         // The preview has no provider and cannot read this computer's history.
         throw new JamError('unavailable', 'Provider history requires the desktop app.');
       case 'workspace.get':

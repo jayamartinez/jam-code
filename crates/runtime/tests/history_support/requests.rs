@@ -17,9 +17,9 @@ pub async fn entries(runtime: &Arc<Runtime>, params: Value) -> Vec<HistoryEntry>
 }
 
 pub async fn entry(runtime: &Arc<Runtime>, title: &str) -> HistoryEntry {
-    entries(runtime, json!({}))
-        .await
-        .into_iter()
+    let mut all = entries(runtime, json!({})).await;
+    all.extend(entries(runtime, json!({ "ignored": true })).await);
+    all.into_iter()
         .find(|entry| entry.title.as_deref() == Some(title))
         .unwrap_or_else(|| panic!("no entry titled {title}"))
 }

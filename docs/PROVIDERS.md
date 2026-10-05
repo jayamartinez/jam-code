@@ -186,13 +186,14 @@ Settings → Providers shows who each agent is signed in as and its plan, only a
 
 `provider_bindings` (migration 005, extended by 009) links a JAM Code session to the provider's own session or thread ID, with provider ID, provider instance (`default` today), origin (`jam` today), timestamps and version. JAM Code resource, session and message IDs remain the primary keys; provider IDs never reach the client.
 
-Provider history is the provider's own record of its conversations, including ones started in Claude Code or Codex directly. It stays canonical: JAM Code keeps an index of it and never writes or deletes the provider's record. See [ADR 0015](adr/0015-provider-history.md). Nothing is scanned at launch or on a timer, and no real provider implements history yet. Ignoring entries, sync and tombstones on delete are later stages of ADR 0015.
+Provider history is the provider's own record of its conversations, including ones started in Claude Code or Codex directly. It stays canonical: JAM Code keeps an index of it and never writes or deletes the provider's record. See [ADR 0015](adr/0015-provider-history.md). Nothing is scanned at launch or on a timer, and no real provider implements history yet. Sync and tombstones on delete are later stages of ADR 0015.
 
 - **Identity** is `(provider, instance, native ID)`: never a title, folder, first message or time. `instance_id` is `default` for every provider; a second account or provider home later becomes a second instance ID on the same columns.
 - **Origin** is who created the provider's conversation: `jam` or `external`. A thread JAM started is linked to its existing conversation when a scan finds it.
 - **Scan** (`providerHistory.scan {providerId}`): the adapter lists metadata in pages; each page is committed on its own, without the database lock held while the provider answers; reported again means updated in place. A scan that reaches the end marks entries it did not list `missingSince`; an interrupted one marks nothing. No transcript is read and no conversation is created.
-- **List** (`providerHistory.list {providerId?, cursor?, limit?}`): JAM's index, newest first, at most 200 entries a page, addressed by JAM history ID.
+- **List** (`providerHistory.list {providerId?, ignored?, cursor?, limit?}`): JAM's index, newest first, at most 200 entries a page, addressed by JAM history ID. `ignored: true` lists tombstones.
 - **Project rule**: a provider's reported folder never grants access. An entry links automatically only when that folder is, compared as text, exactly a project folder or recorded worktree JAM Code already has; otherwise it is listed unlinked until the reader adds the folder as a project through the normal flow (the next scan links it) or chooses one (`providerHistory.associate {historyId, projectId}`). JAM never creates a project from history.
+- **Ignore**: `providerHistory.ignore` hides an entry (a tombstone keyed by its identity), so later scans keep it hidden; `providerHistory.restore` shows it again. Neither touches the provider's history.
 - **Delete**: deleting a conversation linked to an entry keeps every existing deletion step and leaves the entry in the index, unlinked. The provider's history is never touched.
 - **JAM metadata** (pin, archive, project, worktree, layout) is never changed by a scan.
 
