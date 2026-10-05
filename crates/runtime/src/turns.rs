@@ -142,10 +142,11 @@ impl Runtime {
         }
         state
             .store
-            .attach_snapshots(&mut input.context, &resource.id, false)?;
-        let attachments = state
-            .store
-            .send_attachments(&mut input.context, &resource.id, false)?;
+            .attach_snapshots(&mut input.context, &resource.id, false, None)?;
+        let attachments =
+            state
+                .store
+                .send_attachments(&mut input.context, &resource.id, false, None)?;
         // Images the reader explicitly sent, resolved only now, on Send.
         let mut images = Vec::new();
         let mut image_slots: Vec<(String, usize)> = Vec::new();
@@ -269,11 +270,11 @@ impl Runtime {
         let saved = state.store.transaction(|| {
             state
                 .store
-                .attach_snapshots(&mut attached_context, &resource.id, true)?;
+                .attach_snapshots(&mut attached_context, &resource.id, true, None)?;
             // From here the attachments belong to this conversation's history.
             state
                 .store
-                .send_attachments(&mut attached_context, &resource.id, true)?;
+                .send_attachments(&mut attached_context, &resource.id, true, None)?;
             state.store.save_resource(&resource)?;
             state.store.save_session(&session)?;
             if !compact {

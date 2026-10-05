@@ -260,6 +260,7 @@ impl Runtime {
                     true,
                 )
             }
+            method if method.starts_with("queue.") => self.queue_request(method, request.params),
             "turn.interrupt" => {
                 let input: InterruptTurn = parse(request.params)?;
                 validate_id(&input.session_id)?;

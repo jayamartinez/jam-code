@@ -382,7 +382,35 @@ pub struct Conversation {
     pub resource_id: String,
     pub session_id: String,
     pub messages: Vec<Message>,
+    /// Follow-ups waiting to be sent, in the order they will go. They are not
+    /// part of the transcript until they are sent.
+    #[serde(default)]
+    pub queued: Vec<QueuedTurn>,
     pub cursor: Cursor,
+}
+
+/// A follow-up the reader sent while the agent was working. It holds what a
+/// Send would carry, captured when it was queued, and becomes a turn when the
+/// running one finishes (or when the reader sends it now). Its place in the
+/// queue is its position in `Conversation::queued`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct QueuedTurn {
+    pub id: String,
+    pub resource_id: String,
+    pub text: String,
+    pub context: Vec<ContextItem>,
+    /// The chat's complete options as they were when it was queued; absent
+    /// keeps whatever the chat has when it is sent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub options: Option<std::collections::BTreeMap<String, String>>,
+    pub created_at: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+    /// Why it could not be sent when its turn came. It waits for the reader,
+    /// and the follow-ups behind it wait with it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -654,4 +682,7 @@ pub enum EventPayload {
     MessageUpserted { message: Message },
     #[serde(rename = "session.updated")]
     SessionUpdated { session: Session },
+    /// The conversation's whole queue, in order, after any change to it.
+    #[serde(rename = "queue.updated")]
+    QueueUpdated { queued: Vec<QueuedTurn> },
 }
