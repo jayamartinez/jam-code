@@ -122,6 +122,8 @@ impl Store {
                OR json_extract(receipt,'$.sessionId')=?2",
             params![resource_id, session_id],
         )?;
+        // A provider-history entry linked to it stays indexed, unlinked.
+        self.unlink_history(session_id)?;
         // Every attachment it sent belongs to it alone: one copy, one message.
         let attachments = self.attachments("resource_id=?1", [resource_id])?;
         connection.execute(

@@ -228,6 +228,19 @@ impl Store {
         )?)
     }
 
+    /// Deleting a conversation leaves the entry it was linked to in the
+    /// index, without it. The caller holds the transaction, before the
+    /// session rows go.
+    pub fn unlink_history(&self, session_id: &str) -> Result<(), JamError> {
+        self.connection.execute(
+            "UPDATE provider_history SET session_id=NULL,synced_at=NULL,synced_revision=NULL,
+               sync_checkpoint=NULL
+             WHERE session_id=?1",
+            [session_id],
+        )?;
+        Ok(())
+    }
+
     /// An entry as the client sees it: addressed by JAM's ID, with its
     /// projection's project when it has one.
     pub fn history_wire(&self, entry: &Entry) -> Result<HistoryEntry, JamError> {

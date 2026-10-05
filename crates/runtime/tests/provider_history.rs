@@ -682,6 +682,22 @@ async fn a_conversation_jam_started_is_linked_not_duplicated() {
     assert_eq!(conversations(&workspace(&runtime).await), 1);
     // Linking reads nothing; the transcript is the one JAM recorded.
     assert_eq!(codex.reads(), 0);
+
+    // Deleting the chat still works and leaves the entry indexed, unlinked.
+    call(
+        &runtime,
+        "conversation.delete",
+        json!({ "resourceId": resource }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(conversations(&workspace(&runtime).await), 0);
+    let unlinked = entry(&runtime, "Started in JAM").await;
+    assert_eq!((unlinked.id, unlinked.resource_id), (linked.id, None));
+    assert_eq!(
+        temp.rows("provider_bindings", &format!("session_id='{session}'")),
+        0
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
