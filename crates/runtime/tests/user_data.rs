@@ -196,6 +196,9 @@ fn pre_alpha_database(path: &Path, folder: &Path) {
     // A version 6 database has nothing a later migration adds.
     db.execute_batch(
         "DROP TABLE attachments;
+         DROP INDEX snapshots_queued;
+         ALTER TABLE snapshots DROP COLUMN queued_id;
+         DROP TABLE queued_turns;
          DROP TABLE provider_history;
          DROP INDEX provider_bindings_native;
          ALTER TABLE provider_bindings DROP COLUMN instance_id;
@@ -277,7 +280,7 @@ fn upgrading_a_pre_alpha_database_keeps_the_persons_work() {
     let version: i64 = db
         .pragma_query_value(None, "user_version", |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 9);
+    assert_eq!(version, 10);
     let binding: String = db
         .query_row(
             "SELECT native_id FROM provider_bindings WHERE session_id='session-real'",

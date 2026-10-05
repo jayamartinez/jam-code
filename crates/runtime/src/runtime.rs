@@ -32,11 +32,19 @@ pub(crate) struct RunningTask {
     /// Closes when the task has fully ended, including a provider still
     /// stopping after an interrupt.
     pub finished: watch::Receiver<()>,
+    /// Delivers a message into this turn through its adapter.
+    pub steer: tokio::sync::mpsc::Sender<crate::providers::SteerInput>,
+    /// Why this turn cannot be steered, when it cannot.
+    pub steer_refusal: Option<String>,
+    /// Counts messages steered into this turn, so its reply continues below them.
+    pub steered: Arc<std::sync::atomic::AtomicU64>,
 }
 pub(crate) struct State {
     pub store: Store,
     pub sequence: u64,
     pub tasks: HashMap<String, RunningTask>,
+    /// Steer requests being delivered right now, so a retry is not sent twice.
+    pub steering: std::collections::HashSet<String>,
     subscribers: HashMap<String, Subscriber>,
 }
 
@@ -160,6 +168,7 @@ impl Runtime {
                 store,
                 sequence: 0,
                 tasks: HashMap::new(),
+                steering: Default::default(),
                 subscribers: HashMap::new(),
             }),
             shutting_down: AtomicBool::new(false),
@@ -265,6 +274,18 @@ impl Runtime {
                     fingerprint,
                     true,
                 )
+            }
+            method if method.starts_with("queue.") => self.queue_request(method, request.params),
+            "turn.steer" => {
+                let fingerprint = format!("steer:{}", serde_json::to_string(&request.params)?);
+                let input: StartTurn = parse(request.params)?;
+                input.validate()?;
+                if input.options.is_some() {
+                    return Err(JamError::invalid(
+                        "A steered message joins the running turn and keeps its options.",
+                    ));
+                }
+                self.steer(input, fingerprint, None)
             }
             "turn.interrupt" => {
                 let input: InterruptTurn = parse(request.params)?;

@@ -348,7 +348,7 @@ fn pre_integration_databases_upgrade_without_losing_snapshots_or_settings() {
     let version: i64 = connection
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 9, "every migration applies on upgrade");
+    assert_eq!(version, 10, "every migration applies on upgrade");
     let leftover: i64 = connection
         .query_row(
             "SELECT count(*) FROM metadata WHERE key='snapshot_settings'",
@@ -430,4 +430,64 @@ fn snapshots_start_off_and_only_offered_shortcuts_are_accepted() {
             "{accelerator} must be refused"
         );
     }
+}
+#[tokio::test(flavor = "multi_thread")]
+async fn a_queued_snapshot_belongs_to_its_follow_up() {
+    let s = Sandbox::new();
+    let r = s.open();
+    let resource = "conv-pane-lifetime";
+    req(&r, "snapshot.focus", json!({"resourceId":resource})).unwrap();
+    let snapshot = r.store_snapshot(capture()).unwrap();
+    let staged = req(
+        &r,
+        "snapshot.stage",
+        json!({"id":snapshot.id,"resourceId":resource,"note":""}),
+    )
+    .unwrap();
+    // The demo agent waits for an approval, so the follow-up stays queued.
+    req(
+        &r,
+        "turn.start",
+        json!({"resourceId":resource,"text":"/approval","context":[],"requestId":"t1"}),
+    )
+    .unwrap();
+    let queued = req(
+        &r,
+        "queue.add",
+        json!({"resourceId":resource,"text":"look","context":[staged["context"]],"requestId":"q1"}),
+    )
+    .unwrap();
+    let listed = || {
+        req(&r, "snapshot.list", json!({})).unwrap()["snapshots"]
+            .as_array()
+            .unwrap()
+            .clone()
+    };
+    // It is no longer staged context or in the inbox, and outlives retention.
+    assert!(listed().is_empty());
+    assert_eq!(
+        r.cleanup_snapshots(timestamp_ms() + 31 * 86_400_000, true)
+            .unwrap(),
+        0
+    );
+    assert!(req(&r, "snapshot.remove", json!({"id":snapshot.id})).is_err());
+    assert!(
+        req(
+            &r,
+            "snapshot.stage",
+            json!({"id":snapshot.id,"resourceId":Value::Null,"note":""})
+        )
+        .is_err()
+    );
+    // Removing the follow-up returns the snapshot to the inbox.
+    req(
+        &r,
+        "queue.remove",
+        json!({"resourceId":resource,"queuedId":queued["queuedId"]}),
+    )
+    .unwrap();
+    let back = listed();
+    assert_eq!(back.len(), 1);
+    assert!(back[0].get("resourceId").is_none_or(Value::is_null));
+    r.shutdown().await.unwrap();
 }
