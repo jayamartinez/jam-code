@@ -30,7 +30,7 @@ impl Runtime {
     /// matched by their provider ID, so a repeated or interrupted sync adds
     /// none twice. A projection JAM has continued is not merged with the
     /// provider's record again (see PROVIDERS.md).
-    pub(super) fn sync_history(&self, history_id: &str) -> Result<Value, JamError> {
+    pub(super) fn sync_history(&self, history_id: &str, archive: bool) -> Result<Value, JamError> {
         validate_id(history_id)?;
         let _job = self.history_jobs.claim(format!("sync:{history_id}"))?;
         let entry = self.lock()?.store.history_entry(history_id)?;
@@ -104,7 +104,10 @@ impl Runtime {
                         }
                         (state.store.resource(&session.resource_id)?, false)
                     }
-                    None => (self.create_projection(&state.store, &mut entry)?, true),
+                    None => (
+                        self.create_projection(&state.store, &mut entry, archive)?,
+                        true,
+                    ),
                 };
                 let mut changed = Vec::new();
                 for message in read.messages.into_iter().take(READ_PAGE_LIMIT) {
@@ -239,7 +242,12 @@ impl Runtime {
 
     /// An ordinary JAM conversation for a provider conversation, bound to it
     /// with the entry's origin. The caller holds the transaction.
-    fn create_projection(&self, store: &Store, entry: &mut Entry) -> Result<Resource, JamError> {
+    fn create_projection(
+        &self,
+        store: &Store,
+        entry: &mut Entry,
+        archive: bool,
+    ) -> Result<Resource, JamError> {
         let project_id = self.projection_project(store, entry)?;
         let created_at = now();
         let resource = Resource {
@@ -254,7 +262,8 @@ impl Runtime {
                 .updated_at
                 .clone()
                 .unwrap_or_else(|| created_at.clone()),
-            closed_at: None,
+            // Archived from the start, so it never shows as open first.
+            closed_at: archive.then(|| created_at.clone()),
             close_suggestion_dismissed_at: None,
             worktree_id: entry.worktree_id.clone(),
         };

@@ -824,6 +824,8 @@ const historyEntry: Check = (value) =>
       projectId: id,
       worktreeId: id,
       sourcePath: text(4096),
+      branch: text(512),
+      merged: boolean,
       missingSince: timestamp,
       ignoredAt: timestamp,
       changed: boolean,
@@ -849,7 +851,7 @@ const params: Record<RequestMethod, Check> = {
     shape(value, { paths: array(projectPath, iconLimits.paths) });
     if (!(value as { paths: unknown[] }).paths.length) invalid('Choose at least one folder.');
   },
-  'providerHistory.sync': historyTarget,
+  'providerHistory.sync': (value) => shape(value, { historyId: id }, { archive: boolean }),
   'providerHistory.associate': (value) => shape(value, { historyId: id, projectId: id }),
   'providerHistory.ignore': historyTarget,
   'providerHistory.restore': historyTarget,

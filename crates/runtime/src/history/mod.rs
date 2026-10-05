@@ -110,6 +110,15 @@ struct HistoryTarget {
     history_id: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SyncHistory {
+    history_id: String,
+    /// A projection created by this sync starts archived.
+    #[serde(default)]
+    archive: bool,
+}
+
 /// What one scan found.
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -139,8 +148,8 @@ impl Runtime {
             "providerHistory.findInFolders" => self.find_in_folders(parse(params)?),
             "providerHistory.list" => self.list_history(parse(params)?),
             "providerHistory.sync" => {
-                let input: HistoryTarget = parse(params)?;
-                self.sync_history(&input.history_id)
+                let input: SyncHistory = parse(params)?;
+                self.sync_history(&input.history_id, input.archive)
             }
             "providerHistory.associate" => self.associate_history(parse(params)?),
             "providerHistory.ignore" => {
@@ -325,12 +334,24 @@ impl Runtime {
         });
         entries.dedup_by(|a, b| a.id == b.id);
         let total = entries.len();
-        let entries = entries
+        entries.truncate(FOUND_LIMIT);
+        let mut wire = entries
             .iter()
-            .take(FOUND_LIMIT)
             .map(|entry| state.store.history_wire(entry))
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(json!({ "entries": entries, "total": total }))
+        drop(state);
+        // Whether each chat's branch is finished, asked of Git once per
+        // folder and branch, without the database lock.
+        let mut finished = std::collections::HashMap::new();
+        for (entry, wired) in entries.iter().zip(wire.iter_mut()) {
+            let (Some(cwd), Some(branch)) = (&entry.cwd, &entry.branch) else {
+                continue;
+            };
+            wired.merged = *finished
+                .entry((cwd.clone(), branch.clone()))
+                .or_insert_with(|| self.git.branch_finished(std::path::Path::new(cwd), branch));
+        }
+        Ok(json!({ "entries": wire, "total": total }))
     }
 
     fn list_history(&self, input: ListHistory) -> Result<Value, JamError> {
@@ -449,6 +470,7 @@ fn apply_item(entry: &mut Entry, item: HistoryItem) {
     entry.title = item.title;
     entry.preview = item.preview;
     entry.cwd = item.cwd;
+    entry.branch = item.branch;
     entry.created_at = item.created_at;
     entry.updated_at = item.updated_at;
     entry.revision = item.revision;
@@ -470,6 +492,7 @@ fn clean_item(item: HistoryItem) -> Option<HistoryItem> {
                 && path.encode_utf16().count() <= PATH_LIMIT
                 && !path.chars().any(char::is_control)
         }),
+        branch: item.branch.and_then(|text| opaque(&text)),
         resumable: item.resumable,
     })
 }

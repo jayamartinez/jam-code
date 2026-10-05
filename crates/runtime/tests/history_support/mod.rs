@@ -97,6 +97,7 @@ pub fn thread(native_id: &str, title: &str, cwd: Option<&str>, words: &[&str]) -
             updated_at: Some("2026-09-01T10:00:00Z".into()),
             revision: Some("1".into()),
             cwd: cwd.map(Into::into),
+            branch: None,
             resumable: true,
         },
         messages: words

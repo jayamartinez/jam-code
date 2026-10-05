@@ -110,6 +110,7 @@ import {
 import type { FileReference } from './markdown/file-refs';
 import { parseAddress } from './state/browser-address';
 import { ProjectEditor } from './components/ProjectEditor';
+import { pastChatDone } from './state/past-chats';
 import { FirstRun } from './components/FirstRun';
 import { AgentSetup } from './components/AgentSetup';
 import { isAgentReady } from './components/agent-setup-model';
@@ -795,22 +796,27 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   );
   /**
    * Brings a new project's past chats in, one at a time, so each appears in
-   * its list as it is added. One that cannot be read is left out; the rest
-   * still come in.
+   * its list as it is added. A chat whose branch was merged, or that has been
+   * idle longer than Settings → General allows, comes in archived. One that
+   * cannot be read is left out; the rest still come in.
    */
   const addPastChatsTo = useCallback(
     async (projectId: string, paths: string[]) => {
       const { entries } = await findPastChats(paths);
+      const now = Date.now();
       for (const entry of entries) {
         if (entry.projectId !== projectId) continue;
         try {
-          await transport.request('providerHistory.sync', { historyId: entry.id });
+          await transport.request('providerHistory.sync', {
+            historyId: entry.id,
+            archive: pastChatDone(entry, idleThreadDays, now),
+          });
         } catch {
           // Left out of the project; the provider's record is untouched.
         }
       }
     },
-    [findPastChats, transport],
+    [findPastChats, idleThreadDays, transport],
   );
   /** Errors stay in the dialog, beside the button that asked. */
   const createProject = useCallback(

@@ -231,7 +231,7 @@ fn item(path: &Path) -> Option<HistoryItem> {
     if meta.len() > HEAD_BYTES && file.seek(SeekFrom::End(-(TAIL_BYTES as i64))).is_ok() {
         // The first line of the tail is usually cut short and fails to parse.
         for line in lines(&mut file, TAIL_BYTES) {
-            head.take_title(&line);
+            head.take_latest(&line);
         }
     }
     Some(HistoryItem {
@@ -251,6 +251,7 @@ fn item(path: &Path) -> Option<HistoryItem> {
                 .map_or(0, |since| since.as_nanos())
         )),
         cwd: head.cwd,
+        branch: head.branch,
         resumable: true,
     })
 }
@@ -265,11 +266,12 @@ struct Summary {
     custom_title: Option<String>,
     ai_title: Option<String>,
     summary: Option<String>,
+    branch: Option<String>,
 }
 
 impl Summary {
     fn take(&mut self, entry: &Value) {
-        self.take_title(entry);
+        self.take_latest(entry);
         if self.cwd.is_none() {
             self.cwd = text(entry, "cwd").map(str::to_owned);
         }
@@ -291,8 +293,11 @@ impl Summary {
         }
     }
 
-    /// The newest of each kind of title wins.
-    fn take_title(&mut self, entry: &Value) {
+    /// The newest of each kind of title, and the branch last worked on.
+    fn take_latest(&mut self, entry: &Value) {
+        if let Some(branch) = text(entry, "gitBranch").filter(|b| !b.trim().is_empty()) {
+            self.branch = Some(branch.to_owned());
+        }
         let found = |key| {
             text(entry, key)
                 .filter(|t| !t.trim().is_empty())
@@ -656,7 +661,7 @@ mod tests {
                 user("u1", None, json!("Fix the parser")),
                 json!({"type": "ai-title", "aiTitle": "Parser fix"}),
                 assistant("r1", "u1", json!([{"type": "text", "text": "Done."}])),
-                json!({"type": "custom-title", "customTitle": "My parser"}),
+                json!({"type": "custom-title", "customTitle": "My parser", "gitBranch": "feat/parser"}),
             ],
         );
         // Only a title: not a conversation.
@@ -680,6 +685,7 @@ mod tests {
         assert_eq!(item.title.as_deref(), Some("My parser"));
         assert_eq!(item.preview.as_deref(), Some("Fix the parser"));
         assert_eq!(item.cwd.as_deref(), Some("/work/jam"));
+        assert_eq!(item.branch.as_deref(), Some("feat/parser"));
         assert_eq!(item.created_at.as_deref(), Some("2026-10-01T10:00:00.000Z"));
         assert!(item.revision.is_some() && item.updated_at.is_some());
         assert!(page.next_page.is_none());
