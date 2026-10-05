@@ -49,6 +49,7 @@ Visible and focused are different states, and closing a view leaves its resource
 | Provider installation/auth/capabilities                | Runtime adapters | Display unknown faithfully              |
 | Provider processes, pending approvals/questions        | Runtime adapters | Answer by JAM Code interaction ID       |
 | Provider session/thread IDs (`provider_bindings`)      | Runtime / SQLite | Never sees them                         |
+| Provider history index                                 | Runtime / SQLite | Address entries by history ID           |
 | Open views, layout tree, focus, Single/Tiles, drafts   | Client           | Never use view cleanup to stop work     |
 | Project files and directory listings                   | Runtime          | Address by project ID and relative path |
 | Worktrees JAM Code created (`worktrees`)               | Runtime / SQLite | Address by worktree ID, never by path   |
@@ -193,7 +194,7 @@ Persistent product settings live in the `settings` table, one validated JSON rec
 
 ### Current bounds
 
-The user database, `jam.sqlite` in the platform application-data folder, preserves all recorded messages; it has no demo seed, and `JAM_DEMO=1` opens a separate `demo/demo.sqlite` instead (ADR 0013). A conversation read returns its latest 500 messages; older rows remain searchable, but transcript pagination is not implemented. Search returns at most 50 distinct conversations, ranked before applying that limit; a blank or punctuation-only query returns no results. Native FTS search uses plain token/prefix matching. These constraints must be revisited before importing real provider history.
+The user database, `jam.sqlite` in the platform application-data folder, preserves all recorded messages; it has no demo seed, and `JAM_DEMO=1` opens a separate `demo/demo.sqlite` instead (ADR 0013). A conversation read returns its latest 500 messages; older rows remain searchable, but transcript pagination is not implemented. Search returns at most 50 distinct conversations, ranked before applying that limit; a blank or punctuation-only query returns no results. Native FTS search uses plain token/prefix matching. Provider history (ADR 0015) will make the 500-message read more visible once conversations are synced from it. A scan indexes metadata only, so undiscovered or unsynced history adds nothing to search; `providerHistory.list` returns at most 200 entries per page.
 
 Each subscription has a 256-event FIFO and one coalesced latest event. When a slow client overflows that FIFO, the latest cursor is still delivered after buffered events: skipped sequences trigger the client's authoritative reread, including when the skipped update was the end of a turn. At most 128 subscriptions can coexist. The host clears old subscriptions at page reload and window destruction. The current shared client uses a workspace subscription; resource-scoped subscriptions are available for later scaling. A gap in a resource-scoped global sequence can also reflect activity in another resource, so a conservative reread is safe rather than evidence of data loss.
 
@@ -202,6 +203,8 @@ Request limits match the TypeScript contract in UTF-16 units: identifiers 128, p
 ## Providers
 
 The runtime's `ProviderManager` holds the adapters (Claude Code, Codex, demo), the saved provider settings and the last check. Checks run on first need, never at launch and never on a timer. A turn is a runtime task that drives the adapter's future; the adapter owns its processes, speaks its provider's wire protocol, and reports normalized blocks, interactions, model, usage and the provider's own session ID. Approvals and questions wait in a runtime broker keyed by JAM Code interaction ID. Interrupting asks the provider to stop the turn and lets it settle (bounded) before another turn starts; processes end on Quit or after 15 idle minutes and resume by provider ID. See [PROVIDERS.md](PROVIDERS.md) and [ADR 0011](adr/0011-live-providers.md).
+
+Provider history is the provider's own record of its conversations, including ones made outside JAM Code, and stays canonical. The runtime's history service (`crates/runtime/src/history`) asks an adapter's `ProviderHistory` to list it into a discovery index (`provider_history`, one row per provider, instance and native ID) linking an entry JAM itself started to its conversation. Reading an entry into an ordinary JAM conversation (sync) is the next step and not implemented yet. Scans run on request, never at launch or on a timer, and never hold the database lock while the provider answers. A provider's reported folder links an entry only to a project or worktree JAM already has; it never creates a project or grants access. See [ADR 0015](adr/0015-provider-history.md).
 
 ## Native services and platform differences
 

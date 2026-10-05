@@ -1,0 +1,39 @@
+{
+  "entries": [
+    {
+      "id": "history-synced",
+      "providerId": "codex",
+      "origin": "external",
+      "title": "Fix the parser",
+      "preview": "The parser drops trailing commas",
+      "createdAt": "2026-09-01T10:00:00Z",
+      "updatedAt": "2026-09-03T10:00:00Z",
+      "discoveredAt": "2026-10-01T08:00:00Z",
+      "syncedAt": "2026-10-01T08:01:00Z",
+      "resourceId": "conversation-synced",
+      "projectId": "project-jam",
+      "worktreeId": "worktree-parser",
+      "sourcePath": "/work/jam",
+      "changed": true,
+      "resumable": true
+    },
+    {
+      "id": "history-unlinked",
+      "providerId": "claude",
+      "origin": "external",
+      "title": "Elsewhere",
+      "discoveredAt": "2026-10-01T08:00:00Z",
+      "sourcePath": "/somewhere/else",
+      "missingSince": "2026-10-02T08:00:00Z",
+      "resumable": false
+    },
+    {
+      "id": "history-tombstone",
+      "providerId": "codex",
+      "origin": "jam",
+      "discoveredAt": "2026-10-01T08:00:00Z",
+      "ignoredAt": "2026-10-01T09:00:00Z",
+      "resumable": true
+    }
+  ]
+}

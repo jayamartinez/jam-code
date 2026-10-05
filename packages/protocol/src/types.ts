@@ -12,6 +12,7 @@ import attachmentLimitsJson from '../fixtures/attachment-limits.json';
 import type { TerminalAttachment, TerminalRequestMap, TerminalStreamEvent } from './terminal';
 import type { AppearanceRequestMap } from './appearance';
 import type { SnapshotRequestMap } from './snapshots';
+import type { ProviderHistoryRequestMap } from './history';
 
 /**
  * Presets, tones and limits for project badges. Shared with the Rust runtime
@@ -511,7 +512,12 @@ export interface SearchResult {
 }
 
 export interface RequestMap
-  extends TerminalRequestMap, GitRequestMap, AppearanceRequestMap, SnapshotRequestMap {
+  extends
+    TerminalRequestMap,
+    GitRequestMap,
+    AppearanceRequestMap,
+    SnapshotRequestMap,
+    ProviderHistoryRequestMap {
   'workspace.get': { params: Record<string, never>; result: WorkspaceSnapshot };
   'conversation.get': { params: { resourceId: string }; result: Conversation };
   'conversation.create': {

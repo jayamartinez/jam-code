@@ -585,6 +585,51 @@ pub struct SearchResult {
     pub updated_at: String,
 }
 
+/// One conversation in a provider's own history, as JAM indexed it. The
+/// provider's ID never appears here: the client addresses the entry by JAM's
+/// `id`, and the provider's record stays canonical.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryEntry {
+    pub id: String,
+    pub provider_id: String,
+    /// Who created the provider's conversation: `jam` or `external`.
+    pub origin: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preview: Option<String>,
+    /// As the provider reported them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+    pub discovered_at: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub synced_at: Option<String>,
+    /// The JAM conversation projecting it, once it has been synced.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resource_id: Option<String>,
+    /// The trusted project it belongs to. Absent means unlinked.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub worktree_id: Option<String>,
+    /// The folder the provider reported, for display only. It grants nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_path: Option<String>,
+    /// The provider stopped listing it in a complete scan.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub missing_since: Option<String>,
+    /// Removed from JAM by the reader; scans keep it hidden until restored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ignored_at: Option<String>,
+    /// The provider's conversation changed since it was last synced.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub changed: bool,
+    pub resumable: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DirectoryEntry {

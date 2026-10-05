@@ -415,7 +415,9 @@ impl Runtime {
                             }
                         }
                         ProviderUpdate::Native(native_id) => {
-                            let data = json!({"version": version, "origin": "jam"});
+                            // Who created the provider's conversation is the
+                            // binding's `origin` column; a resumed one keeps it.
+                            let data = json!({"version": version});
                             if state.store.save_binding(&session.id, &current.provider_id, &native_id, &data).is_err() { break; }
                         }
                         ProviderUpdate::Model(model) => {

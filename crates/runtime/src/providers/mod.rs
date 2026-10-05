@@ -7,6 +7,7 @@ mod access;
 mod claude;
 mod codex;
 pub(crate) mod discovery;
+pub mod history;
 mod interactions;
 mod manager;
 mod mock;
@@ -15,6 +16,10 @@ mod transcript;
 
 pub use claude::ClaudeAdapter;
 pub use codex::CodexAdapter;
+pub use history::{
+    HistoryFuture, HistoryItem, HistoryListRequest, HistoryMessage, HistoryPage,
+    HistoryReadRequest, HistoryTranscript, ProviderHistory,
+};
 pub use interactions::{Answer, Interactions};
 pub use manager::ProviderConfig;
 pub(crate) use manager::{
@@ -108,6 +113,10 @@ pub trait ProviderAdapter: Send + Sync {
     fn run_turn(&self, turn: ProviderTurn, io: TurnIo) -> ProviderFuture;
     /// Stops any process kept for this session. Explicit lifecycle only.
     fn release(&self, _session_id: &str) {}
+    /// The provider's own history, when the adapter can list and read it.
+    fn history(&self) -> Option<&dyn ProviderHistory> {
+        None
+    }
     /// Terminates every process this adapter owns, with everything they
     /// started. May block briefly; the manager calls it off the async threads.
     fn shutdown(&self) {}
