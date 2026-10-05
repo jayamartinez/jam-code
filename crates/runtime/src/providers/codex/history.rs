@@ -140,6 +140,10 @@ fn list_page(result: &Value) -> HistoryPage {
                 updated_at: unix(thread.get("updatedAt")),
                 revision: thread.get("updatedAt").map(Value::to_string),
                 cwd: text(thread, "cwd").map(str::to_owned),
+                branch: thread
+                    .pointer("/gitInfo/branch")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned),
                 resumable: true,
             })
         })
@@ -242,7 +246,7 @@ mod tests {
         let page = list_page(&json!({
             "data": [
                 {"id": "t1", "name": "Fix the parser", "preview": "the parser", "cwd": "/work/jam",
-                 "createdAt": 1_790_000_000, "updatedAt": 1_790_000_600},
+                 "createdAt": 1_790_000_000, "updatedAt": 1_790_000_600, "gitInfo": {"branch": "feat/parser"}},
                 {"id": "t2", "parentThreadId": "t1", "cwd": "/work/jam"},
                 {"id": "t3", "ephemeral": true},
                 {"name": "no id"},
@@ -257,6 +261,7 @@ mod tests {
         assert_eq!(item.native_id, "t1");
         assert_eq!(item.title.as_deref(), Some("Fix the parser"));
         assert_eq!(item.cwd.as_deref(), Some("/work/jam"));
+        assert_eq!(item.branch.as_deref(), Some("feat/parser"));
         assert_eq!(item.updated_at.as_deref(), Some("2026-09-21T14:23:20Z"));
         assert_eq!(item.revision.as_deref(), Some("1790000600"));
         assert_eq!(page.next_page.as_deref(), Some("next"));

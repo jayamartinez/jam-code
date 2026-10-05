@@ -646,6 +646,13 @@ pub struct HistoryEntry {
     /// The folder the provider reported, for display only. It grants nothing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_path: Option<String>,
+    /// The Git branch it last worked on, as the provider reported it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+    /// That branch's work is finished: merged into the default branch, or
+    /// deleted. Only `providerHistory.findInFolders` tells; absent is unknown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub merged: Option<bool>,
     /// The provider stopped listing it in a complete scan.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub missing_since: Option<String>,

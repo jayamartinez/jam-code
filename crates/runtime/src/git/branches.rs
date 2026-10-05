@@ -207,6 +207,72 @@ pub fn validate_branch_name(name: &str) -> Result<(), JamError> {
     Ok(())
 }
 
+/// Whether the work on `branch` is finished in the repository at `folder`:
+/// merged into the default branch (`origin/HEAD`, else `main` or `master`)
+/// or deleted. The default branch, the branch checked out in `folder`, and
+/// one with no commits of its own are not finished. `None` when that cannot
+/// be told: not a repository, no default branch, or a name JAM would not
+/// pass to Git.
+pub(super) fn finished(folder: &Path, branch: &str) -> Option<bool> {
+    validate_branch_name(branch).ok()?;
+    let root = toplevel(folder).ok()??;
+    let commit = |reference: &str| {
+        let output = process::run(
+            &root,
+            &[
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                &format!("{reference}^{{commit}}"),
+            ],
+            4096,
+        )
+        .ok()?;
+        (output.success && !output.truncated)
+            .then(|| String::from_utf8_lossy(&output.bytes).trim().to_owned())
+    };
+    let default = process::run(
+        &root,
+        &["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"],
+        4096,
+    )
+    .ok()
+    .filter(|output| output.success)
+    .map(|output| String::from_utf8_lossy(&output.bytes).trim().to_owned())
+    .or_else(|| {
+        ["refs/heads/main", "refs/heads/master"]
+            .into_iter()
+            .find(|reference| commit(reference).is_some())
+            .map(str::to_owned)
+    })?;
+    let default_name = default
+        .rsplit_once('/')
+        .map_or(default.as_str(), |(_, name)| name);
+    let here = process::run(
+        folder,
+        &["symbolic-ref", "--quiet", "--short", "HEAD"],
+        4096,
+    )
+    .ok()?;
+    if branch == default_name
+        || (here.success && String::from_utf8_lossy(&here.bytes).trim() == branch)
+    {
+        return Some(false);
+    }
+    let Some(tip) = commit(&format!("refs/heads/{branch}"))
+        .or_else(|| commit(&format!("refs/remotes/origin/{branch}")))
+    else {
+        // Deleted, the way a merged pull request's branch usually is.
+        return Some(true);
+    };
+    let base = commit(&default)?;
+    if tip == base {
+        return Some(false);
+    }
+    let merged = process::run(&root, &["merge-base", "--is-ancestor", &tip, &base], 4096).ok()?;
+    Some(merged.success)
+}
+
 fn git_accepts(root: &Path, name: &str) -> Result<(), JamError> {
     let output = process::run(root, &["check-ref-format", "--branch", name], 4096)?;
     if output.success {

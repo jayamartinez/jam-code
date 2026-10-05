@@ -73,6 +73,8 @@ pub struct HistoryItem {
     /// The folder the conversation worked in, as the provider reports it.
     /// Never trusted as access: it only matches an existing JAM project.
     pub cwd: Option<String>,
+    /// The Git branch it last worked on, as the provider reports it.
+    pub branch: Option<String>,
     /// Whether `run_turn` can continue it by `native_id`.
     pub resumable: bool,
 }

@@ -109,7 +109,9 @@ Verified:
   dialog counting the chats from the chosen folder, the switch shared with
   Settings → General, Create bringing them in newest first (27 chats in
   about four seconds), a synced transcript opening, and a synced chat of each
-  agent continuing its own session when sent to.
+  agent continuing its own session when sent to. Chats on a merged or deleted
+  branch, or idle longer than the idle-thread setting, came in archived (7 of
+  29), and the chat on the checked-out branch stayed open.
 
 Not verified:
 

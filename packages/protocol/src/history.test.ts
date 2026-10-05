@@ -40,6 +40,8 @@ describe('Provider history contract', () => {
       request('providerHistory.list', { providerId: 'claude', ignored: true, limit: 200 }),
     ).toBeTruthy();
     expect(request('providerHistory.sync', { historyId: 'history-1' })).toBeTruthy();
+    expect(request('providerHistory.sync', { historyId: 'history-1', archive: true })).toBeTruthy();
+    expect(() => request('providerHistory.sync', { historyId: 'history-1', archive: 1 })).toThrow();
     expect(
       request('providerHistory.associate', { historyId: 'history-1', projectId: 'project-jam' }),
     ).toBeTruthy();
