@@ -32,8 +32,8 @@ import {
 /**
  * General: how new chats and threads start. The default agent, the effort
  * and permissions every agent starts with, the idle-thread suggestion,
- * streamed replies, the time format and where new threads start are real
- * today; every other control shows its intended shape,
+ * streamed replies, the time format, past chats for new projects and where
+ * new threads start are real today; every other control shows its intended shape,
  * disabled, beside a Planned mark.
  */
 export default function GeneralPage({
@@ -47,6 +47,8 @@ export default function GeneralPage({
   onTimeFormat,
   followUp,
   onFollowUp,
+  addPastChats,
+  onAddPastChats,
   newThreadWorkspace,
   onNewThreadWorkspace,
   onNavigate,
@@ -181,6 +183,21 @@ export default function GeneralPage({
               value={followUp}
               options={FOLLOW_UP_OPTIONS.map(({ value, label }) => ({ value, label }))}
               onChange={onFollowUp}
+            />
+          </Row>
+        </Card>
+      </Section>
+
+      <Section label="Projects">
+        <Card>
+          <Row
+            title="Add past chats to new projects"
+            sub="When a folder you add has chats your agents had there before, bring them in. Turning it off in the New project dialog turns it off here."
+          >
+            <Toggle
+              label="Add past chats to new projects"
+              on={addPastChats}
+              onChange={onAddPastChats}
             />
           </Row>
         </Card>

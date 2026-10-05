@@ -3,6 +3,7 @@ import { Folder, FolderOpen, Plus, X } from 'lucide-react';
 import { PROJECT_ICONS, initialsOf, type Project, type ProjectIcon } from '@jam/protocol';
 import { Dialog } from './Controls';
 import { PRESET_GLYPHS, ProjectBadge, TONE_LABELS, squareProjectImage } from './ProjectBadge';
+import { Toggle } from './settings/controls';
 
 /**
  * A project's name, icon and folders (Paper, Core flows "16 · New project
@@ -13,6 +14,11 @@ import { PRESET_GLYPHS, ProjectBadge, TONE_LABELS, squareProjectImage } from './
  * Folders read as their names with a folder mark; clicking one opens the
  * system chooser in that folder to swap it. With a chooser, folders only come
  * from it. The icon's choices live in a popover under the icon.
+ *
+ * A new project whose folders already have chats from the reader's agents
+ * offers to add them (Paper, Core flows "28 · Past chats when adding a
+ * project"). The row appears only once some are found; its switch is the
+ * same choice as Settings → General.
  */
 
 type IconKind = ProjectIcon['kind'];
@@ -23,9 +29,16 @@ export function ProjectEditor({
   onPickFolder,
   onSave,
   onClose,
+  pastChats,
 }: {
   /** Absent for a new project. */
   project?: Project;
+  /** Past chats in a new project's folders: whether to add them, and how many there are. */
+  pastChats?: {
+    add: boolean;
+    onAdd(add: boolean): void;
+    count(paths: string[]): Promise<number>;
+  };
   /** Every project, so a folder another one has is caught before saving. */
   projects: readonly Project[];
   /** The system folder chooser, opened in `start` when given. */
@@ -52,6 +65,22 @@ export function ProjectEditor({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const nameField = useRef<HTMLInputElement>(null);
+  /** Past chats found in the chosen folders; null until known. */
+  const [found, setFound] = useState<number | null>(null);
+  const countPastChats = pastChats?.count;
+  useEffect(() => {
+    setFound(null);
+    if (!creating || !countPastChats || !paths.length) return;
+    let current = true;
+    countPastChats(paths).then(
+      (count) => current && setFound(count),
+      // Unknown stays unknown: the row is simply not offered.
+      () => undefined,
+    );
+    return () => {
+      current = false;
+    };
+  }, [creating, countPastChats, paths]);
 
   const icon: ProjectIcon =
     kind === 'preset'
@@ -229,6 +258,19 @@ export function ProjectEditor({
                 </button>
               )}
             </div>
+
+            {pastChats && found ? (
+              <div className="project-dialog-past">
+                <div className="project-dialog-past-text">
+                  <span>Add past chats</span>
+                  <small>
+                    {found} past {found === 1 ? 'chat' : 'chats'} from your agents in{' '}
+                    {paths.length === 1 ? folderName(paths[0] ?? '') : 'these folders'}
+                  </small>
+                </div>
+                <Toggle label="Add past chats" on={pastChats.add} onChange={pastChats.onAdd} />
+              </div>
+            ) : null}
           </>
         )}
 

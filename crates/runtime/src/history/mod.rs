@@ -13,7 +13,7 @@ mod store;
 mod sync;
 
 use crate::{
-    commands::{parse, validate_provider},
+    commands::{PROVIDER_IDS, parse, validate_provider},
     error::JamError,
     provider_requests::block_on,
     providers::{HistoryItem, HistoryListRequest},
@@ -40,6 +40,10 @@ const ID_LIMIT: usize = 512;
 const TITLE_LIMIT: usize = 256;
 const PREVIEW_LIMIT: usize = 512;
 const PATH_LIMIT: usize = 4_096;
+/// Folders one `providerHistory.findInFolders` asks about (a project's most),
+/// and the entries it returns.
+const FOLDERS_LIMIT: usize = 16;
+const FOUND_LIMIT: usize = 500;
 
 /// Scans and syncs in progress, so the same one never runs twice at once.
 #[derive(Default)]
@@ -96,6 +100,12 @@ struct ListHistory {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct FindInFolders {
+    paths: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct HistoryTarget {
     history_id: String,
 }
@@ -123,10 +133,10 @@ impl Runtime {
         match method {
             "providerHistory.scan" => {
                 let input: ScanHistory = parse(params)?;
-                Ok(serde_json::to_value(
-                    self.scan_history(&input.provider_id)?,
-                )?)
+                let (summary, _) = self.scan_history(&input.provider_id, None)?;
+                Ok(serde_json::to_value(summary)?)
             }
+            "providerHistory.findInFolders" => self.find_in_folders(parse(params)?),
             "providerHistory.list" => self.list_history(parse(params)?),
             "providerHistory.sync" => {
                 let input: HistoryTarget = parse(params)?;
@@ -185,7 +195,16 @@ impl Runtime {
     /// committed on its own, without holding the database lock while the
     /// provider is asked, so an interrupted scan keeps what it saw and a
     /// repeated one changes nothing that did not change.
-    fn scan_history(&self, provider_id: &str) -> Result<ScanSummary, JamError> {
+    ///
+    /// With `wanted`, only conversations from those folders are asked for
+    /// (a hint the adapter may ignore), nothing is marked missing, and the
+    /// entries whose folder is exactly one of them, shown and not yet in JAM
+    /// Code, are returned.
+    fn scan_history(
+        &self,
+        provider_id: &str,
+        wanted: Option<&Wanted>,
+    ) -> Result<(ScanSummary, Vec<String>), JamError> {
         let (adapter, config) = self.history_source(provider_id)?;
         let history = adapter.history().expect("checked by history_source");
         let _job = self.history_jobs.claim(format!("scan:{provider_id}"))?;
@@ -197,14 +216,19 @@ impl Runtime {
         // The folders JAM trusts, read once: a project added during the scan
         // is matched by the next one.
         let folders = Folders::of(&self.lock()?.store)?;
+        let mut found = Vec::new();
         let mut page: Option<String> = None;
         for _ in 0..LIST_PAGES {
-            let listed = block_on(history.list(HistoryListRequest {
-                page: page.clone(),
-                folders: Vec::new(),
-                limit: LIST_PAGE,
-                config: config.clone(),
-            }))
+            let listed = block_on(
+                history.list(HistoryListRequest {
+                    page: page.clone(),
+                    folders: wanted
+                        .map(|wanted| wanted.paths.clone())
+                        .unwrap_or_default(),
+                    limit: LIST_PAGE,
+                    config: config.clone(),
+                }),
+            )
             .ok_or_else(|| {
                 JamError::new("unavailable", "The runtime executor is not available.")
             })??;
@@ -213,7 +237,7 @@ impl Runtime {
                 let seen_at = now();
                 state.store.transaction(|| {
                     for item in listed.items.into_iter().take(LIST_PAGE_LIMIT) {
-                        reconcile(
+                        let entry = reconcile(
                             &state.store,
                             &folders,
                             provider_id,
@@ -222,6 +246,13 @@ impl Runtime {
                             item,
                             &mut summary,
                         )?;
+                        if let (Some(wanted), Some(entry)) = (wanted, entry)
+                            && entry.session_id.is_none()
+                            && entry.ignored_at.is_none()
+                            && wanted.folders.contains(entry.cwd.as_deref())
+                        {
+                            found.push(entry.id);
+                        }
                     }
                     Ok(())
                 })?;
@@ -236,14 +267,70 @@ impl Runtime {
                 Some(next) => page = Some(next),
             }
         }
-        if summary.complete {
+        if summary.complete && wanted.is_none() {
             let state = self.lock()?;
             summary.missing =
                 state
                     .store
                     .mark_unlisted(provider_id, DEFAULT_INSTANCE, &scan, &now())?;
         }
-        Ok(summary)
+        Ok((summary, found))
+    }
+
+    /// The provider conversations that worked in exactly one of these
+    /// folders and are not in JAM Code yet, newest first: what the New
+    /// project dialog offers to add. Each provider that can report its
+    /// history is asked for those folders; one that cannot (not installed,
+    /// turned off, already being read) is left out rather than failing the
+    /// rest. Asked again once the project exists, the same entries come back
+    /// linked to it, ready to sync.
+    fn find_in_folders(&self, input: FindInFolders) -> Result<Value, JamError> {
+        if input.paths.is_empty() || input.paths.len() > FOLDERS_LIMIT {
+            return Err(JamError::invalid(format!(
+                "Choose 1 to {FOLDERS_LIMIT} folders."
+            )));
+        }
+        if input
+            .paths
+            .iter()
+            .any(|path| path.is_empty() || path.encode_utf16().count() > PATH_LIMIT)
+        {
+            return Err(JamError::invalid("That folder path is not valid."));
+        }
+        let wanted = Wanted {
+            folders: Folders::from_paths(&input.paths),
+            paths: input.paths,
+        };
+        let mut found = Vec::new();
+        for provider_id in PROVIDER_IDS {
+            let has_history = self
+                .providers
+                .adapter(provider_id)
+                .is_some_and(|adapter| adapter.history().is_some());
+            if !has_history {
+                continue;
+            }
+            if let Ok((_, ids)) = self.scan_history(provider_id, Some(&wanted)) {
+                found.extend(ids);
+            }
+        }
+        let state = self.lock()?;
+        let mut entries = found
+            .iter()
+            .map(|id| state.store.history_entry(id))
+            .collect::<Result<Vec<_>, _>>()?;
+        entries.sort_by(|a, b| {
+            let at = |entry: &Entry| entry.updated_at.clone().unwrap_or_default();
+            at(b).cmp(&at(a)).then_with(|| b.id.cmp(&a.id))
+        });
+        entries.dedup_by(|a, b| a.id == b.id);
+        let total = entries.len();
+        let entries = entries
+            .iter()
+            .take(FOUND_LIMIT)
+            .map(|entry| state.store.history_wire(entry))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(json!({ "entries": entries, "total": total }))
     }
 
     fn list_history(&self, input: ListHistory) -> Result<Value, JamError> {
@@ -291,8 +378,16 @@ impl Runtime {
     }
 }
 
+/// The folders a folder scan asks about: as the reader chose them, for the
+/// adapter's hint, and as the runtime matches them.
+struct Wanted {
+    paths: Vec<String>,
+    folders: Folders,
+}
+
 /// Brings one listed item into the index. A new item that JAM itself started
-/// is linked to its existing session; any other is external.
+/// is linked to its existing session; any other is external. Returns the
+/// saved entry, or `None` for an item without a usable ID.
 fn reconcile(
     store: &Store,
     folders: &Folders,
@@ -301,10 +396,10 @@ fn reconcile(
     seen_at: &str,
     item: HistoryItem,
     summary: &mut ScanSummary,
-) -> Result<(), JamError> {
+) -> Result<Option<Entry>, JamError> {
     let Some(item) = clean_item(item) else {
         summary.rejected += 1;
-        return Ok(());
+        return Ok(None);
     };
     let existing = store.history_by_native(provider_id, DEFAULT_INSTANCE, &item.native_id)?;
     let known = existing.is_some();
@@ -345,7 +440,8 @@ fn reconcile(
         }
     }
     entry.seen_scan = Some(scan.to_owned());
-    store.save_history(&entry)
+    store.save_history(&entry)?;
+    Ok(Some(entry))
 }
 
 /// Copies an item's reported metadata onto its entry.
