@@ -55,6 +55,8 @@ pub struct Runtime {
     /// Terminal processes. Empty, with no PTY, until a terminal is created.
     pub(crate) terminals: TerminalManager,
     pub(crate) git: crate::git::GitManager,
+    /// Provider-history scans and syncs in progress.
+    pub(crate) history_jobs: crate::history::HistoryJobs,
 }
 
 /// The user's database in the application data folder.
@@ -165,6 +167,7 @@ impl Runtime {
             interactions: Interactions::default(),
             terminals: TerminalManager::default(),
             git: crate::git::GitManager::default(),
+            history_jobs: Default::default(),
         });
         // Staged attachments do not survive a restart; their copies go now.
         // Failing to tidy up must not keep the workspace from opening.
@@ -220,6 +223,9 @@ impl Runtime {
                     .providers
                     .describe(&self.provider_settings(&state)?, &workspace.sessions);
                 Ok(serde_json::to_value(workspace)?)
+            }
+            method if method.starts_with("providerHistory.") => {
+                self.history_request(method, request.params)
             }
             method if method.starts_with("provider.") || method == "interaction.respond" => {
                 self.provider_request(method, request.params)

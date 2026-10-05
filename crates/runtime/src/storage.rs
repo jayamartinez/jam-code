@@ -4,7 +4,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use std::{path::Path, time::Duration};
 
-pub(crate) const SCHEMA_VERSION: i64 = 8;
+pub(crate) const SCHEMA_VERSION: i64 = 9;
 /// Projects that have not been removed from JAM.
 const ACTIVE_PROJECT: &str = "json_extract(data,'$.removedAt') IS NULL";
 /// The settings record holding the sidebar's project order.
@@ -281,6 +281,12 @@ impl Store {
              ON CONFLICT(session_id) DO UPDATE SET native_id=excluded.native_id,
                updated_at=excluded.updated_at,data=excluded.data",
             params![session_id, provider_id, native_id, now, data.to_string()],
+        )?;
+        // A history entry this session projected is a different provider
+        // conversation now; it stays indexed, without this session.
+        self.connection.execute(
+            "UPDATE provider_history SET session_id=NULL WHERE session_id=?1 AND native_id<>?2",
+            params![session_id, native_id],
         )?;
         Ok(())
     }
@@ -674,7 +680,7 @@ enum Migration {
     Code(fn(&rusqlite::Transaction<'_>) -> Result<(), JamError>),
 }
 
-const MIGRATIONS: [Migration; 8] = [
+const MIGRATIONS: [Migration; 9] = [
     Migration::Sql(include_str!("migrations/001-foundation.sql")),
     Migration::Sql(include_str!("migrations/002-file-edits.sql")),
     Migration::Sql(include_str!("migrations/003-settings.sql")),
@@ -683,6 +689,7 @@ const MIGRATIONS: [Migration; 8] = [
     Migration::Sql(include_str!("migrations/006-worktrees.sql")),
     Migration::Code(crate::demo_cleanup::remove_demo_seed),
     Migration::Sql(include_str!("migrations/008-attachments.sql")),
+    Migration::Sql(include_str!("migrations/009-provider-history.sql")),
 ];
 
 /// A copy of the database as it was before an upgrade, beside it, so a
