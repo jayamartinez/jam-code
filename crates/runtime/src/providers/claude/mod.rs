@@ -7,6 +7,7 @@
 //! authentication environment variable. Each JAM session keeps one Claude
 //! process while it is in use; it is resumed by Claude's session ID after an
 //! idle stop, a crash or a restart.
+mod history;
 mod tools;
 
 use super::{
@@ -242,6 +243,10 @@ impl ProviderAdapter for ClaudeAdapter {
     fn run_turn(&self, turn: ProviderTurn, io: TurnIo) -> ProviderFuture {
         let adapter = self.clone();
         Box::pin(async move { run(&adapter, turn, io).await })
+    }
+
+    fn history(&self) -> Option<&dyn super::ProviderHistory> {
+        Some(self)
     }
 
     fn release(&self, session_id: &str) {
