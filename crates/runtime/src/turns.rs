@@ -1,13 +1,14 @@
 use crate::{
-    attachments::AttachedFile,
+    attachments::{AttachedFile, Attachment},
     commands::StartTurn,
     error::JamError,
     protocol::*,
     providers::{ImageInput, ProviderTurn, ProviderUpdate, TurnIo},
-    runtime::{RunningTask, Runtime, new_id, now},
+    runtime::{RunningTask, Runtime, State, new_id, now},
 };
 use serde_json::{Value, json};
 use std::{
+    collections::BTreeMap,
     sync::{Arc, atomic::Ordering},
     time::Duration,
 };
@@ -17,15 +18,46 @@ use tokio::sync::{mpsc, watch};
 /// before JAM stops waiting. The session is already marked interrupted.
 const INTERRUPT_DRAIN: Duration = Duration::from_secs(10);
 
+/// A turn that starts from a queued follow-up.
+pub(crate) struct FromQueue {
+    pub id: String,
+    /// The previous turn finished and kept the session running so this one
+    /// follows it without the chat appearing to stop in between.
+    pub handoff: bool,
+}
+
+/// What a Send's context resolves to before anything is committed: the
+/// attachments it sends and the images an adapter may also send natively.
+pub(crate) struct Resolved {
+    pub attachments: Vec<Attachment>,
+    pub images: Vec<ImageInput>,
+    /// Which image each image attachment became, so its path can be set once
+    /// the copy is in its conversation's folder.
+    image_slots: Vec<(String, usize)>,
+}
+
 impl Runtime {
     /// Starts a turn. With `compact`, the turn asks the provider to compact
     /// its context instead of sending a message: nothing is added to the
     /// transcript except what the provider reports.
     pub(crate) fn start_turn(
         self: &Arc<Self>,
+        input: StartTurn,
+        fingerprint: String,
+        compact: bool,
+    ) -> Result<Value, JamError> {
+        self.start_turn_from(input, fingerprint, compact, None)
+    }
+
+    /// Starts a turn, from the composer or from a queued follow-up. A queued
+    /// one is removed from the queue in the transaction that starts it, so it
+    /// is sent at most once, and the assets it carried become this turn's.
+    pub(crate) fn start_turn_from(
+        self: &Arc<Self>,
         mut input: StartTurn,
         fingerprint: String,
         compact: bool,
+        queued: Option<FromQueue>,
     ) -> Result<Value, JamError> {
         // Provider checks run before the database lock is taken.
         let (provider_id, project_id, worktree_id) = {
@@ -79,10 +111,26 @@ impl Runtime {
             .clone()
             .ok_or_else(|| JamError::invalid("This resource is not a conversation."))?;
         let mut session = state.store.session(&session_id)?;
-        if session.status == SessionStatus::Running {
+        // A handoff found the session running on purpose: the turn before
+        // has ended and its task is gone, and nothing else could start.
+        let handed_off = queued.as_ref().is_some_and(|q| q.handoff)
+            && !state
+                .tasks
+                .values()
+                .any(|task| task.session_id == session_id);
+        if session.status == SessionStatus::Running && !handed_off {
             return Err(JamError::new(
                 "conflict",
                 "This session is already running. Interrupt it before starting another turn.",
+            ));
+        }
+        let queued_id = queued.as_ref().map(|q| q.id.as_str());
+        if let Some(id) = queued_id
+            && state.store.queued_turn(id)?.is_none()
+        {
+            return Err(JamError::new(
+                "not_found",
+                "That queued message was already sent or removed.",
             ));
         }
         // Reject before accepting persistent input if this host cannot supervise async work.
@@ -140,18 +188,160 @@ impl Runtime {
                 "This provider cannot compact its context from JAM.",
             ));
         }
-        state
-            .store
-            .attach_snapshots(&mut input.context, &resource.id, false, None)?;
-        let attachments =
+        let mut resolved = self.resolve_context(
+            &state,
+            &mut input.context,
+            &resource.id,
+            &provider_id,
+            descriptor.as_ref(),
+            &options,
+            queued_id,
+        )?;
+        resource.updated_at = now();
+        // Continuing an archived thread is the clearest sign it is in use again.
+        resource.closed_at = None;
+        if resource.title == "New conversation" && !compact {
+            resource.title = if input.text.trim().is_empty() {
+                "Context conversation".into()
+            } else {
+                input.text.trim().chars().take(80).collect()
+            };
+        }
+        let mut attached_context = input.context.clone();
+        let user_message = user_message(&input.text, input.context);
+        // Compaction keeps the chat's model and options as they are.
+        if descriptor.is_some() && !compact {
+            session.model = crate::provider_requests::model_label(descriptor.as_ref(), &options);
+            session.options = options.clone();
+        }
+        session.status = SessionStatus::Running;
+        session.needs_input = false;
+        let native_id = state.store.binding(&session.id)?.map(|b| b.native_id);
+        let receipt = json!({"accepted":true,"sessionId":session.id,"requestId":input.request_id});
+        // Nothing can refuse the turn from here except the database. The
+        // attachments move into this conversation's folder, so the paths the
+        // agent is given are final; a failed save moves them back.
+        let files = self.deliverable_files(&provider_id, &mut resolved)?;
+        let provider_text = compose(
+            &input.text,
+            &attached_context,
+            &files,
+            !resolved.images.is_empty(),
+        );
+        let saved = state.store.transaction(|| {
+            // From here the attachments belong to this conversation's history.
+            commit_context(&state, &mut attached_context, &resource.id, queued_id)?;
+            state.store.save_resource(&resource)?;
+            state.store.save_session(&session)?;
+            if !compact {
+                state.store.save_message(&resource, &user_message)?;
+            }
             state
                 .store
-                .send_attachments(&mut input.context, &resource.id, false, None)?;
+                .save_receipt(&input.request_id, &fingerprint, &receipt)
+        });
+        if let Err(error) = saved {
+            self.attachments.release(&resolved.attachments);
+            return Err(error);
+        }
+        if !compact {
+            self.publish(
+                &mut state,
+                &resource.id,
+                EventPayload::MessageUpserted {
+                    message: user_message,
+                },
+            );
+        }
+        if queued.is_some() {
+            self.publish_queue(&mut state, &resource.id);
+        }
+        self.publish(
+            &mut state,
+            &resource.id,
+            EventPayload::SessionUpdated {
+                session: session.clone(),
+            },
+        );
+        let turn = ProviderTurn {
+            session_id: session.id.clone(),
+            native_id,
+            cwd,
+            text: provider_text,
+            images: resolved.images,
+            files,
+            attachment_dir: self.attachments.conversation_dir(&resource.id),
+            options,
+            config: settings.config(&provider_id),
+            compact,
+        };
+        let version = descriptor.as_ref().and_then(|d| d.version.clone());
+        let (cancel, cancelled) = watch::channel(false);
+        let (finished_tx, finished) = watch::channel(());
+        // An interrupted turn may still be stopping inside its provider. The
+        // new turn is accepted now, but its provider work waits for that.
+        let previous: Vec<watch::Receiver<()>> = state
+            .tasks
+            .values()
+            .filter(|task| task.session_id == session_id)
+            .map(|task| task.finished.clone())
+            .collect();
+        let runtime = Arc::clone(self);
+        let request_id = input.request_id.clone();
+        let supervised = Supervised {
+            resource,
+            session,
+            request_id: request_id.clone(),
+            version,
+        };
+        let handle = executor.spawn(async move {
+            let _finished = finished_tx;
+            let _ = tokio::time::timeout(INTERRUPT_DRAIN + Duration::from_secs(2), async {
+                for mut previous in previous {
+                    while previous.changed().await.is_ok() {}
+                }
+            })
+            .await;
+            runtime.run_turn(supervised, adapter, turn, cancelled).await;
+        });
+        state.tasks.insert(
+            request_id,
+            RunningTask {
+                session_id: session_id.to_owned(),
+                cancel,
+                handle,
+                finished,
+            },
+        );
+        Ok(receipt)
+    }
+
+    /// Resolves a Send's context against the runtime's stores without
+    /// committing anything: staged snapshots and attachments must exist and be
+    /// unsent (and, for a queued follow-up, be the ones it carries), and an
+    /// image is refused here when the chosen model cannot take it.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn resolve_context(
+        &self,
+        state: &State,
+        context: &mut [ContextItem],
+        resource_id: &str,
+        provider_id: &str,
+        descriptor: Option<&ProviderDescriptor>,
+        options: &BTreeMap<String, String>,
+        queued: Option<&str>,
+    ) -> Result<Resolved, JamError> {
+        state
+            .store
+            .attach_snapshots(context, resource_id, false, queued)?;
+        let attachments = state
+            .store
+            .send_attachments(context, resource_id, false, queued)?;
         // Images the reader explicitly sent, resolved only now, on Send.
         let mut images = Vec::new();
         let mut image_slots: Vec<(String, usize)> = Vec::new();
         if provider_id != "mock" {
-            for item in &input.context {
+            for item in context.iter() {
                 if !matches!(item.kind, ContextKind::Snapshot) {
                     continue;
                 }
@@ -180,7 +370,7 @@ impl Runtime {
             }
         }
         if !images.is_empty()
-            && let Some(descriptor) = &descriptor
+            && let Some(descriptor) = descriptor
         {
             let model_images = descriptor
                 .models
@@ -204,168 +394,62 @@ impl Runtime {
                 ));
             }
         }
-        resource.updated_at = now();
-        // Continuing an archived thread is the clearest sign it is in use again.
-        resource.closed_at = None;
-        if resource.title == "New conversation" && !compact {
-            resource.title = if input.text.trim().is_empty() {
-                "Context conversation".into()
-            } else {
-                input.text.trim().chars().take(80).collect()
-            };
-        }
-        let mut attached_context = input.context.clone();
-        let mut blocks = Vec::new();
-        if !input.context.is_empty() {
-            blocks.push(MessageBlock::Context {
-                items: input.context,
-            });
-        }
-        if !input.text.is_empty() {
-            blocks.push(MessageBlock::Text {
-                text: input.text.clone(),
-            });
-        }
-        let user_message = Message {
-            id: new_id("message"),
-            role: "user".into(),
-            created_at: now(),
-            blocks,
-            completed_at: None,
-        };
-        // Compaction keeps the chat's model and options as they are.
-        if descriptor.is_some() && !compact {
-            session.model = crate::provider_requests::model_label(descriptor.as_ref(), &options);
-            session.options = options.clone();
-        }
-        session.status = SessionStatus::Running;
-        session.needs_input = false;
-        let native_id = state.store.binding(&session.id)?.map(|b| b.native_id);
-        let receipt = json!({"accepted":true,"sessionId":session.id,"requestId":input.request_id});
-        // Nothing can refuse the turn from here except the database. The
-        // attachments move into this conversation's folder, so the paths the
-        // agent is given are final; a failed save moves them back.
-        self.attachments.claim(&attachments)?;
-        let mut files = Vec::new();
-        if provider_id != "mock" {
-            for attachment in &attachments {
-                let path = match self.attachments.path(attachment) {
-                    Ok(path) => path,
-                    Err(error) => {
-                        self.attachments.release(&attachments);
-                        return Err(error);
-                    }
-                };
-                if let Some((_, slot)) = image_slots.iter().find(|(id, _)| *id == attachment.id) {
-                    images[*slot].path = Some(path.clone());
-                }
-                files.push(AttachedFile {
-                    name: attachment.name.clone(),
-                    media_type: attachment.media_type.clone(),
-                    path,
-                });
-            }
-        }
-        let provider_text = compose(&input.text, &attached_context, &files, !images.is_empty());
-        let saved = state.store.transaction(|| {
-            state
-                .store
-                .attach_snapshots(&mut attached_context, &resource.id, true, None)?;
-            // From here the attachments belong to this conversation's history.
-            state
-                .store
-                .send_attachments(&mut attached_context, &resource.id, true, None)?;
-            state.store.save_resource(&resource)?;
-            state.store.save_session(&session)?;
-            if !compact {
-                state.store.save_message(&resource, &user_message)?;
-            }
-            state
-                .store
-                .save_receipt(&input.request_id, &fingerprint, &receipt)
-        });
-        if let Err(error) = saved {
-            self.attachments.release(&attachments);
-            return Err(error);
-        }
-        if !compact {
-            self.publish(
-                &mut state,
-                &resource.id,
-                EventPayload::MessageUpserted {
-                    message: user_message,
-                },
-            );
-        }
-        self.publish(
-            &mut state,
-            &resource.id,
-            EventPayload::SessionUpdated {
-                session: session.clone(),
-            },
-        );
-        let turn = ProviderTurn {
-            session_id: session.id.clone(),
-            native_id,
-            cwd,
-            text: provider_text,
+        Ok(Resolved {
+            attachments,
             images,
-            files,
-            attachment_dir: self.attachments.conversation_dir(&resource.id),
-            options,
-            config: settings.config(&provider_id),
-            compact,
-        };
-        let version = descriptor.as_ref().and_then(|d| d.version.clone());
-        let (cancel, cancelled) = watch::channel(false);
-        let (finished_tx, finished) = watch::channel(());
-        // An interrupted turn may still be stopping inside its provider. The
-        // new turn is accepted now, but its provider work waits for that.
-        let previous: Vec<watch::Receiver<()>> = state
-            .tasks
-            .values()
-            .filter(|task| task.session_id == session_id)
-            .map(|task| task.finished.clone())
-            .collect();
-        let runtime = Arc::clone(self);
-        let request_id = input.request_id.clone();
-        let handle = executor.spawn(async move {
-            let _finished = finished_tx;
-            let _ = tokio::time::timeout(INTERRUPT_DRAIN + Duration::from_secs(2), async {
-                for mut previous in previous {
-                    while previous.changed().await.is_ok() {}
-                }
-            })
-            .await;
-            runtime
-                .run_turn(
-                    resource, session, request_id, adapter, turn, version, cancelled,
-                )
-                .await;
-        });
-        state.tasks.insert(
-            input.request_id,
-            RunningTask {
-                session_id: session_id.to_owned(),
-                cancel,
-                handle,
-                finished,
-            },
-        );
-        Ok(receipt)
+            image_slots,
+        })
     }
 
-    #[allow(clippy::too_many_arguments)]
+    /// Moves the attachments into their conversation's folder and lists them
+    /// by the path of JAM's copy. On failure they are moved back.
+    pub(crate) fn deliverable_files(
+        &self,
+        provider_id: &str,
+        resolved: &mut Resolved,
+    ) -> Result<Vec<AttachedFile>, JamError> {
+        self.attachments.claim(&resolved.attachments)?;
+        let mut files = Vec::new();
+        if provider_id == "mock" {
+            return Ok(files);
+        }
+        for attachment in &resolved.attachments {
+            let path = match self.attachments.path(attachment) {
+                Ok(path) => path,
+                Err(error) => {
+                    self.attachments.release(&resolved.attachments);
+                    return Err(error);
+                }
+            };
+            if let Some((_, slot)) = resolved
+                .image_slots
+                .iter()
+                .find(|(id, _)| *id == attachment.id)
+            {
+                resolved.images[*slot].path = Some(path.clone());
+            }
+            files.push(AttachedFile {
+                name: attachment.name.clone(),
+                media_type: attachment.media_type.clone(),
+                path,
+            });
+        }
+        Ok(files)
+    }
+
     async fn run_turn(
         self: Arc<Self>,
-        resource: Resource,
-        session: Session,
-        request_id: String,
+        supervised: Supervised,
         adapter: Arc<dyn crate::providers::ProviderAdapter>,
         turn: ProviderTurn,
-        version: Option<String>,
         mut cancelled: watch::Receiver<bool>,
     ) {
+        let Supervised {
+            resource,
+            session,
+            request_id,
+            version,
+        } = supervised;
         let (sender, mut receiver) = mpsc::channel(64);
         // The provider future is owned by this supervisor, never by a view.
         let provider = adapter.run_turn(
@@ -379,6 +463,8 @@ impl Runtime {
         tokio::pin!(provider);
         let mut provider_finished = false;
         let mut outcome_seen = false;
+        // The previous turn ended and a queued follow-up goes next.
+        let mut handoff = false;
         let mut failure: Option<String> = None;
         let message_id = new_id("message");
         let created_at = now();
@@ -397,12 +483,14 @@ impl Runtime {
                     match update {
                         ProviderUpdate::Blocks(blocks) => {
                             last_blocks = blocks.clone();
-                            let message = Message { id: message_id.clone(), role: "assistant".into(), created_at: created_at.clone(), blocks, completed_at: None };
-                            let waiting = waiting_for_reader(&message.blocks);
+                            let messages = reply(&message_id, &created_at, &blocks, None);
+                            let waiting = waiting_for_reader(&blocks);
                             let session_changed = waiting != current.needs_input;
                             current.needs_input = waiting;
                             let saved = state.store.transaction(|| {
-                                state.store.save_message(&resource, &message)?;
+                                for message in &messages {
+                                    state.store.save_message(&resource, message)?;
+                                }
                                 // A chat that starts waiting for the reader rises in its lists.
                                 if session_changed && waiting {
                                     state.store.touch_resource(&resource.id)?;
@@ -410,7 +498,9 @@ impl Runtime {
                                 state.store.save_session(&current)
                             });
                             if saved.is_err() { break; }
-                            self.publish(&mut state, &resource.id, EventPayload::MessageUpserted { message });
+                            for message in messages {
+                                self.publish(&mut state, &resource.id, EventPayload::MessageUpserted { message });
+                            }
                             if session_changed {
                                 self.publish(&mut state, &resource.id, EventPayload::SessionUpdated { session: current });
                             }
@@ -434,27 +524,28 @@ impl Runtime {
                             }
                         }
                         ProviderUpdate::Finished(status) => {
-                            current.status = status;
+                            // A completed turn with a follow-up waiting keeps
+                            // the session running: the follow-up starts as
+                            // soon as this task has ended, and the chat never
+                            // reports finishing in between. A failed or
+                            // interrupted turn leaves the queue waiting.
+                            handoff = status == SessionStatus::Idle
+                                && state.store.queue_ready(&resource.id).unwrap_or(false);
+                            current.status = if handoff { SessionStatus::Running } else { status };
                             current.needs_input = false;
                             // The reply records when its turn ended.
-                            let message = (!last_blocks.is_empty()).then(|| Message {
-                                id: message_id.clone(),
-                                role: "assistant".into(),
-                                created_at: created_at.clone(),
-                                blocks: last_blocks.clone(),
-                                completed_at: Some(now()),
-                            });
+                            let messages = reply(&message_id, &created_at, &last_blocks, Some(now()));
                             let saved = state.store.transaction(|| {
-                                if let Some(message) = &message {
+                                for message in &messages {
                                     state.store.save_message(&resource, message)?;
                                 }
                                 // So does one that has just finished.
                                 state.store.touch_resource(&resource.id)?;
                                 state.store.save_session(&current)
                             });
-                            if saved.is_err() { break; }
+                            if saved.is_err() { handoff = false; break; }
                             outcome_seen = true;
-                            if let Some(message) = message {
+                            for message in messages {
                                 self.publish(&mut state, &resource.id, EventPayload::MessageUpserted { message });
                             }
                             self.publish(&mut state, &resource.id, EventPayload::SessionUpdated { session: current });
@@ -506,26 +597,24 @@ impl Runtime {
                     tone: "error".into(),
                     text,
                 });
-                let message = Message {
-                    id: message_id,
-                    role: "assistant".into(),
-                    created_at,
-                    blocks,
-                    completed_at: Some(now()),
-                };
+                let messages = reply(&message_id, &created_at, &blocks, Some(now()));
                 current.status = SessionStatus::Failed;
                 current.needs_input = false;
                 let saved = state.store.transaction(|| {
-                    state.store.save_message(&resource, &message)?;
+                    for message in &messages {
+                        state.store.save_message(&resource, message)?;
+                    }
                     state.store.touch_resource(&resource.id)?;
                     state.store.save_session(&current)
                 });
                 if saved.is_ok() {
-                    self.publish(
-                        &mut state,
-                        &resource.id,
-                        EventPayload::MessageUpserted { message },
-                    );
+                    for message in messages {
+                        self.publish(
+                            &mut state,
+                            &resource.id,
+                            EventPayload::MessageUpserted { message },
+                        );
+                    }
                     self.publish(
                         &mut state,
                         &resource.id,
@@ -535,12 +624,23 @@ impl Runtime {
             }
             state.tasks.remove(&request_id);
         }
+        // Stop pressed during the handoff marks the session interrupted, and
+        // the queue then waits; otherwise the next follow-up starts now.
+        if handoff && !*cancelled.borrow() {
+            let runtime = Arc::clone(&self);
+            let resource_id = resource.id.clone();
+            // Starting a turn checks providers and folders, which may block.
+            let _ = tokio::task::spawn_blocking(move || {
+                runtime.dispatch_queue(&resource_id, true);
+            })
+            .await;
+        }
     }
 
     /// Interrupts the running turn. This is not closing the conversation,
     /// cancelling queued input or ending the provider process: the adapter
     /// asks its provider to stop the current turn, and the session stays
-    /// resumable.
+    /// resumable. Queued follow-ups stay queued and wait for the reader.
     pub(crate) fn interrupt(&self, session_id: &str) -> Result<bool, JamError> {
         let mut state = self.lock()?;
         let mut session = state.store.session(session_id)?;
@@ -580,6 +680,72 @@ impl Runtime {
     }
 }
 
+/// What a turn's supervisor needs besides the adapter and its channels.
+struct Supervised {
+    resource: Resource,
+    session: Session,
+    request_id: String,
+    version: Option<String>,
+}
+
+/// The turn's reply as its transcript message, once it has any blocks.
+/// `completed` records when its turn ended.
+fn reply(
+    id: &str,
+    created_at: &str,
+    blocks: &[MessageBlock],
+    completed: Option<String>,
+) -> Vec<Message> {
+    if blocks.is_empty() {
+        return Vec::new();
+    }
+    vec![Message {
+        id: id.to_owned(),
+        role: "assistant".into(),
+        created_at: created_at.to_owned(),
+        blocks: blocks.to_vec(),
+        completed_at: completed,
+    }]
+}
+
+/// The transcript message for what the reader sent.
+pub(crate) fn user_message(text: &str, context: Vec<ContextItem>) -> Message {
+    let mut blocks = Vec::new();
+    if !context.is_empty() {
+        blocks.push(MessageBlock::Context { items: context });
+    }
+    if !text.is_empty() {
+        blocks.push(MessageBlock::Text { text: text.into() });
+    }
+    Message {
+        id: new_id("message"),
+        role: "user".into(),
+        created_at: now(),
+        blocks,
+        completed_at: None,
+    }
+}
+
+/// Commits a Send's snapshots and attachments to its conversation, inside the
+/// caller's transaction. A queued follow-up's assets stop belonging to it.
+pub(crate) fn commit_context(
+    state: &State,
+    context: &mut [ContextItem],
+    resource_id: &str,
+    queued: Option<&str>,
+) -> Result<(), JamError> {
+    state
+        .store
+        .attach_snapshots(context, resource_id, true, queued)?;
+    state
+        .store
+        .send_attachments(context, resource_id, true, queued)?;
+    if let Some(id) = queued {
+        state.store.dequeue_sent(id)?;
+    }
+    Ok(())
+}
+
 fn waiting_for_reader(blocks: &[MessageBlock]) -> bool {
     blocks.iter().any(|block| {
         matches!(block, MessageBlock::Interaction { interaction }
@@ -590,7 +756,7 @@ fn waiting_for_reader(blocks: &[MessageBlock]) -> bool {
 /// The text a provider receives: the reader's words, then the context they
 /// staged, each with its provenance, then where each attached file is.
 /// Images also travel separately, to a provider that takes them.
-fn compose(
+pub(crate) fn compose(
     text: &str,
     context: &[ContextItem],
     files: &[AttachedFile],

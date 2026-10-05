@@ -30,6 +30,12 @@ impl ProviderAdapter for MockProvider {
         for key in ["create", "resume", "interrupt", "streaming"] {
             set_capability(&mut descriptor, key, "supported", None);
         }
+        set_capability(
+            &mut descriptor,
+            "queue",
+            "supported",
+            Some("JAM sends queued messages one at a time as each turn finishes."),
+        );
         for key in ["toolApproval", "userInput"] {
             set_capability(
                 &mut descriptor,

@@ -1,11 +1,11 @@
-//! Queued follow-ups (storage and editing), driven through the runtime's requests with
+//! Queued follow-ups, driven through the runtime's requests with
 //! a gated adapter: each turn waits until the test lets it finish, so what
 //! happens while an agent works can be observed exactly.
 use jam_runtime::{
     Runtime,
     protocol::{
-        CapabilitySupport, Interaction, InteractionStatus, MessageBlock, ProviderDescriptor,
-        Request, SessionStatus,
+        CapabilitySupport, EventPayload, Interaction, InteractionStatus, MessageBlock,
+        ProviderDescriptor, Request, SessionStatus, SubscriptionScope,
     },
     providers::{
         ProbeFuture, ProviderAdapter, ProviderConfig, ProviderFuture, ProviderTurn, ProviderUpdate,
@@ -298,10 +298,16 @@ where
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn follow_ups_wait_without_reaching_the_provider() {
+async fn follow_ups_wait_in_order_and_go_one_turn_at_a_time() {
     let temp = Temp::new();
     let gated = Gated::new();
     let chat = chat(&temp, Arc::clone(&gated)).await;
+    let mut events = chat
+        .runtime
+        .subscribe(SubscriptionScope {
+            resource_id: Some(chat.resource.clone()),
+        })
+        .unwrap();
     chat.send("first", "t1").await.unwrap();
     until("the first turn runs", || async { gated.turns().len() == 1 }).await;
 
@@ -321,6 +327,143 @@ async fn follow_ups_wait_without_reaching_the_provider() {
         .unwrap();
     assert!(found["results"].as_array().unwrap().is_empty());
     assert_eq!(gated.turns(), ["first"]);
+
+    // The first turn finishes; the oldest follow-up starts.
+    gated.finish_one();
+    until("the second turn runs", || async {
+        gated.turns().len() == 2
+    })
+    .await;
+    assert_eq!(gated.turns()[1], "second");
+    assert_eq!(chat.queued().await, ["third"]);
+    assert_eq!(chat.status().await, "running");
+
+    gated.finish_one();
+    until("the third turn runs", || async { gated.turns().len() == 3 }).await;
+    assert!(chat.queued().await.is_empty());
+    gated.finish_one();
+    until("the chat settles", || async {
+        chat.status().await == "idle"
+    })
+    .await;
+    assert_eq!(chat.sent().await, ["first", "second", "third"]);
+    assert_eq!(
+        gated.turns(),
+        ["first", "second", "third"],
+        "each sent once"
+    );
+
+    // The session never reported idle between the handed-off turns, so no
+    // "finished" notice fires until the last one ends.
+    let mut statuses = Vec::new();
+    while let Ok(Some(event)) =
+        tokio::time::timeout(Duration::from_millis(50), events.receiver.recv()).await
+    {
+        if let EventPayload::SessionUpdated { session } = event.payload {
+            statuses.push(session.status);
+        }
+    }
+    let idle = statuses
+        .iter()
+        .filter(|status| **status == SessionStatus::Idle)
+        .count();
+    assert_eq!(idle, 1, "{statuses:?}");
+    assert_eq!(statuses.last(), Some(&SessionStatus::Idle));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_unanswered_approval_holds_the_queue() {
+    let temp = Temp::new();
+    let gated = Gated::new();
+    let chat = chat(&temp, Arc::clone(&gated)).await;
+    chat.send("ask first", "t1").await.unwrap();
+    until("the approval is waiting", || async {
+        let workspace = chat.call("workspace.get", json!({})).await.unwrap();
+        workspace["sessions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|s| s["id"] == chat.session.as_str() && s["needsInput"] == true)
+    })
+    .await;
+    chat.queue("after approval", "q1").await.unwrap();
+    // Even a permit to finish cannot end the turn before the answer.
+    gated.finish_one();
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(gated.turns(), ["ask first"]);
+    assert_eq!(chat.queued().await, ["after approval"]);
+
+    let conversation = chat.conversation().await;
+    let interaction = conversation["messages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|m| m["blocks"].as_array().unwrap())
+        .find_map(|b| b["interaction"]["id"].as_str())
+        .unwrap()
+        .to_string();
+    chat.call(
+        "interaction.respond",
+        json!({"resourceId": chat.resource, "interactionId": interaction, "choiceId": "allow"}),
+    )
+    .await
+    .unwrap();
+    until("the follow-up starts", || async {
+        gated.turns().len() == 2
+    })
+    .await;
+    assert!(chat.queued().await.is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn failure_and_stop_leave_the_queue_waiting() {
+    let temp = Temp::new();
+    let gated = Gated::new();
+    let chat = chat(&temp, Arc::clone(&gated)).await;
+
+    chat.send("this will fail", "t1").await.unwrap();
+    until("running", || async { gated.turns().len() == 1 }).await;
+    chat.queue("next", "q1").await.unwrap();
+    gated.finish_one();
+    until("failed", || async { chat.status().await == "failed" }).await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert_eq!(gated.turns().len(), 1, "nothing follows a failed turn");
+    assert_eq!(chat.queued().await, ["next"]);
+
+    // A new turn that completes picks the queue up again.
+    chat.send("retry", "t2").await.unwrap();
+    until("retry runs", || async { gated.turns().len() == 2 }).await;
+    chat.call("turn.interrupt", json!({"sessionId": chat.session}))
+        .await
+        .unwrap();
+    until("interrupted", || async {
+        chat.status().await == "interrupted"
+    })
+    .await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert_eq!(gated.turns().len(), 2, "Stop does not send the next one");
+    assert_eq!(chat.queued().await, ["next"], "Stop keeps queued messages");
+
+    // Sending it now is explicit.
+    let id = chat.queued_ids().await.remove(0);
+    chat.call(
+        "queue.send",
+        json!({"resourceId": chat.resource, "queuedId": id}),
+    )
+    .await
+    .unwrap();
+    until("sent now", || async { gated.turns().len() == 3 }).await;
+    assert_eq!(gated.turns()[2], "next");
+    // A retry of the same send answers with the same receipt.
+    let retry = chat
+        .call(
+            "queue.send",
+            json!({"resourceId": chat.resource, "queuedId": id}),
+        )
+        .await
+        .unwrap();
+    assert_eq!(retry["requestId"], id.as_str());
+    assert_eq!(gated.turns().len(), 3);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -370,6 +513,13 @@ async fn follow_ups_can_be_edited_reordered_and_removed() {
     .await
     .unwrap();
     assert_eq!(chat.queued().await, ["c", "b, edited"]);
+    gated.finish_one();
+    until("c runs", || async { gated.turns().len() == 2 }).await;
+    assert_eq!(gated.turns()[1], "c");
+    gated.finish_one();
+    until("b runs", || async { gated.turns().len() == 3 }).await;
+    assert_eq!(gated.turns()[2], "b, edited");
+    gated.finish_one();
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -498,6 +648,39 @@ async fn queued_attachments_survive_until_sent_or_removed() {
     assert_eq!(staged(), 1);
 
     // Sending the other moves its copy into the conversation's folder,
+    // without copying it again, and names that copy to the agent.
+    call(
+        &runtime,
+        "queue.send",
+        json!({"resourceId": resource, "queuedId": ids[0]}),
+    )
+    .await
+    .unwrap();
+    // The same adapter served the turn before the restart.
+    until("sent", || async { gated.turns().len() == 2 }).await;
+    assert_eq!(staged(), 0);
+    let folder = temp.0.join("attachments").join(&resource);
+    assert_eq!(std::fs::read_dir(&folder).unwrap().count(), 1);
+    assert!(
+        gated.turns()[1].contains("notes.txt"),
+        "{:?}",
+        gated.turns()
+    );
+    let conversation = call(
+        &runtime,
+        "conversation.get",
+        json!({"resourceId": resource}),
+    )
+    .await
+    .unwrap();
+    let sent = conversation["messages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .rfind(|m| m["role"] == "user")
+        .unwrap();
+    assert_eq!(sent["blocks"][0]["items"][0]["assetId"], kept_id.as_str());
+    gated.finish_one();
 }
 
 #[tokio::test(flavor = "multi_thread")]

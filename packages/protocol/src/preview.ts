@@ -149,6 +149,8 @@ export class BrowserPreviewTransport implements JamTransport {
         return this.queueRemove(request.params);
       case 'queue.move':
         return this.queueMove(request.params);
+      case 'queue.send':
+        return this.queueSend(request.params);
       case 'directory.list':
         this.requireProject(request.params.projectId);
         return listPreviewDirectory(request.params.projectId, request.params.path);
@@ -418,12 +420,14 @@ export class BrowserPreviewTransport implements JamTransport {
       type: 'text',
       text: `The demo provider received: ${interaction.outcome}. No command ran.`,
     });
-    session.status = 'idle';
     session.needsInput = false;
     this.touch(session.resourceId);
-    this.updateRunningProvider();
     this.publish({ type: 'message.upserted', resourceId: session.resourceId, message });
-    this.publish({ type: 'session.updated', session });
+    if (!this.handOff(session)) {
+      session.status = 'idle';
+      this.updateRunningProvider();
+      this.publish({ type: 'session.updated', session });
+    }
     return { accepted: true };
   }
 
@@ -503,10 +507,18 @@ export class BrowserPreviewTransport implements JamTransport {
     this.publish({ type: 'queue.updated', resourceId, queued: copy(this.queueOf(resourceId)) });
   }
 
+  /** Whether the demo agent is working or waiting in this session. */
+  private busy(session: Session) {
+    return (
+      session.status === 'running' || this.active.has(session.id) || this.asking.has(session.id)
+    );
+  }
+
   private queueAdd(params: RequestMap['queue.add']['params']): RequestMap['queue.add']['result'] {
     const previous = this.queueReceipts.get(params.requestId);
     if (previous) return previous;
     const queue = this.queueOf(params.resourceId);
+    const session = this.getSession(this.getConversation(params.resourceId).sessionId);
     if (queue.length >= 20)
       throw new JamError('conflict', 'At most 20 messages can wait in one chat.');
     const turn: QueuedTurn = {
@@ -526,6 +538,8 @@ export class BrowserPreviewTransport implements JamTransport {
     };
     this.queueReceipts.set(params.requestId, result);
     this.publishQueue(params.resourceId);
+    // The turn it was meant to follow may already have finished.
+    if (session.status === 'idle' && !this.busy(session)) this.startQueued(turn, false);
     return result;
   }
 
@@ -568,8 +582,51 @@ export class BrowserPreviewTransport implements JamTransport {
     return { queued: queue };
   }
 
+  private queueSend(
+    params: RequestMap['queue.send']['params'],
+  ): RequestMap['queue.send']['result'] {
+    const turn = this.queued(params.resourceId, params.queuedId);
+    const session = this.getSession(this.getConversation(params.resourceId).sessionId);
+    if (this.busy(session))
+      throw new JamError(
+        'conflict',
+        'The agent is working. This message is sent when its turn finishes.',
+      );
+    return this.startQueued(turn, false);
+  }
+
+  /** Starts a queued follow-up; it leaves the queue as its turn begins. */
+  private startQueued(turn: QueuedTurn, handoff: boolean): RequestMap['turn.start']['result'] {
+    const queue = this.queueOf(turn.resourceId);
+    queue.splice(queue.indexOf(turn), 1);
+    const result = this.beginTurn(
+      { resourceId: turn.resourceId, text: turn.text, context: turn.context, requestId: turn.id },
+      handoff,
+    );
+    this.publishQueue(turn.resourceId);
+    return result;
+  }
+
+  /**
+   * A completed demo turn hands its session to the first follow-up, as the
+   * runtime does, so the chat never reports finishing in between.
+   */
+  private handOff(session: Session): boolean {
+    const next = this.queueOf(session.resourceId)[0];
+    if (!next || next.error) return false;
+    this.startQueued(next, true);
+    return true;
+  }
+
   private startTurn(
     params: RequestMap['turn.start']['params'],
+  ): RequestMap['turn.start']['result'] {
+    return this.beginTurn(params, false);
+  }
+
+  private beginTurn(
+    params: RequestMap['turn.start']['params'],
+    handoff: boolean,
   ): RequestMap['turn.start']['result'] {
     const signature = JSON.stringify({
       resourceId: params.resourceId,
@@ -590,7 +647,7 @@ export class BrowserPreviewTransport implements JamTransport {
     }
     const conversation = this.getConversation(params.resourceId);
     const session = this.getSession(conversation.sessionId);
-    if (session.status === 'running')
+    if (session.status === 'running' && !handoff)
       throw new JamError('conflict', 'This conversation is already running.');
     if (this.receipts.size >= 1000 || conversation.messages.length >= 9998) {
       throw new JamError(
@@ -728,15 +785,18 @@ export class BrowserPreviewTransport implements JamTransport {
           ? 'The demo provider returned a simulated failure. Your message is retained; send another message to continue.'
           : 'The runtime owns the session; a pane only displays it. Closing a view detaches that view while work continues. This was a simulated response, with no model call or repository changes.',
       });
-      session.status = active.fail ? 'failed' : 'idle';
+      message.completedAt = now();
       this.touch(session.resourceId);
       this.active.delete(sessionId);
-      this.updateRunningProvider();
     }
     this.publish({ type: 'message.upserted', resourceId: session.resourceId, message });
     if (step < 2 && this.active.get(sessionId) === active) {
       active.timer = setTimeout(() => this.advanceTurn(sessionId, step + 1), 500);
-    } else if (step >= 2) this.publish({ type: 'session.updated', session });
+    } else if (step >= 2 && (active.fail || !this.handOff(session))) {
+      session.status = active.fail ? 'failed' : 'idle';
+      this.updateRunningProvider();
+      this.publish({ type: 'session.updated', session });
+    }
   }
 
   private interrupt(sessionId: string): RequestMap['turn.interrupt']['result'] {

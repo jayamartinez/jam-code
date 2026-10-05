@@ -6,8 +6,13 @@
 //! panes, reloading the interface and restarting JAM, and every view of the
 //! chat shows the same queue through `queue.updated` events.
 //!
-//! This module stores and edits the queue. Sending queued follow-ups as turns
-//! finish is a separate step; nothing here starts a turn.
+//! Dispatch is deliberately narrow. When a turn finishes `completed` and the
+//! first follow-up has not failed, the session stays running and that
+//! follow-up starts as soon as the finished turn's task has ended, so only one
+//! provider turn runs at a time and the chat never reports finishing in
+//! between. A failed or interrupted turn, Stop, a follow-up that could not be
+//! sent and a restart all leave the queue waiting for the reader, who can send
+//! one now, edit, reorder or remove it. Nothing starts at launch.
 use crate::{
     attachments::Attachment,
     commands::{StartTurn, parse, validate_id},
@@ -15,6 +20,7 @@ use crate::{
     protocol::*,
     runtime::{Runtime, State, new_id, now},
     storage::Store,
+    turns::FromQueue,
 };
 use rusqlite::{OptionalExtension, params};
 use serde::Deserialize;
@@ -23,6 +29,8 @@ use std::sync::{Arc, atomic::Ordering};
 
 /// Most follow-ups one conversation can have waiting.
 pub(crate) const MAX_QUEUED: usize = 20;
+/// Longest reason kept for a follow-up that could not be sent.
+const ERROR_CHARS: usize = 500;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -125,6 +133,13 @@ impl Runtime {
                 self.publish_queue(&mut state, &input.resource_id);
                 Ok(json!({ "queued": state.store.queued_turns(&input.resource_id)? }))
             }
+            // Sends one follow-up now, whatever its place, as a new turn.
+            "queue.send" => {
+                let input: QueuedRef = parse(params)?;
+                validate_id(&input.resource_id)?;
+                validate_id(&input.queued_id)?;
+                self.send_queued(&input.resource_id, &input.queued_id)
+            }
             _ => Err(JamError::new("unknown_method", "Unknown queue request.")),
         }
     }
@@ -136,7 +151,7 @@ impl Runtime {
         mut input: StartTurn,
         fingerprint: String,
     ) -> Result<Value, JamError> {
-        let receipt = {
+        let (receipt, idle) = {
             let mut state = self.lock()?;
             if self.shutting_down.load(Ordering::Acquire) {
                 return Err(JamError::new("unavailable", "JAM is shutting down."));
@@ -145,9 +160,11 @@ impl Runtime {
                 return Ok(receipt);
             }
             let resource = state.store.resource(&input.resource_id)?;
-            if resource.session_id.is_none() {
-                return Err(JamError::invalid("This resource is not a conversation."));
-            }
+            let session_id = resource
+                .session_id
+                .clone()
+                .ok_or_else(|| JamError::invalid("This resource is not a conversation."))?;
+            let session = state.store.session(&session_id)?;
             if state.store.queued_turns(&resource.id)?.len() >= MAX_QUEUED {
                 return Err(JamError::new(
                     "conflict",
@@ -186,9 +203,176 @@ impl Runtime {
                     .save_receipt(&input.request_id, &fingerprint, &receipt)
             })?;
             self.publish_queue(&mut state, &resource.id);
-            receipt
+            let busy = state
+                .tasks
+                .values()
+                .any(|task| task.session_id == session_id);
+            // The turn it was meant to follow may have finished while this
+            // request was on its way; then it goes now.
+            (
+                receipt,
+                session.status == SessionStatus::Idle && !session.needs_input && !busy,
+            )
         };
+        if idle {
+            self.dispatch_queue(&input.resource_id, false);
+        }
         Ok(receipt)
+    }
+
+    /// Starts the first follow-up if nothing is running and it has not
+    /// failed. `handoff` is the finished turn passing the session on: it is
+    /// still marked running, and goes idle here if nothing can follow.
+    pub(crate) fn dispatch_queue(self: &Arc<Self>, resource_id: &str, handoff: bool) {
+        let next = (|| -> Result<Option<QueuedTurn>, JamError> {
+            let state = self.lock()?;
+            let resource = state.store.resource(resource_id)?;
+            let Some(session_id) = resource.session_id else {
+                return Ok(None);
+            };
+            let session = state.store.session(&session_id)?;
+            let busy = state
+                .tasks
+                .values()
+                .any(|task| task.session_id == session_id);
+            let ready = !busy
+                && !session.needs_input
+                && if handoff {
+                    session.status == SessionStatus::Running
+                } else {
+                    session.status == SessionStatus::Idle
+                };
+            if !ready {
+                return Ok(None);
+            }
+            Ok(state
+                .store
+                .queued_turns(resource_id)?
+                .into_iter()
+                .next()
+                .filter(|turn| turn.error.is_none()))
+        })();
+        match next {
+            Ok(Some(turn)) => {
+                let _ = self.start_queued(turn, handoff);
+            }
+            _ if handoff => self.settle_handoff(resource_id),
+            _ => {}
+        }
+    }
+
+    /// Starts a queued follow-up as a turn. A refusal is recorded on it, so
+    /// it and the follow-ups behind it wait for the reader.
+    fn start_queued(self: &Arc<Self>, turn: QueuedTurn, handoff: bool) -> Result<Value, JamError> {
+        let resource_id = turn.resource_id.clone();
+        let id = turn.id.clone();
+        let result = self.start_turn_from(
+            StartTurn {
+                resource_id: turn.resource_id,
+                text: turn.text,
+                context: turn.context,
+                request_id: id.clone(),
+                options: turn.options,
+            },
+            queued_fingerprint(&id),
+            false,
+            Some(FromQueue {
+                id: id.clone(),
+                handoff,
+            }),
+        );
+        if let Err(error) = &result {
+            // Quitting is not the follow-up's fault, and one already sent or
+            // removed has nothing to record.
+            if !self.shutting_down.load(Ordering::Acquire) && error.code != "not_found" {
+                self.mark_queued_failed(&resource_id, &id, &error.message);
+            }
+            if handoff {
+                self.settle_handoff(&resource_id);
+            }
+        }
+        result
+    }
+
+    /// Sends one follow-up now, as a new turn. While the agent works it
+    /// waits instead: it would start only after the running turn anyway. A
+    /// retry after it was sent answers with the same receipt.
+    fn send_queued(
+        self: &Arc<Self>,
+        resource_id: &str,
+        queued_id: &str,
+    ) -> Result<Value, JamError> {
+        let turn = {
+            let state = self.lock()?;
+            if let Some(receipt) = state
+                .store
+                .receipt(queued_id, &queued_fingerprint(queued_id))?
+            {
+                return Ok(receipt);
+            }
+            let turn = queued_in(&state, resource_id, queued_id)?;
+            let resource = state.store.resource(resource_id)?;
+            let session_id = resource
+                .session_id
+                .ok_or_else(|| JamError::invalid("This resource is not a conversation."))?;
+            let session = state.store.session(&session_id)?;
+            if session.status == SessionStatus::Running
+                || state
+                    .tasks
+                    .values()
+                    .any(|task| task.session_id == session_id)
+            {
+                return Err(JamError::new(
+                    "conflict",
+                    "The agent is working. This message is sent when its turn finishes.",
+                ));
+            }
+            turn
+        };
+        self.start_queued(turn, false)
+    }
+
+    fn mark_queued_failed(&self, resource_id: &str, queued_id: &str, reason: &str) {
+        let Ok(mut state) = self.lock() else { return };
+        let Ok(Some(mut turn)) = state.store.queued_turn(queued_id) else {
+            return;
+        };
+        turn.error = Some(reason.chars().take(ERROR_CHARS).collect());
+        turn.updated_at = Some(now());
+        if state.store.save_queued_turn(&turn).is_ok() {
+            self.publish_queue(&mut state, resource_id);
+        }
+    }
+
+    /// A handoff with nothing to start: the turn that finished leaves the
+    /// session idle after all.
+    fn settle_handoff(&self, resource_id: &str) {
+        let Ok(mut state) = self.lock() else { return };
+        let Ok(resource) = state.store.resource(resource_id) else {
+            return;
+        };
+        let Some(session_id) = resource.session_id else {
+            return;
+        };
+        let busy = state
+            .tasks
+            .values()
+            .any(|task| task.session_id == session_id);
+        let Ok(mut session) = state.store.session(&session_id) else {
+            return;
+        };
+        if busy || session.status != SessionStatus::Running {
+            return;
+        }
+        session.status = SessionStatus::Idle;
+        session.needs_input = false;
+        if state.store.save_session(&session).is_ok() {
+            self.publish(
+                &mut state,
+                resource_id,
+                EventPayload::SessionUpdated { session },
+            );
+        }
     }
 
     /// Tells every view the conversation's whole queue, in order.
@@ -197,6 +381,12 @@ impl Runtime {
             self.publish(state, resource_id, EventPayload::QueueUpdated { queued });
         }
     }
+}
+
+/// The fingerprint of a queued follow-up's own request, whether it is sent
+/// as a turn or steered, so it is sent at most once.
+fn queued_fingerprint(id: &str) -> String {
+    format!("queued:{id}")
 }
 
 /// A follow-up in this conversation's queue.
@@ -235,6 +425,15 @@ impl Store {
             .optional()?;
         data.map(|data| serde_json::from_str(&data).map_err(Into::into))
             .transpose()
+    }
+
+    /// Whether a finished turn should hand its session to a follow-up: one is
+    /// waiting and has not failed.
+    pub(crate) fn queue_ready(&self, resource_id: &str) -> Result<bool, JamError> {
+        Ok(self
+            .queued_turns(resource_id)?
+            .first()
+            .is_some_and(|turn| turn.error.is_none()))
     }
 
     /// The follow-up that carries a staged snapshot or attachment, if any.
@@ -289,6 +488,22 @@ impl Store {
                 params![id, resource_id, index as i64 + 1],
             )?;
         }
+        Ok(())
+    }
+
+    /// A follow-up was sent: what it carried now belongs to the turn that
+    /// sent it, and it leaves the queue. The caller holds the transaction.
+    pub(crate) fn dequeue_sent(&self, id: &str) -> Result<(), JamError> {
+        self.connection.execute(
+            "UPDATE attachments SET queued_id=NULL WHERE queued_id=?1",
+            [id],
+        )?;
+        self.connection.execute(
+            "UPDATE snapshots SET queued_id=NULL WHERE queued_id=?1",
+            [id],
+        )?;
+        self.connection
+            .execute("DELETE FROM queued_turns WHERE id=?1", [id])?;
         Ok(())
     }
 

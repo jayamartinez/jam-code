@@ -874,6 +874,7 @@ const params: Record<RequestMethod, Check> = {
     shape(value, { resourceId: id, queuedId: id, text: text(20_000, true) }),
   'queue.remove': (value) => shape(value, { resourceId: id, queuedId: id }),
   'queue.move': (value) => shape(value, { resourceId: id, queuedId: id, position: integer }),
+  'queue.send': (value) => shape(value, { resourceId: id, queuedId: id }),
   'directory.list': (value) =>
     shape(value, { projectId: id, path: listingPath }, { worktreeId: id }),
   'file.read': (value) => shape(value, { projectId: id, path: relativePath }, { worktreeId: id }),
@@ -994,6 +995,7 @@ const responses: Record<RequestMethod, Check> = {
   'queue.update': (value) => shape(value, { queued: queue }),
   'queue.remove': (value) => shape(value, { queued: queue }),
   'queue.move': (value) => shape(value, { queued: queue }),
+  'queue.send': (value) => shape(value, { accepted: oneOf(true), sessionId: id, requestId: id }),
   'directory.list': directoryListing,
   'file.read': fileContents,
   'file.reveal': (value) => shape(value, { revealed: oneOf(true) }),

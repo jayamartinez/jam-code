@@ -674,6 +674,14 @@ export interface RequestMap
     params: { resourceId: string; queuedId: string; position: number };
     result: { queued: QueuedTurn[] };
   };
+  /**
+   * Sends a follow-up now as a new turn. Refused (`conflict`) while the agent
+   * works: it is sent when the turn finishes anyway.
+   */
+  'queue.send': {
+    params: { resourceId: string; queuedId: string };
+    result: { accepted: true; sessionId: string; requestId: string };
+  };
   'directory.list': {
     params: { projectId: string; path: string; worktreeId?: string };
     result: DirectoryListing;

@@ -493,8 +493,8 @@ async fn probe(mut d: ProviderDescriptor, config: ProviderConfig) -> ProviderDes
     set_capability(
         &mut d,
         "queue",
-        "unsupported",
-        Some("Send after the current turn finishes."),
+        "supported",
+        Some("JAM sends queued messages one at a time as each turn finishes."),
     );
     d
 }

@@ -178,5 +178,8 @@ describe('JAM wire boundary', () => {
     expect(() =>
       validateEvent({ ...event, queued: [{ ...queued, resourceId: 'conv-2' }] }),
     ).toThrow(JamError);
+    expect(() =>
+      validateResponse('queue.send', { accepted: true, sessionId: 's', requestId: 'q1' }),
+    ).not.toThrow();
   });
 });

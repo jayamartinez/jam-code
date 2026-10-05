@@ -387,6 +387,7 @@ pub fn after_request(app: &AppHandle, method: &str) {
         // removing it returns them.
         "queue.add",
         "queue.remove",
+        "queue.send",
     ]
     .contains(&method)
     {

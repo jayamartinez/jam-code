@@ -254,23 +254,39 @@ describe('explicit browser preview runtime', () => {
     ).toBe('Investigate pane ownership');
   });
 
-  it('keeps queued follow-ups in an explicit order the reader can edit', async () => {
+  it('queues follow-ups and starts them in order as turns complete', async () => {
     const runtime = new BrowserPreviewTransport();
+    const sessions: string[] = [];
+    await runtime.subscribe({ resourceId }, (event) => {
+      if (event.type === 'session.updated') sessions.push(event.session.status);
+    });
+    await runtime.request('turn.start', turn());
     const queue = (text: string, requestId: string) =>
       runtime.request('queue.add', { resourceId, text, context: [], requestId });
-    const first = await queue('first', 'q1');
-    expect(await queue('first', 'q1')).toEqual(first);
-    const second = await queue('second', 'q2');
-    await runtime.request('queue.move', { resourceId, queuedId: second.queuedId, position: 0 });
-    await runtime.request('queue.update', {
-      resourceId,
-      queuedId: first.queuedId,
-      text: 'first, edited',
-    });
-    const listed = await runtime.request('conversation.get', { resourceId });
-    expect(listed.queued?.map((item) => item.text)).toEqual(['second', 'first, edited']);
-    await runtime.request('queue.remove', { resourceId, queuedId: second.queuedId });
-    const left = await runtime.request('conversation.get', { resourceId });
-    expect(left.queued?.map((item) => item.text)).toEqual(['first, edited']);
+    await queue('second', 'q1');
+    await queue('third', 'q2');
+    expect(await queue('second', 'q1')).toMatchObject({ requestId: 'q1' });
+    const waiting = await runtime.request('conversation.get', { resourceId });
+    expect(waiting.queued?.map((item) => item.text)).toEqual(['second', 'third']);
+    await vi.runAllTimersAsync();
+    const done = await runtime.request('conversation.get', { resourceId });
+    expect(done.queued).toEqual([]);
+    const sent = done.messages
+      .filter((message) => message.role === 'user')
+      .slice(-3)
+      .map((message) => (message.blocks[0]?.type === 'text' ? message.blocks[0].text : ''));
+    expect(sent).toEqual(['Keep the session alive', 'second', 'third']);
+    // One idle at the very end: no "finished" between handed-off turns.
+    expect(sessions.filter((status) => status === 'idle')).toHaveLength(1);
+  });
+
+  it('keeps the queue after Stop', async () => {
+    const runtime = new BrowserPreviewTransport();
+    await runtime.request('turn.start', turn());
+    await runtime.request('queue.add', { resourceId, text: 'later', context: [], requestId: 'q1' });
+    await runtime.request('turn.interrupt', { sessionId });
+    await vi.runAllTimersAsync();
+    const stopped = await runtime.request('conversation.get', { resourceId });
+    expect(stopped.queued?.map((item) => item.text)).toEqual(['later']);
   });
 });

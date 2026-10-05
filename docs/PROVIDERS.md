@@ -80,7 +80,7 @@ What this means for JAM Code:
 Version 1 of `@jam/protocol`, extended additively:
 
 - `ProviderDescriptor`: installation, authentication, enabled, default and running (with `runningCount`) stay independent. Optional fields appear only when known: version, executable and how it was found, a provider-reported `account {method, plan, identity}`, discovered `models` (with effort levels and default, faster `speeds`, `legacy` and image support), provider-specific `options` (both: `access`; Claude also `autoCompact`), saved `defaults`, starred `favoriteModels` and `hiddenModels` (the model picker's order and filter; kept even when a provider stops listing a model), a status note and `checkedAt`.
-- Capabilities: `create, resume, fork, interrupt, streaming, toolApproval, userInput, images, steering, queue, modelSelection, effort, permissionModes, usage, compact`, each `supported | unsupported | conditional | unknown` with a reason.
+- Capabilities: `create, resume, fork, interrupt, streaming, toolApproval, userInput, images, steering, queue, modelSelection, effort, permissionModes, usage, compact`, each `supported | unsupported | conditional | unknown` with a reason. `queue` is JAM Code's own (ADR 0015) and supported for every agent.
 - `Session`: `providerId` is the adapter actually running it; `options`, `needsInput` and provider-reported `usage` are optional. A real session presents as its own provider; only the demo provider may present as another.
 - Blocks: `text` (Markdown, rendered through `markdown/render.tsx`), `reasoning`, `tool` (`read | search | edit | command | tool | web | agent`), `context`, `notice` and `interaction`. An edit's `files` carry line counts and a bounded `diff` preview (120 lines, 12 KB; `+`/`-`/` ` lines and `@` for a gap): Claude's from the tool input's old and new text, Codex's from its unified diff or an added file's content. An assistant `Message` records `completedAt` when its turn ends.
 - `Interaction`: a JAM Code ID, kind (`command | file-change | tool | question | plan`), title, detail, reason, the `toolId` of the tool block it gates when there is one (so the approval renders inside that card), exactly the choices the provider offers, optional questions, and a status (`pending | resolved | cancelled | expired`) with an outcome. Provider request IDs never leave the adapter.
@@ -178,7 +178,7 @@ Settings → Providers shows who each agent is signed in as and its plan, only a
 - Codex: one shared `codex app-server`, started on the first turn and stopped after 15 idle minutes or on Quit. Threads are resumed on a new process.
 - Claude Code: one process per JAM Code session while it is in use, stopped after 15 idle minutes, on Quit, or when it cannot be reused (a different effort or speed). The next turn resumes it by Claude's session ID.
 - Processes run in their own process group (on Windows, their process tree is ended with `taskkill /T`), without a shell, with the login shell's PATH; stdout lines are bounded (32 MiB) and stderr keeps an 8 KiB tail for local error messages only.
-- **Interrupt** asks the provider to stop the current turn (`turn/interrupt`, control `interrupt`) and withdraws open requests. The session is marked interrupted at once; the provider gets up to ten seconds to settle, and a Claude process that does not settle is ended and resumed next turn. A new turn waits (bounded) for the old one to finish stopping. Interrupting is not closing the conversation, cancelling queued input or ending the provider's session.
+- **Interrupt** asks the provider to stop the current turn (`turn/interrupt`, control `interrupt`) and withdraws open requests. The session is marked interrupted at once; the provider gets up to ten seconds to settle, and a Claude process that does not settle is ended and resumed next turn. A new turn waits (bounded) for the old one to finish stopping. Interrupting is not closing the conversation, cancelling queued input or ending the provider's session; queued follow-ups wait for the reader.
 - A provider crash fails the turn with a notice; the next Send restarts the process and resumes. On restart, unanswered requests become `expired` and running sessions `interrupted`.
 - Closing panes, switching tabs, Single ↔ Tiles and reloading the interface never touch a provider process.
 
@@ -188,7 +188,7 @@ Settings → Providers shows who each agent is signed in as and its plan, only a
 
 ## Known limits
 
-- Steering, queued messages and forking are supported by both providers but not offered by JAM Code yet, and are reported as unsupported.
+- Steering and forking are supported by both providers but not offered by JAM Code yet, and are reported as unsupported. Queued follow-ups are JAM Code's own (ADR 0015) and work with every agent.
 - Codex questions need its experimental API and are unsupported.
 - Claude Code streams no command output while a command runs (only `task_started` and `task_notification`), and replaces an interrupted command's result with a rejection message, so its partial output never reaches JAM Code. Codex streams command output as it runs.
 - Claude subagent text is not shown (only the sub-agent's tool card), and Codex sub-agent items show as sub-agent cards without their inner activity.
@@ -199,5 +199,6 @@ Settings → Providers shows who each agent is signed in as and its plan, only a
 ## Tests
 
 - Unit tests cover Codex item and approval mapping, Claude tool classification, permission responses and question answers, delta/final reconciliation, the interaction broker, the transcript builder, discovery and process framing.
+- `crates/runtime/tests/queue.rs` drives queued follow-ups with a gated adapter: order, one turn at a time, no idle between handed-off turns, approvals holding the queue, failure and Stop, edit/move/remove, restart without dispatch, attachment ownership across restart and request deduplication.
 - `crates/runtime/tests/providers.rs` drives the runtime with the demo provider and a scripted adapter: answers delivered once, stale and expired requests, interrupts, provider-ID binding and resume after restart, option validation, the project-folder requirement and persisted settings.
 - `crates/runtime/tests/live_providers.rs` is ignored by default and runs against the installed CLIs: `JAM_LIVE_PROVIDERS=1` checks detection without inference; `JAM_LIVE_TURNS=1` sends a few short turns, one approval each and an interrupt/resume on the signed-in accounts. It uses the reader's own plans and counts toward their usage.
