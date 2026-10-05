@@ -23,6 +23,7 @@ async fn a_listing_pages_until_it_ends() {
         let listed = provider
             .list(HistoryListRequest {
                 page: page.clone(),
+                folders: Vec::new(),
                 limit: 10,
                 config: ProviderConfig::default(),
             })
@@ -40,6 +41,7 @@ async fn a_listing_pages_until_it_ends() {
     let small = provider
         .list(HistoryListRequest {
             page: None,
+            folders: Vec::new(),
             limit: 1,
             config: ProviderConfig::default(),
         })

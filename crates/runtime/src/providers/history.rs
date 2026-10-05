@@ -37,6 +37,10 @@ pub trait ProviderHistory: Send + Sync {
 #[derive(Debug, Clone)]
 pub struct HistoryListRequest {
     pub page: Option<String>,
+    /// Only conversations from these folders, when any are given. A hint: an
+    /// adapter that cannot filter returns everything, and the runtime matches
+    /// folders itself. A filtered listing marks nothing missing.
+    pub folders: Vec<String>,
     /// The most items the runtime wants in this page. A hint; the runtime
     /// bounds what it accepts.
     pub limit: usize,
