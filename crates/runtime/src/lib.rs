@@ -18,6 +18,7 @@ mod projects;
 pub mod protocol;
 mod provider_requests;
 pub mod providers;
+mod queue;
 mod runtime;
 pub mod snapshots;
 mod storage;

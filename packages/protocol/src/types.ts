@@ -477,7 +477,30 @@ export interface Conversation {
   resourceId: string;
   sessionId: string;
   messages: Message[];
+  /**
+   * Follow-ups waiting to be sent, in the order they will go. Runtime state,
+   * not transcript: they join `messages` only when sent. Absent means none.
+   */
+  queued?: QueuedTurn[];
   cursor: Cursor;
+}
+
+/**
+ * A follow-up sent while the agent was working. It carries what a Send would
+ * (text, context, and the chat's options as they were when it was queued) and
+ * starts as a turn when the running one completes, or when sent now.
+ */
+export interface QueuedTurn {
+  id: string;
+  resourceId: string;
+  text: string;
+  context: ContextItem[];
+  /** The chat's complete options when it was queued; absent keeps the chat's. */
+  options?: Record<string, string>;
+  createdAt: string;
+  updatedAt?: string;
+  /** Why it could not be sent when its turn came; it and those behind it wait. */
+  error?: string;
 }
 
 /**
@@ -625,6 +648,32 @@ export interface RequestMap
     params: { sessionId: string };
     result: { sessionId: string; interrupted: boolean };
   };
+  /** Queues a follow-up; it starts when the running turn completes. */
+  'queue.add': {
+    params: {
+      resourceId: string;
+      text: string;
+      context: ContextItem[];
+      requestId: string;
+      /** The chat's complete options as they are now; absent keeps the chat's at send time. */
+      options?: Record<string, string>;
+    };
+    result: { accepted: true; resourceId: string; queuedId: string; requestId: string };
+  };
+  'queue.update': {
+    params: { resourceId: string; queuedId: string; text: string };
+    result: { queued: QueuedTurn[] };
+  };
+  /** Removes a follow-up that will not be sent; one already gone is accepted too. */
+  'queue.remove': {
+    params: { resourceId: string; queuedId: string };
+    result: { queued: QueuedTurn[] };
+  };
+  /** Moves a follow-up to `position`, counted from the front of the queue. */
+  'queue.move': {
+    params: { resourceId: string; queuedId: string; position: number };
+    result: { queued: QueuedTurn[] };
+  };
   'directory.list': {
     params: { projectId: string; path: string; worktreeId?: string };
     result: DirectoryListing;
@@ -716,7 +765,12 @@ type EventEnvelope = {
 };
 
 export type JamEvent = EventEnvelope &
-  ({ type: 'message.upserted'; message: Message } | { type: 'session.updated'; session: Session });
+  (
+    | { type: 'message.upserted'; message: Message }
+    | { type: 'session.updated'; session: Session }
+    /** The conversation's whole queue, in order, after any change to it. */
+    | { type: 'queue.updated'; queued: QueuedTurn[] }
+  );
 
 export interface SubscriptionScope {
   resourceId?: string;

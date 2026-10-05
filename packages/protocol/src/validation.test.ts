@@ -149,4 +149,34 @@ describe('JAM wire boundary', () => {
       JamError,
     );
   });
+
+  it('validates queued follow-ups at the boundary', () => {
+    const request = (method: string, params: unknown) =>
+      validateRequest({ protocolVersion: 1, method, params });
+    const send = { resourceId: 'conv-1', text: 'run tests', context: [], requestId: 'r1' };
+    expect(() => request('queue.add', { ...send, options: { model: 'gpt-5.5' } })).not.toThrow();
+    expect(() => request('queue.add', { ...send, text: ' ' })).toThrow(JamError);
+    expect(() =>
+      request('queue.move', { resourceId: 'conv-1', queuedId: 'q1', position: -1 }),
+    ).toThrow(JamError);
+    const queued = {
+      id: 'q1',
+      resourceId: 'conv-1',
+      text: 'run tests',
+      context: [],
+      createdAt: '2026-10-04T10:00:00Z',
+    };
+    const event = {
+      protocolVersion: 1,
+      cursor: { runtimeId: 'r', sequence: 2 },
+      resourceId: 'conv-1',
+      type: 'queue.updated',
+      queued: [queued],
+    };
+    expect(validateEvent(event)).toEqual(event);
+    // A queue is always the event's own conversation's.
+    expect(() =>
+      validateEvent({ ...event, queued: [{ ...queued, resourceId: 'conv-2' }] }),
+    ).toThrow(JamError);
+  });
 });

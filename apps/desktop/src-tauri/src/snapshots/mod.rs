@@ -383,6 +383,10 @@ pub fn after_request(app: &AppHandle, method: &str) {
         "snapshot.cleanup",
         "snapshot.settings.update",
         "turn.start",
+        // A queued message takes its snapshots out of the inbox, and
+        // removing it returns them.
+        "queue.add",
+        "queue.remove",
     ]
     .contains(&method)
     {

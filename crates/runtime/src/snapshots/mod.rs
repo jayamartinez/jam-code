@@ -168,6 +168,7 @@ impl crate::storage::Store {
         context: &mut [ContextItem],
         resource_id: &str,
         attach: bool,
+        queued: Option<&str>,
     ) -> Result<(), JamError> {
         for item in context {
             if !matches!(item.kind, ContextKind::Snapshot) {
@@ -181,6 +182,12 @@ impl crate::storage::Store {
             if snapshot.sent || snapshot.resource_id.as_deref() != Some(resource_id) {
                 return Err(JamError::invalid(
                     "Snapshot is not staged in this conversation.",
+                ));
+            }
+            // One a queued follow-up carries goes with that follow-up only.
+            if self.asset_queue("snapshots", &snapshot.id)?.as_deref() != queued {
+                return Err(JamError::invalid(
+                    "That snapshot belongs to a queued message.",
                 ));
             }
             *item = snapshot.context.clone();

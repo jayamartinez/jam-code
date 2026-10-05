@@ -83,7 +83,8 @@ impl Store {
     ///
     /// Removed: its resource, conversation, sessions, messages, search
     /// documents (and through them the FTS index), provider binding, request
-    /// receipts and the snapshots and attachments sent in it. A snapshot still staged for it
+    /// receipts, queued follow-ups and the snapshots and attachments sent in
+    /// it or carried by those follow-ups. A snapshot still staged for it
     /// goes back to the inbox. Projects, worktrees, file edits, other
     /// conversations and every other resource are left as they are.
     fn delete_conversation(
@@ -92,6 +93,9 @@ impl Store {
         session_id: &str,
     ) -> Result<(Vec<String>, Vec<Attachment>), JamError> {
         let connection = &self.connection;
+        // Follow-ups it had waiting go with it; their snapshots return to
+        // the inbox and their attachments' copies are deleted.
+        let queued = self.remove_conversation_queue(resource_id)?;
         const OWNED: &str = "json_extract(data,'$.resourceId')=?1";
         let assets = {
             let mut statement = connection.prepare(&format!(
@@ -123,7 +127,8 @@ impl Store {
             params![resource_id, session_id],
         )?;
         // Every attachment it sent belongs to it alone: one copy, one message.
-        let attachments = self.attachments("resource_id=?1", [resource_id])?;
+        let mut attachments = self.attachments("resource_id=?1", [resource_id])?;
+        attachments.extend(queued);
         connection.execute(
             "DELETE FROM attachments WHERE resource_id=?1",
             [resource_id],

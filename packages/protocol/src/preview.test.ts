@@ -253,4 +253,24 @@ describe('explicit browser preview runtime', () => {
       )?.title,
     ).toBe('Investigate pane ownership');
   });
+
+  it('keeps queued follow-ups in an explicit order the reader can edit', async () => {
+    const runtime = new BrowserPreviewTransport();
+    const queue = (text: string, requestId: string) =>
+      runtime.request('queue.add', { resourceId, text, context: [], requestId });
+    const first = await queue('first', 'q1');
+    expect(await queue('first', 'q1')).toEqual(first);
+    const second = await queue('second', 'q2');
+    await runtime.request('queue.move', { resourceId, queuedId: second.queuedId, position: 0 });
+    await runtime.request('queue.update', {
+      resourceId,
+      queuedId: first.queuedId,
+      text: 'first, edited',
+    });
+    const listed = await runtime.request('conversation.get', { resourceId });
+    expect(listed.queued?.map((item) => item.text)).toEqual(['second', 'first, edited']);
+    await runtime.request('queue.remove', { resourceId, queuedId: second.queuedId });
+    const left = await runtime.request('conversation.get', { resourceId });
+    expect(left.queued?.map((item) => item.text)).toEqual(['first, edited']);
+  });
 });

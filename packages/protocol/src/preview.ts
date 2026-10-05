@@ -9,6 +9,7 @@ import type {
   JamRequest,
   JamTransport,
   Message,
+  QueuedTurn,
   RequestMap,
   RequestMethod,
   Resource,
@@ -42,6 +43,7 @@ export class BrowserPreviewTransport implements JamTransport {
   private readonly active = new Map<string, ActiveTurn>();
   private readonly asking = new Map<string, { interaction: Interaction; message: Message }>();
   private readonly receipts = new Map<string, Receipt>();
+  private readonly queueReceipts = new Map<string, RequestMap['queue.add']['result']>();
   private readonly pendingEvents: JamEvent[] = [];
   private publishing = false;
   private nextId = 0;
@@ -139,6 +141,14 @@ export class BrowserPreviewTransport implements JamTransport {
         return this.startTurn(request.params);
       case 'turn.interrupt':
         return this.interrupt(request.params.sessionId);
+      case 'queue.add':
+        return this.queueAdd(request.params);
+      case 'queue.update':
+        return this.queueUpdate(request.params);
+      case 'queue.remove':
+        return this.queueRemove(request.params);
+      case 'queue.move':
+        return this.queueMove(request.params);
       case 'directory.list':
         this.requireProject(request.params.projectId);
         return listPreviewDirectory(request.params.projectId, request.params.path);
@@ -484,6 +494,80 @@ export class BrowserPreviewTransport implements JamTransport {
     return { resourceId };
   }
 
+  private queueOf(resourceId: string): QueuedTurn[] {
+    const conversation = this.getConversation(resourceId);
+    return (conversation.queued ??= []);
+  }
+
+  private publishQueue(resourceId: string) {
+    this.publish({ type: 'queue.updated', resourceId, queued: copy(this.queueOf(resourceId)) });
+  }
+
+  private queueAdd(params: RequestMap['queue.add']['params']): RequestMap['queue.add']['result'] {
+    const previous = this.queueReceipts.get(params.requestId);
+    if (previous) return previous;
+    const queue = this.queueOf(params.resourceId);
+    if (queue.length >= 20)
+      throw new JamError('conflict', 'At most 20 messages can wait in one chat.');
+    const turn: QueuedTurn = {
+      id: this.makeId('queued'),
+      resourceId: params.resourceId,
+      text: params.text,
+      context: copy(params.context),
+      ...(params.options ? { options: copy(params.options) } : {}),
+      createdAt: now(),
+    };
+    queue.push(turn);
+    const result = {
+      accepted: true as const,
+      resourceId: params.resourceId,
+      queuedId: turn.id,
+      requestId: params.requestId,
+    };
+    this.queueReceipts.set(params.requestId, result);
+    this.publishQueue(params.resourceId);
+    return result;
+  }
+
+  private queued(resourceId: string, queuedId: string): QueuedTurn {
+    const turn = this.queueOf(resourceId).find((item) => item.id === queuedId);
+    if (!turn) throw new JamError('not_found', 'That queued message was already sent or removed.');
+    return turn;
+  }
+
+  private queueUpdate(
+    params: RequestMap['queue.update']['params'],
+  ): RequestMap['queue.update']['result'] {
+    const turn = this.queued(params.resourceId, params.queuedId);
+    if (!params.text.trim() && !turn.context.length)
+      throw new JamError('invalid_request', 'A queued message needs text or context.');
+    turn.text = params.text;
+    turn.updatedAt = now();
+    this.publishQueue(params.resourceId);
+    return { queued: this.queueOf(params.resourceId) };
+  }
+
+  private queueRemove(
+    params: RequestMap['queue.remove']['params'],
+  ): RequestMap['queue.remove']['result'] {
+    const queue = this.queueOf(params.resourceId);
+    const at = queue.findIndex((item) => item.id === params.queuedId);
+    if (at >= 0) queue.splice(at, 1);
+    this.publishQueue(params.resourceId);
+    return { queued: queue };
+  }
+
+  private queueMove(
+    params: RequestMap['queue.move']['params'],
+  ): RequestMap['queue.move']['result'] {
+    const turn = this.queued(params.resourceId, params.queuedId);
+    const queue = this.queueOf(params.resourceId);
+    queue.splice(queue.indexOf(turn), 1);
+    queue.splice(Math.min(params.position, queue.length), 0, turn);
+    this.publishQueue(params.resourceId);
+    return { queued: queue };
+  }
+
   private startTurn(
     params: RequestMap['turn.start']['params'],
   ): RequestMap['turn.start']['result'] {
@@ -708,7 +792,8 @@ export class BrowserPreviewTransport implements JamTransport {
   private publish(
     update:
       | { type: 'session.updated'; session: Session }
-      | { type: 'message.upserted'; resourceId: string; message: Message },
+      | { type: 'message.upserted'; resourceId: string; message: Message }
+      | { type: 'queue.updated'; resourceId: string; queued: QueuedTurn[] },
   ) {
     this.workspace.sequence += 1;
     const resourceId =
