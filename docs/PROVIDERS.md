@@ -184,7 +184,21 @@ Settings → Providers shows who each agent is signed in as and its plan, only a
 
 ## Persistence and provider history
 
-`provider_bindings` (migration 005) links a JAM Code session to the provider's own session or thread ID, with provider ID, origin (`jam` today), timestamps and version. JAM Code resource, session and message IDs remain the primary keys; provider IDs never reach the client. This is the seam for discovering and importing history created outside JAM Code (Codex `thread/list`/`thread/read`, Claude session files through the CLI): an imported thread would get a JAM Code resource and session and a binding with a different origin. Nothing is scanned or imported today.
+`provider_bindings` (migration 005, extended by 009) links a JAM Code session to the provider's own session or thread ID, with provider ID, provider instance (`default` today), origin (`jam` today), timestamps and version. JAM Code resource, session and message IDs remain the primary keys; provider IDs never reach the client.
+
+Provider history is the provider's own record of its conversations, including ones started in Claude Code or Codex directly. It stays canonical: JAM Code will keep an index of it and, on request, a local projection of each conversation, and never writes or deletes the provider's record. [ADR 0015](adr/0015-provider-history.md) records the model; this release has its adapter contract and schema (`provider_history`, migration 009) only. Nothing is scanned, and no provider implements history yet.
+
+### Implementing history in an adapter
+
+An adapter implements `ProviderHistory` (`crates/runtime/src/providers/history.rs`) and returns it from `ProviderAdapter::history`, which is absent by default. Resume needs nothing new: a synced conversation has a binding, and `run_turn` receives its native ID as for any chat.
+
+- `list(HistoryListRequest {page, limit, config}) -> HistoryPage {items, next_page}`: cheap metadata only (`HistoryItem`: `native_id`, and when known `title`, `preview`, `created_at`, `updated_at`, `revision`, `cwd`, `resumable`). The listing should be complete, since an item a complete listing omits is marked missing; `next_page` is opaque and absent on the last page.
+- `read(HistoryReadRequest {native_id, page, checkpoint, limit, config}) -> HistoryTranscript {item, messages, next_page, checkpoint}`: one conversation's messages, oldest first, normalized to JAM blocks. Each `HistoryMessage.source_id` is stable within the conversation: the provider's item ID, or a key derived from position in its record, never from text alone. A conversation the provider no longer has is `not_found`. `checkpoint` is optional: an adapter that can read on from the last complete sync does; one that cannot returns everything.
+- Neither call may start a turn, make an inference request, or read credentials.
+
+Codex (observed in codex-cli 0.160's generated schema on 2026-10-04; the adapter's tested version is 0.157, so the Codex change verifies before relying on it): `thread/list` pages with `cursor`/`nextCursor` and `limit`, filters by `cwd`, and reports `id`, `name`, `preview`, `cwd`, `createdAt`/`updatedAt` (Unix seconds), `source` and `parentThreadId` (sub-agents, which are not separate conversations to list). `thread/read` without turns gives metadata; its full-history hydration is deprecated for paginated threads in favor of `thread/turns/list` and `thread/items/list`, both cursor-paged, whose item IDs fit `source_id`.
+
+Claude Code: the source of its history (a structured CLI or Agent SDK listing, or its own session records) is for the Claude change to establish from current documentation, without reading credentials. Claude Code resumes a session from the folder it worked in. Each record's own ID is the natural `source_id`.
 
 ## Known limits
 
