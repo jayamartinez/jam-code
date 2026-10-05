@@ -282,6 +282,12 @@ impl Store {
                updated_at=excluded.updated_at,data=excluded.data",
             params![session_id, provider_id, native_id, now, data.to_string()],
         )?;
+        // A history entry this session projected is a different provider
+        // conversation now; it stays indexed, without this session.
+        self.connection.execute(
+            "UPDATE provider_history SET session_id=NULL WHERE session_id=?1 AND native_id<>?2",
+            params![session_id, native_id],
+        )?;
         Ok(())
     }
 

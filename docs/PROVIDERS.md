@@ -189,7 +189,14 @@ Settings → Providers shows who each agent is signed in as and its plan, only a
 
 `provider_bindings` (migration 005, extended by 010) links a JAM Code session to the provider's own session or thread ID, with provider ID, provider instance (`default` today), origin (`jam` today), timestamps and version. JAM Code resource, session and message IDs remain the primary keys; provider IDs never reach the client.
 
-Provider history is the provider's own record of its conversations, including ones started in Claude Code or Codex directly. It stays canonical: JAM Code will keep an index of it and, on request, a local projection of each conversation, and never writes or deletes the provider's record. [ADR 0016](adr/0016-provider-history.md) records the model; this release has its adapter contract and schema (`provider_history`, migration 010) only. Nothing is scanned, and no provider implements history yet.
+Provider history is the provider's own record of its conversations, including ones started in Claude Code or Codex directly. It stays canonical: JAM Code keeps an index of it and never writes or deletes the provider's record. See [ADR 0016](adr/0016-provider-history.md). Nothing is scanned at launch or on a timer, and no real provider implements history yet. Linking entries to projects, ignoring them, sync and tombstones on delete are later stages of ADR 0016.
+
+- **Identity** is `(provider, instance, native ID)`: never a title, folder, first message or time. `instance_id` is `default` for every provider; a second account or provider home later becomes a second instance ID on the same columns.
+- **Origin** is who created the provider's conversation: `jam` or `external`. A thread JAM started is linked to its existing conversation when a scan finds it.
+- **Scan** (`providerHistory.scan {providerId}`): the adapter lists metadata in pages; each page is committed on its own, without the database lock held while the provider answers; reported again means updated in place. A scan that reaches the end marks entries it did not list `missingSince`; an interrupted one marks nothing. No transcript is read and no conversation is created.
+- **List** (`providerHistory.list {providerId?, cursor?, limit?}`): JAM's index, newest first, at most 200 entries a page, addressed by JAM history ID.
+- **Delete**: deleting a conversation linked to an entry keeps every existing deletion step and leaves the entry in the index, unlinked. The provider's history is never touched.
+- **JAM metadata** (pin, archive, project, worktree, layout) is never changed by a scan.
 
 ### Implementing history in an adapter
 
@@ -217,6 +224,7 @@ Claude Code: the source of its history (a structured CLI or Agent SDK listing, o
 ## Tests
 
 - Unit tests cover Codex item and approval mapping, Claude tool classification, permission responses and question answers, delta/final reconciliation, the interaction broker, the transcript builder, discovery and process framing.
+- `crates/runtime/tests/history_*.rs` hold the provider-history contract, one file per behavior, against a scripted history provider (`tests/history_support`).
 - `crates/runtime/tests/queue.rs` drives queued follow-ups and steering with a gated adapter: order, one turn at a time, no idle between handed-off turns, approvals holding the queue, failure and Stop, edit/move/remove, restart without dispatch, attachment ownership across restart, request deduplication, steering once, unsupported and stale steers.
 - `crates/runtime/tests/providers.rs` drives the runtime with the demo provider and a scripted adapter: answers delivered once, stale and expired requests, interrupts, provider-ID binding and resume after restart, option validation, the project-folder requirement and persisted settings.
 - `crates/runtime/tests/live_providers.rs` is ignored by default and runs against the installed CLIs: `JAM_LIVE_PROVIDERS=1` checks detection without inference; `JAM_LIVE_TURNS=1` sends a few short turns, one approval each and an interrupt/resume on the signed-in accounts. It uses the reader's own plans and counts toward their usage.

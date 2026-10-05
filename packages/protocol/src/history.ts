@@ -40,3 +40,34 @@ export interface HistoryEntry {
   changed?: boolean;
   resumable: boolean;
 }
+
+export interface HistoryScanSummary {
+  providerId: ProviderId;
+  discovered: number;
+  updated: number;
+  unchanged: number;
+  /** Items without a usable ID. */
+  rejected: number;
+  /** Entries a complete scan did not list; zero when incomplete. */
+  missing: number;
+  complete: boolean;
+}
+
+export const HISTORY_LIST_LIMIT = 200;
+
+export interface ProviderHistoryRequestMap {
+  /**
+   * Lists the provider's own history into JAM's index: metadata only, no
+   * transcripts and no conversations. `unsupported` for a provider whose
+   * history JAM cannot read; `conflict` while a scan of it runs.
+   */
+  'providerHistory.scan': { params: { providerId: ProviderId }; result: HistoryScanSummary };
+  /**
+   * A page of the index, newest first. `cursor` continues from the previous
+   * page's.
+   */
+  'providerHistory.list': {
+    params: { providerId?: ProviderId; cursor?: string; limit?: number };
+    result: { entries: HistoryEntry[]; cursor?: string };
+  };
+}

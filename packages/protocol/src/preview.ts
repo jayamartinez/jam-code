@@ -104,6 +104,10 @@ export class BrowserPreviewTransport implements JamTransport {
       case 'attachment.reveal':
         // The preview cannot read this computer's files, so nothing is ever attached.
         throw new JamError('unavailable', 'Attaching files requires the desktop app.');
+      case 'providerHistory.scan':
+      case 'providerHistory.list':
+        // The preview has no provider and cannot read this computer's history.
+        throw new JamError('unavailable', 'Provider history requires the desktop app.');
       case 'workspace.get':
         return this.workspace;
       case 'git.status':
