@@ -8,6 +8,7 @@
 //! by a scan, and JAM's own metadata is never rewritten by one. A thread JAM
 //! itself started is linked to its conversation.
 mod folders;
+mod ignore;
 mod store;
 
 use crate::{
@@ -83,10 +84,19 @@ struct ScanHistory {
 struct ListHistory {
     #[serde(default)]
     provider_id: Option<String>,
+    /// Lists tombstones instead of the entries that are shown.
+    #[serde(default)]
+    ignored: bool,
     #[serde(default)]
     cursor: Option<String>,
     #[serde(default)]
     limit: Option<u32>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct HistoryTarget {
+    history_id: String,
 }
 
 /// What one scan found.
@@ -118,6 +128,14 @@ impl Runtime {
             }
             "providerHistory.list" => self.list_history(parse(params)?),
             "providerHistory.associate" => self.associate_history(parse(params)?),
+            "providerHistory.ignore" => {
+                let input: HistoryTarget = parse(params)?;
+                self.set_history_ignored(&input.history_id, true)
+            }
+            "providerHistory.restore" => {
+                let input: HistoryTarget = parse(params)?;
+                self.set_history_ignored(&input.history_id, false)
+            }
             _ => Err(JamError::new(
                 "unknown_method",
                 "Unknown JAM request method.",
@@ -244,7 +262,7 @@ impl Runtime {
         let state = self.lock()?;
         let entries = state.store.history_list(ListFilter {
             provider_id: input.provider_id.as_deref(),
-            ignored: false,
+            ignored: input.ignored,
             after,
             limit,
         })?;

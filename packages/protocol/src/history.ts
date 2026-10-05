@@ -63,11 +63,11 @@ export interface ProviderHistoryRequestMap {
    */
   'providerHistory.scan': { params: { providerId: ProviderId }; result: HistoryScanSummary };
   /**
-   * A page of the index, newest first. `cursor` continues from the previous
-   * page's.
+   * A page of the index, newest first. `ignored` lists tombstones instead.
+   * `cursor` continues from the previous page's.
    */
   'providerHistory.list': {
-    params: { providerId?: ProviderId; cursor?: string; limit?: number };
+    params: { providerId?: ProviderId; ignored?: boolean; cursor?: string; limit?: number };
     result: { entries: HistoryEntry[]; cursor?: string };
   };
   /** Links an entry that is not synced yet to a project JAM already has. */
@@ -75,4 +75,12 @@ export interface ProviderHistoryRequestMap {
     params: { historyId: string; projectId: string };
     result: { entry: HistoryEntry };
   };
+  /**
+   * Hides an entry from JAM Code (a tombstone) until it is restored. One
+   * linked to a conversation is removed by deleting that conversation. The
+   * provider's history is kept.
+   */
+  'providerHistory.ignore': { params: { historyId: string }; result: { entry: HistoryEntry } };
+  /** Lists an ignored entry again. */
+  'providerHistory.restore': { params: { historyId: string }; result: { entry: HistoryEntry } };
 }
