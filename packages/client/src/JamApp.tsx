@@ -71,13 +71,12 @@ import {
   useNewThreadWorkspace,
   useStreamReplies,
   useTimeFormat,
-  useFollowUp,
-  type FollowUp,
 } from './state/preferences';
 import { AppearanceContext, AppearanceStore } from './appearance/store';
 import { Brand, Dialog, IconButton } from './components/Controls';
 import { Sidebar } from './components/Sidebar';
 import { Composer } from './components/ConversationPane';
+import type { FollowUp } from './components/follow-up-model';
 import { toggledFavorite, withoutStaleChoices } from './components/composer-model';
 import { ConversationResource } from './components/ConversationResource';
 import { SearchDialog } from './components/SearchDialog';
@@ -219,7 +218,6 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   const [idleThreadDays, setIdleThreadDays] = useIdleThreadDays();
   const [streamReplies, setStreamReplies] = useStreamReplies();
   const [timeFormat, setTimeFormat] = useTimeFormat();
-  const [followUp, setFollowUp] = useFollowUp();
   const [newThreadWorkspace, setNewThreadWorkspace] = useNewThreadWorkspace();
   /**
    * Projects whose threads the sidebar lists. Any number can be open at once;
@@ -1122,6 +1120,20 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     requests.current.set(key, { payload, requestId });
     return requestId;
   }
+  /**
+   * Puts the caret back in a pane's message box once it has rendered: the
+   * same pane when it is still there, otherwise the focused one.
+   */
+  function focusComposerIn(pane: Element, tries = 10) {
+    requestAnimationFrame(() => {
+      const box = (
+        pane.isConnected ? pane : document.querySelector('.pane.focused')
+      )?.querySelector<HTMLTextAreaElement>('.composer textarea');
+      if (box) box.focus();
+      else if (tries > 1) focusComposerIn(pane, tries - 1);
+    });
+  }
+
   async function send(sendId: string) {
     const text = layout.drafts[sendId] ?? '';
     const staged = contextFor(sendId);
@@ -1145,6 +1157,10 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       return;
     busyRef.current.add(sendId);
     setBusy(new Set(busyRef.current));
+    // The pane whose message box the reader is typing in, if any.
+    const typingIn =
+      (document.activeElement as HTMLElement | null)?.closest('.composer')?.closest('.pane') ??
+      null;
     let resourceId = sendId;
     try {
       const draft = newChats[sendId];
@@ -1174,6 +1190,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         busyRef.current.add(resourceId);
         setBusy(new Set(busyRef.current));
         dispatch({ type: 'replaceDraft', draftId: sendId, resourceId });
+        // The new chat's composer replaces the draft's; typing carries on in it.
+        if (typingIn) focusComposerIn(typingIn);
         setNewChats((current) => {
           const rest = { ...current };
           delete rest[sendId];
@@ -1466,7 +1484,6 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     },
     onDraft: (text: string) => dispatch({ type: 'draft', resourceId, text }),
     onSend: () => void send(resourceId),
-    followUp,
     onFollowUp: (mode: FollowUp) => void followUpSend(resourceId, mode),
     queueActions: queueActionsFor(resourceId),
     onStop: () => {
@@ -1545,8 +1562,6 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       onStreamReplies={setStreamReplies}
       timeFormat={timeFormat}
       onTimeFormat={setTimeFormat}
-      followUp={followUp}
-      onFollowUp={setFollowUp}
       newThreadWorkspace={newThreadWorkspace}
       onNewThreadWorkspace={setNewThreadWorkspace}
       onClose={() => setSettingsMode(null)}

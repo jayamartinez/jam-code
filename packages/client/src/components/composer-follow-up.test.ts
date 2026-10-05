@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import type { FollowUp } from './follow-up-model';
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,7 +12,6 @@ import type {
   Session,
 } from '@jam/protocol';
 import { ConversationPane } from './ConversationPane';
-import type { FollowUp } from '../state/preferences';
 import { useKeybindings } from '../state/keybindings';
 
 let root: Root;
@@ -74,7 +74,6 @@ function render({
   providerId = 'codex',
   steering = 'supported',
   status = 'running',
-  followUp = 'queue',
   draft = 'After this, run the tests.',
   queue = [] as QueuedTurn[],
 } = {}) {
@@ -127,7 +126,6 @@ function render({
         onOptions: noop,
         onDraft: calls.onDraft,
         onSend: calls.onSend,
-        followUp: followUp as FollowUp,
         onFollowUp: calls.onFollowUp,
         queueActions: {
           onEdit: calls.onEdit,
@@ -185,17 +183,8 @@ describe('composer while the agent works', () => {
     expect(document.querySelector('.stop-button')).not.toBeNull();
   });
 
-  it('steers on Enter when Steer is the preference', () => {
-    const calls = render({ followUp: 'steer' });
-    expect(message().placeholder).toBe('Steer Codex while it works…');
-    press('Enter');
-    expect(calls.onFollowUp).toHaveBeenLastCalledWith('steer');
-    press('Enter', { ctrlKey: true });
-    expect(calls.onFollowUp).toHaveBeenLastCalledWith('queue');
-  });
-
   it('queues, and says why, when the agent cannot be steered', () => {
-    const calls = render({ providerId: 'claude', steering: 'unsupported', followUp: 'steer' });
+    const calls = render({ providerId: 'claude', steering: 'unsupported' });
     const button = document.querySelector<HTMLButtonElement>('.follow-up-button')!;
     expect(button.getAttribute('aria-label')).toBe('Queue message');
     expect(button.title).toContain('Claude Code cannot be steered: Claude Code queues instead.');

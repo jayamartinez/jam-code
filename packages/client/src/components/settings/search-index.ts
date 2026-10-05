@@ -32,12 +32,6 @@ const ROWS: SettingsEntry[] = [
   { page: 'General', section: 'Messages', title: 'Time format', keywords: 'clock 12-hour 24-hour' },
   {
     page: 'General',
-    section: 'Messages',
-    title: 'Follow-up behavior',
-    keywords: 'queue steer follow up while working send',
-  },
-  {
-    page: 'General',
     section: 'Where new threads work',
     title: 'Worktree location',
     keywords: 'git folder',

@@ -193,8 +193,8 @@ export const BINDING_GROUPS: BindingGroup[] = [
       },
       {
         id: 'follow-up-other',
-        command: 'Queue or steer, the other way',
-        sub: 'While an agent works: steers when Send queues, queues when Send steers.',
+        command: 'Steer into the running turn',
+        sub: 'While an agent works, Send queues the message; this steers it in instead.',
         context: 'Composer',
         keys: same(['mod', 'enter']),
         // Handled by the composer, not JamApp, but rebindable like a command.

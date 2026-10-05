@@ -86,46 +86,6 @@ export function useTimeFormat(): [TimeFormat, (next: TimeFormat) => void] {
   return [format, update];
 }
 
-/**
- * What Send does while the agent works: queue the message for after the
- * current turn, or steer it into the running turn where the agent can take
- * one. The other action is one shortcut away (Settings → Keybindings).
- */
-export type FollowUp = 'queue' | 'steer';
-export const FOLLOW_UP_OPTIONS: { value: FollowUp; label: string; description: string }[] = [
-  { value: 'queue', label: 'Queue', description: 'Send it when the current turn finishes.' },
-  {
-    value: 'steer',
-    label: 'Steer',
-    description: 'Send it into the running turn, where the agent can take one.',
-  },
-];
-const FOLLOW_UP_KEY = 'jam.followUp';
-
-export function readFollowUp(stored: string | null): FollowUp {
-  return stored === 'steer' ? 'steer' : 'queue';
-}
-
-export function useFollowUp(): [FollowUp, (next: FollowUp) => void] {
-  const [mode, setMode] = useState<FollowUp>('queue');
-  useEffect(() => {
-    try {
-      setMode(readFollowUp(localStorage.getItem(FOLLOW_UP_KEY)));
-    } catch {
-      // Unreadable storage keeps the default.
-    }
-  }, []);
-  const update = useCallback((next: FollowUp) => {
-    setMode(next);
-    try {
-      localStorage.setItem(FOLLOW_UP_KEY, next);
-    } catch {
-      // Losing the preference only restores the default.
-    }
-  }, []);
-  return [mode, update];
-}
-
 export function useIdleThreadDays(): [number | null, (next: number | null) => void] {
   const [days, setDays] = useState<number | null>(DEFAULT_IDLE_THREAD_DAYS);
   useEffect(() => setDays(readIdleDays()), []);

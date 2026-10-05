@@ -150,6 +150,9 @@ fn base_args(mode: &str) -> Vec<String> {
         "--input-format",
         "stream-json",
         "--include-partial-messages",
+        // Echoes each message once Claude reads it, which is how a steered
+        // message is known to have reached the turn.
+        "--replay-user-messages",
         "--permission-prompt-tool",
         "stdio",
         "--permission-mode",
@@ -633,9 +636,9 @@ async fn probe(mut d: ProviderDescriptor, config: ProviderConfig) -> ProviderDes
     set_capability(
         &mut d,
         "steering",
-        "unsupported",
+        "supported",
         Some(
-            "Claude Code reads a message sent mid-turn only after its running tools finish, and starts a new turn with it if the turn ends first, so JAM queues it instead.",
+            "Claude Code reads a steered message once its running tools finish. One sent as the turn ends keeps the turn going until Claude has answered it.",
         ),
     );
     set_capability(
@@ -760,14 +763,29 @@ struct ToolCall {
     json: String,
 }
 
+/// A user message's content: images first, because Claude Code treats a
+/// message as a command only when its last block is text.
+fn user_content(text: &str, images: &[super::ImageInput]) -> Vec<Value> {
+    let mut content: Vec<Value> = images
+        .iter()
+        .map(|image| {
+            json!({"type": "image", "source": {
+                "type": "base64",
+                "media_type": image.media_type,
+                "data": base64::engine::general_purpose::STANDARD.encode(image.bytes.as_slice()),
+            }})
+        })
+        .collect();
+    content.push(json!({"type": "text", "text": text}));
+    content
+}
+
 async fn run(adapter: &ClaudeAdapter, turn: ProviderTurn, io: TurnIo) -> Result<(), JamError> {
-    // Claude Code is not steered from JAM (see the `steering` capability):
-    // the receiver is dropped, so a steer is refused before it is sent.
     let TurnIo {
         updates,
         mut cancelled,
         interactions,
-        steering: _,
+        mut steering,
     } = io;
     let mut transcript = Transcript::new(updates);
     let Some(cwd) = turn.cwd.clone() else {
@@ -837,25 +855,11 @@ async fn run(adapter: &ClaudeAdapter, turn: ProviderTurn, io: TurnIo) -> Result<
         .send(ProviderUpdate::Native(process.native_id.clone()))
         .await;
 
-    // Images first: Claude Code treats a message as a command only when its
-    // last block is text.
-    let mut content: Vec<Value> = turn
-        .images
-        .iter()
-        .map(|image| {
-            json!({"type": "image", "source": {
-                "type": "base64",
-                "media_type": image.media_type,
-                "data": base64::engine::general_purpose::STANDARD.encode(image.bytes.as_slice()),
-            }})
-        })
-        .collect();
-    if turn.compact {
-        content.clear();
-        content.push(json!({"type": "text", "text": "/compact"}));
+    let content = if turn.compact {
+        vec![json!({"type": "text", "text": "/compact"})]
     } else {
-        content.push(json!({"type": "text", "text": turn.text}));
-    }
+        user_content(&turn.text, &turn.images)
+    };
     let message_uuid = uuid::Uuid::new_v4().to_string();
     process
         .child
@@ -887,6 +891,10 @@ async fn run(adapter: &ClaudeAdapter, turn: ProviderTurn, io: TurnIo) -> Result<
     let mut context_tokens: Option<u64> = None;
     let mut model_name: Option<String> = None;
     let mut retry_noted = false;
+    // Steered messages Claude has not read yet, by the ID they were sent with.
+    // The turn stays open until it has read each one (see the `steering`
+    // capability).
+    let mut unread: HashSet<String> = HashSet::new();
 
     let outcome = loop {
         tokio::select! {
@@ -907,6 +915,28 @@ async fn run(adapter: &ClaudeAdapter, turn: ProviderTurn, io: TurnIo) -> Result<
                 // The next turn resumes the session by its ID.
                 process.child.kill();
                 break SessionStatus::Interrupted;
+            }
+            Some(steer) = steering.recv() => {
+                let result = if interrupting {
+                    Err(JamError::new("conflict", "This turn is stopping. Queue the message instead."))
+                } else {
+                    // Claude reads it in this turn once its running tools
+                    // finish (`priority: next`).
+                    let uuid = uuid::Uuid::new_v4().to_string();
+                    let sent = process.child.send(&json!({
+                        "type": "user",
+                        "session_id": "",
+                        "parent_tool_use_id": null,
+                        "uuid": uuid,
+                        "priority": "next",
+                        "message": {"role": "user", "content": user_content(&steer.text, &steer.images)},
+                    })).await;
+                    if sent.is_ok() {
+                        unread.insert(uuid);
+                    }
+                    sent
+                };
+                let _ = steer.reply.send(result);
             }
             Some((interaction_id, answer)) = answers.recv() => {
                 if let Some((request_id, request)) = asked.remove(&interaction_id) {
@@ -1012,7 +1042,12 @@ async fn run(adapter: &ClaudeAdapter, turn: ProviderTurn, io: TurnIo) -> Result<
                             }
                         }
                     }
-                    "user" if !subagent && message.get("isReplay").and_then(Value::as_bool) != Some(true) => {
+                    "user" if !subagent && message.get("isReplay").and_then(Value::as_bool) == Some(true) => {
+                        if let Some(uuid) = message.get("uuid").and_then(Value::as_str) {
+                            unread.remove(uuid);
+                        }
+                    }
+                    "user" if !subagent => {
                         for block in message.pointer("/message/content").and_then(Value::as_array).into_iter().flatten() {
                             if block.get("type").and_then(Value::as_str) != Some("tool_result") { continue; }
                             let tool_id = block.get("tool_use_id").and_then(Value::as_str).unwrap_or_default();
@@ -1091,6 +1126,11 @@ async fn run(adapter: &ClaudeAdapter, turn: ProviderTurn, io: TurnIo) -> Result<
                         let reason = message.get("terminal_reason").and_then(Value::as_str).unwrap_or_default();
                         let error = message.get("is_error").and_then(Value::as_bool).unwrap_or(false)
                             || message.get("subtype").and_then(Value::as_str).is_some_and(|s| s != "success");
+                        // A message steered in as the turn ended starts
+                        // Claude's next cycle; it stays this turn.
+                        if !error && !interrupting && !reason.starts_with("aborted") && !unread.is_empty() {
+                            continue;
+                        }
                         break if interrupting || reason.starts_with("aborted") {
                             transcript.settle("Interrupted");
                             SessionStatus::Interrupted

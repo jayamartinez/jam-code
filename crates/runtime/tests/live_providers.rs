@@ -357,3 +357,91 @@ async fn interrupted_turns_resume() {
     interrupt_then_resume("codex").await;
     interrupt_then_resume("claude").await;
 }
+
+/// A message steered in while Claude Code runs a tool reaches the same turn:
+/// it is read once the tool finishes, and the turn ends only after Claude
+/// has answered it.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "sends a short Claude Code turn on the signed-in account"]
+async fn claude_reads_a_steered_message() {
+    if !enabled("JAM_LIVE_TURNS") {
+        return;
+    }
+    let (_temp, runtime, project) = setup();
+    let workspace = request(&runtime, "workspace.get", json!({})).await.unwrap();
+    let project_id = workspace["projects"][0]["id"].as_str().unwrap().to_string();
+    request(
+        &runtime,
+        "project.update",
+        json!({"projectId": project_id, "paths": [project.display().to_string()]}),
+    )
+    .await
+    .unwrap();
+    request(&runtime, "provider.list", json!({"refresh": true}))
+        .await
+        .unwrap();
+    let created = request(
+        &runtime,
+        "conversation.create",
+        json!({"projectId": project_id, "presentation": "claude", "providerId": "claude", "options": {"access": "full"}}),
+    )
+    .await
+    .unwrap();
+    let resource_id = created["resource"]["id"].as_str().unwrap().to_string();
+    let mut subscription = runtime
+        .subscribe(jam_runtime::protocol::SubscriptionScope {
+            resource_id: Some(resource_id.clone()),
+        })
+        .unwrap();
+    let pause = if cfg!(windows) {
+        "ping -n 8 127.0.0.1"
+    } else {
+        "sleep 7"
+    };
+    request(
+        &runtime,
+        "turn.start",
+        json!({"resourceId": resource_id, "text": format!("Run the shell command `{pause}`, then reply with one short sentence."), "context": [], "requestId": "live-steer-start"}),
+    )
+    .await
+    .unwrap();
+    tokio::time::sleep(Duration::from_secs(5)).await;
+    let steered = request(
+        &runtime,
+        "turn.steer",
+        json!({"resourceId": resource_id, "text": "Also end your reply with the single word BANANA.", "context": [], "requestId": "live-steer"}),
+    )
+    .await;
+    println!("steer: {steered:?}");
+    let (status, _) = wait_for(&mut subscription.receiver, &runtime, &resource_id, None).await;
+    let conversation = request(
+        &runtime,
+        "conversation.get",
+        json!({"resourceId": resource_id}),
+    )
+    .await
+    .unwrap();
+    let messages = conversation["messages"].as_array().unwrap();
+    for message in messages {
+        println!(
+            "  {}: {}",
+            message["role"],
+            message["blocks"]
+                .to_string()
+                .chars()
+                .take(200)
+                .collect::<String>()
+        );
+    }
+    runtime.shutdown().await.unwrap();
+    assert!(steered.is_ok());
+    assert_eq!(status, SessionStatus::Idle);
+    let roles: Vec<&str> = messages
+        .iter()
+        .map(|m| m["role"].as_str().unwrap())
+        .collect();
+    assert_eq!(roles.iter().filter(|r| **r == "user").count(), 2);
+    let last = messages.last().unwrap();
+    assert_eq!(last["role"], "assistant");
+    assert!(last["blocks"].to_string().contains("BANANA"));
+}
