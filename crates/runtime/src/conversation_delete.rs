@@ -126,8 +126,9 @@ impl Store {
                OR json_extract(receipt,'$.sessionId')=?2",
             params![resource_id, session_id],
         )?;
-        // A provider-history entry linked to it stays indexed, unlinked.
-        self.unlink_history(session_id)?;
+        // A provider conversation it was bound to stays in the provider's
+        // history; a tombstone keeps the next scan from bringing it back.
+        self.tombstone_projection(session_id, &crate::runtime::now())?;
         // Every attachment it sent belongs to it alone: one copy, one message.
         let mut attachments = self.attachments("resource_id=?1", [resource_id])?;
         attachments.extend(queued);
