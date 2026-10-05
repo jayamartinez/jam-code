@@ -1,6 +1,8 @@
 //! Linking provider history to the projects JAM already trusts. A folder a
-//! provider reports is compared as text with project and worktree folders;
-//! it never grants access, and the filesystem is never consulted for it.
+//! provider reports is compared with project and worktree folders: as
+//! written, then as the folder it resolves to (symlinks and short names, the
+//! way project folders are stored). Nothing inside it is read, and it never
+//! grants access: only a folder JAM already trusts can match.
 use super::{PATH_LIMIT, store::Entry};
 use crate::{
     commands::validate_id, error::JamError, protocol::Cursor, runtime::Runtime, storage::Store,
@@ -53,13 +55,13 @@ impl Folders {
         let mut known = Vec::new();
         for project in &workspace.projects {
             for path in &project.paths {
-                if let Some(folder) = folder_key(path) {
+                for folder in spellings(path) {
                     known.push((folder, project.id.clone(), None));
                 }
             }
         }
         for worktree in &workspace.worktrees {
-            if let Some(folder) = folder_key(&worktree.path) {
+            for folder in spellings(&worktree.path) {
                 known.push((
                     folder,
                     worktree.project_id.clone(),
@@ -74,14 +76,44 @@ impl Folders {
     /// inside a project is not matched: an agent resumes in the folder it
     /// worked in, and JAM would run it in the project's.
     fn match_folder(&self, cwd: Option<&str>) -> Option<(String, Option<String>)> {
-        let folder = folder_key(cwd?)?;
+        let cwd = cwd?;
+        let folder = folder_key(cwd)?;
+        self.matching(&folder)
+            .or_else(|| self.matching(&folder_key(&resolved(cwd)?)?))
+    }
+
+    fn matching(&self, folder: &str) -> Option<(String, Option<String>)> {
         // A worktree is more specific than a project folder with the same path.
         self.known
             .iter()
-            .filter(|(known, ..)| *known == folder)
+            .filter(|(known, ..)| known == folder)
             .max_by_key(|(_, _, worktree)| worktree.is_some())
             .map(|(_, project, worktree)| (project.clone(), worktree.clone()))
     }
+}
+
+/// A trusted folder as stored and as it resolves today, so a reported folder
+/// spelled either way matches it.
+fn spellings(path: &str) -> Vec<String> {
+    let mut keys: Vec<String> = folder_key(path).into_iter().collect();
+    if let Some(key) = resolved(path).and_then(|path| folder_key(&path))
+        && !keys.contains(&key)
+    {
+        keys.push(key);
+    }
+    keys
+}
+
+/// The folder an absolute, non-climbing path resolves to, the way project
+/// folders are stored. A network path is not resolved, so an unreachable
+/// share cannot stall a scan.
+fn resolved(path: &str) -> Option<String> {
+    folder_key(path)?;
+    if path.starts_with(r"\\") || path.starts_with("//") {
+        return None;
+    }
+    let folder = crate::native_files::canonical(Path::new(path)).ok()?;
+    Some(folder.to_string_lossy().into_owned())
 }
 
 /// An absolute folder path in a form two spellings of it share: separators
