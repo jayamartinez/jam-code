@@ -162,8 +162,9 @@ the browser preview: the native file chooser for chat attachments; an
 attached file, PDF or image opened by the real Claude Code and Codex (Codex
 is given no folder grant and its read access to JAM Code's copies is untested); archiving and
 deleting a conversation; menus drawn in the overlay host over a blurred
-wallpaper and over a Browser page; and the gutter between the sidebar and the
-workspace.
+wallpaper and over a Browser page; the gutter between the sidebar and the
+workspace; and queued follow-ups (queue order, handoff between turns, Stop
+and restart with a queue, and attachments in a queued message).
 
 ## Release acceptance
 
