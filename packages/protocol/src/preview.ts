@@ -44,6 +44,7 @@ export class BrowserPreviewTransport implements JamTransport {
   private readonly asking = new Map<string, { interaction: Interaction; message: Message }>();
   private readonly receipts = new Map<string, Receipt>();
   private readonly queueReceipts = new Map<string, RequestMap['queue.add']['result']>();
+  private readonly steerReceipts = new Map<string, RequestMap['turn.steer']['result']>();
   private readonly pendingEvents: JamEvent[] = [];
   private publishing = false;
   private nextId = 0;
@@ -141,6 +142,8 @@ export class BrowserPreviewTransport implements JamTransport {
         return this.startTurn(request.params);
       case 'turn.interrupt':
         return this.interrupt(request.params.sessionId);
+      case 'turn.steer':
+        return this.steer(request.params);
       case 'queue.add':
         return this.queueAdd(request.params);
       case 'queue.update':
@@ -587,11 +590,16 @@ export class BrowserPreviewTransport implements JamTransport {
   ): RequestMap['queue.send']['result'] {
     const turn = this.queued(params.resourceId, params.queuedId);
     const session = this.getSession(this.getConversation(params.resourceId).sessionId);
-    if (this.busy(session))
-      throw new JamError(
-        'conflict',
-        'The agent is working. This message is sent when its turn finishes.',
-      );
+    if (this.busy(session)) {
+      const result = this.steer({
+        resourceId: turn.resourceId,
+        text: turn.text,
+        context: turn.context,
+        requestId: turn.id,
+      });
+      this.queueRemove(params);
+      return result;
+    }
     return this.startQueued(turn, false);
   }
 
@@ -616,6 +624,62 @@ export class BrowserPreviewTransport implements JamTransport {
     if (!next || next.error) return false;
     this.startQueued(next, true);
     return true;
+  }
+
+  private steer(params: RequestMap['turn.steer']['params']): RequestMap['turn.steer']['result'] {
+    const previous = this.steerReceipts.get(params.requestId);
+    if (previous) return previous;
+    const conversation = this.getConversation(params.resourceId);
+    const session = this.getSession(conversation.sessionId);
+    const active = this.active.get(session.id);
+    if (!active)
+      throw new JamError(
+        this.asking.has(session.id) ? 'unavailable' : 'conflict',
+        this.asking.has(session.id)
+          ? 'The demo provider takes a steered message only while it streams. Queue it instead.'
+          : 'No turn is running to steer. Send the message instead.',
+      );
+    const user: Message = {
+      id: this.makeId('message'),
+      role: 'user',
+      createdAt: now(),
+      blocks: [
+        ...(params.text.trim() ? [{ type: 'text' as const, text: params.text }] : []),
+        ...(params.context.length
+          ? [{ type: 'context' as const, items: copy(params.context) }]
+          : []),
+      ],
+    };
+    // The reply continues below the steered message.
+    const reply: Message = {
+      id: this.makeId('message'),
+      role: 'assistant',
+      createdAt: now(),
+      blocks: [
+        {
+          type: 'text',
+          text: `Simulated steer received in this turn: “${params.text.trim().slice(0, 200)}”`,
+        },
+      ],
+    };
+    // The part of the reply before the steer ends there.
+    const before = active.message;
+    for (const block of before.blocks)
+      if (block.type === 'tool' && block.status === 'running') block.status = 'completed';
+    before.completedAt = now();
+    conversation.messages.push(user, reply);
+    active.message = reply;
+    this.publish({ type: 'message.upserted', resourceId: params.resourceId, message: before });
+    const result = {
+      accepted: true as const,
+      sessionId: session.id,
+      requestId: params.requestId,
+      steered: true as const,
+    };
+    this.steerReceipts.set(params.requestId, result);
+    this.publish({ type: 'message.upserted', resourceId: params.resourceId, message: user });
+    this.publish({ type: 'message.upserted', resourceId: params.resourceId, message: reply });
+    return result;
   }
 
   private startTurn(

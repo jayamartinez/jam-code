@@ -476,8 +476,8 @@ const block: Check = (value) => {
   }
 };
 
-/** What a Send carries: text or context, and the chat's options. */
-function submission(): Check {
+/** What a Send carries: text or context, with options where they apply. */
+function submission(withOptions: boolean): Check {
   return (value) => {
     shape(
       value,
@@ -487,7 +487,7 @@ function submission(): Check {
         context: array(context, 16),
         requestId: id,
       },
-      { options: optionMap },
+      withOptions ? { options: optionMap } : {},
     );
     const record = object(value);
     if (!(record.text as string).trim() && !(record.context as unknown[]).length) {
@@ -867,9 +867,10 @@ const params: Record<RequestMethod, Check> = {
     if ((record.choiceId === undefined) === (record.answers === undefined))
       invalid('Answer with a choice or with answers.');
   },
-  'turn.start': submission(),
+  'turn.start': submission(true),
   'turn.interrupt': (value) => shape(value, { sessionId: id }),
-  'queue.add': submission(),
+  'turn.steer': submission(false),
+  'queue.add': submission(true),
   'queue.update': (value) =>
     shape(value, { resourceId: id, queuedId: id, text: text(20_000, true) }),
   'queue.remove': (value) => shape(value, { resourceId: id, queuedId: id }),
@@ -990,12 +991,15 @@ const responses: Record<RequestMethod, Check> = {
   'provider.configure': (value) => shape(value, { providers: array(provider, 20) }),
   'interaction.respond': accepted,
   'turn.interrupt': (value) => shape(value, { sessionId: id, interrupted: boolean }),
+  'turn.steer': (value) =>
+    shape(value, { accepted: oneOf(true), sessionId: id, requestId: id, steered: oneOf(true) }),
   'queue.add': (value) =>
     shape(value, { accepted: oneOf(true), resourceId: id, queuedId: id, requestId: id }),
   'queue.update': (value) => shape(value, { queued: queue }),
   'queue.remove': (value) => shape(value, { queued: queue }),
   'queue.move': (value) => shape(value, { queued: queue }),
-  'queue.send': (value) => shape(value, { accepted: oneOf(true), sessionId: id, requestId: id }),
+  'queue.send': (value) =>
+    shape(value, { accepted: oneOf(true), sessionId: id, requestId: id }, { steered: oneOf(true) }),
   'directory.list': directoryListing,
   'file.read': fileContents,
   'file.reveal': (value) => shape(value, { revealed: oneOf(true) }),

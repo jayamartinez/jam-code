@@ -487,8 +487,8 @@ async fn probe(mut d: ProviderDescriptor, config: ProviderConfig) -> ProviderDes
     set_capability(
         &mut d,
         "steering",
-        "unsupported",
-        Some("Codex supports steering a running turn; JAM does not offer it yet."),
+        "supported",
+        Some("Codex reads a steered message in the running turn, after its current step."),
     );
     set_capability(
         &mut d,
@@ -511,6 +511,7 @@ async fn run(adapter: &CodexAdapter, turn: ProviderTurn, io: TurnIo) -> Result<(
         updates,
         mut cancelled,
         interactions,
+        mut steering,
     } = io;
     let mut transcript = Transcript::new(updates);
     let Some(cwd) = turn.cwd.clone() else {
@@ -600,18 +601,7 @@ async fn run(adapter: &CodexAdapter, turn: ProviderTurn, io: TurnIo) -> Result<(
         transcript.flush().await;
         json!({})
     } else {
-        // Input: the reader's text first, then images they explicitly sent.
-        let mut input = vec![json!({"type": "text", "text": turn.text, "text_elements": []})];
-        for image in &turn.images {
-            input.push(match &image.path {
-                Some(path) => json!({"type": "localImage", "path": path.display().to_string()}),
-                None => json!({"type": "image", "url": format!(
-                    "data:{};base64,{}",
-                    image.media_type,
-                    base64::engine::general_purpose::STANDARD.encode(image.bytes.as_slice())
-                )}),
-            });
-        }
+        let input = user_input(&turn.text, &turn.images);
         // The folder goes with every turn: a chat can move to another
         // branch's folder, and a loaded thread keeps the one it started in.
         let mut start = json!({
@@ -704,6 +694,28 @@ async fn run(adapter: &CodexAdapter, turn: ProviderTurn, io: TurnIo) -> Result<(
             }
             _ = until(interrupt_deadline), if interrupting => {
                 break SessionStatus::Interrupted;
+            }
+            Some(steer) = steering.recv() => {
+                let result = if interrupting {
+                    Err(JamError::new("conflict", "This turn is stopping. Queue the message instead."))
+                } else if turn.compact {
+                    Err(JamError::new("unsupported", "Codex cannot steer a compaction. Queue the message instead."))
+                } else if turn_id.is_empty() {
+                    Err(JamError::new("unavailable", "Codex has not reported this turn yet. Try again in a moment, or queue the message."))
+                } else {
+                    // `expectedTurnId` makes Codex refuse a steer meant for a
+                    // turn that has already ended, rather than start a new one.
+                    connection
+                        .request("turn/steer", json!({
+                            "threadId": thread_id,
+                            "input": user_input(&steer.text, &steer.images),
+                            "expectedTurnId": turn_id,
+                        }))
+                        .await
+                        .map(|_| ())
+                        .map_err(steer_error)
+                };
+                let _ = steer.reply.send(result);
             }
             Some((interaction_id, answer)) = answers.recv() => {
                 if let Some(pending) = asked.remove(&interaction_id) {
@@ -885,6 +897,38 @@ async fn run(adapter: &CodexAdapter, turn: ProviderTurn, io: TurnIo) -> Result<(
     Ok(())
 }
 
+/// A Codex `UserInput` list: the text first, then images the reader sent.
+/// `turn/start` and `turn/steer` take the same shape.
+fn user_input(text: &str, images: &[crate::providers::ImageInput]) -> Vec<Value> {
+    let mut input = vec![json!({"type": "text", "text": text, "text_elements": []})];
+    for image in images {
+        input.push(match &image.path {
+            Some(path) => json!({"type": "localImage", "path": path.display().to_string()}),
+            None => json!({"type": "image", "url": format!(
+                "data:{};base64,{}",
+                image.media_type,
+                base64::engine::general_purpose::STANDARD.encode(image.bytes.as_slice())
+            )}),
+        });
+    }
+    input
+}
+
+/// A refused `turn/steer`. A turn that already ended (or a different one
+/// running) is `stale`, so the reader can queue the message instead.
+fn steer_error(error: rpc::RpcError) -> JamError {
+    let ended = error.message.contains("no active turn")
+        || error.message.contains("expected active turn id");
+    if ended {
+        JamError::new(
+            "stale",
+            "That turn already finished, so Codex did not take the message. Send or queue it again.",
+        )
+    } else {
+        error.into_jam("Codex did not take the message")
+    }
+}
+
 /// Passes on the model a thread reports for itself, and returns it.
 async fn report_model(transcript: &Transcript, result: &Value) -> Option<String> {
     let model = result.get("model").and_then(Value::as_str)?.to_string();
@@ -903,8 +947,45 @@ impl Drop for Unroute {
 
 #[cfg(test)]
 mod tests {
-    use super::{STANDARD_TIER, account_from, chatgpt_plan, reported_tier, tier_to_send};
+    use super::{
+        STANDARD_TIER, account_from, chatgpt_plan, reported_tier, rpc::RpcError, steer_error,
+        tier_to_send, user_input,
+    };
     use serde_json::json;
+
+    #[test]
+    fn steered_input_has_the_shape_turn_start_takes() {
+        let image = crate::providers::ImageInput {
+            media_type: "image/png".into(),
+            bytes: std::sync::Arc::new(vec![1, 2]),
+            path: Some(std::path::PathBuf::from("copy.png")),
+            label: "copy.png".into(),
+        };
+        assert_eq!(
+            user_input("use tabs", &[image]),
+            vec![
+                json!({"type": "text", "text": "use tabs", "text_elements": []}),
+                json!({"type": "localImage", "path": "copy.png"}),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_steer_for_a_turn_that_ended_is_stale() {
+        let refused = |message: &str| {
+            steer_error(RpcError {
+                message: message.into(),
+            })
+        };
+        assert_eq!(refused("no active turn to steer").code, "stale");
+        assert_eq!(
+            refused("expected active turn id `turn_1` but found `turn_2`").code,
+            "stale"
+        );
+        let other = refused("cannot steer a review turn");
+        assert_eq!(other.code, "provider_error");
+        assert!(other.message.contains("cannot steer a review turn"));
+    }
 
     #[test]
     fn account_keeps_the_email_as_identity_and_names_the_plan() {
