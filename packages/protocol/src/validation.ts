@@ -852,6 +852,7 @@ const params: Record<RequestMethod, Check> = {
     if (!(value as { paths: unknown[] }).paths.length) invalid('Choose at least one folder.');
   },
   'providerHistory.sync': (value) => shape(value, { historyId: id }, { archive: boolean }),
+  'providerHistory.refresh': (value) => shape(value, { resourceId: id }),
   'providerHistory.associate': (value) => shape(value, { historyId: id, projectId: id }),
   'providerHistory.ignore': historyTarget,
   'providerHistory.restore': historyTarget,
@@ -1012,6 +1013,7 @@ const responses: Record<RequestMethod, Check> = {
   'providerHistory.findInFolders': (value) =>
     shape(value, { entries: array(historyEntry, HISTORY_FOUND_LIMIT), total: integer }),
   'providerHistory.sync': (value) => shape(value, { entry: historyEntry, resource, session }),
+  'providerHistory.refresh': (value) => shape(value, { refreshed: boolean }),
   'providerHistory.associate': historyEntryResult,
   'providerHistory.ignore': historyEntryResult,
   'providerHistory.restore': historyEntryResult,

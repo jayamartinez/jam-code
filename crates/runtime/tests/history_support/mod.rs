@@ -9,9 +9,10 @@ pub use jam_runtime::{
         CapabilitySupport, HistoryEntry, MessageBlock, ProviderDescriptor, Request, SessionStatus,
     },
     providers::{
-        HistoryFuture, HistoryItem, HistoryListRequest, HistoryMessage, HistoryPage,
-        HistoryReadRequest, HistoryTranscript, MockProvider, ProbeFuture, ProviderAdapter,
-        ProviderConfig, ProviderFuture, ProviderHistory, ProviderTurn, ProviderUpdate, TurnIo,
+        HistoryFuture, HistoryItem, HistoryItemRequest, HistoryListRequest, HistoryMessage,
+        HistoryPage, HistoryReadRequest, HistoryTranscript, MockProvider, ProbeFuture,
+        ProviderAdapter, ProviderConfig, ProviderFuture, ProviderHistory, ProviderTurn,
+        ProviderUpdate, TurnIo,
     },
 };
 pub use requests::*;
@@ -182,6 +183,17 @@ impl ProviderHistory for Scripted {
             }
             Ok(HistoryPage { items, next_page })
         })
+    }
+
+    fn item(&self, request: HistoryItemRequest) -> HistoryFuture<Option<HistoryItem>> {
+        let found = self
+            .threads
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|t| t.item.native_id == request.native_id)
+            .map(|t| t.item.clone());
+        Box::pin(async move { Ok(found) })
     }
 
     fn read(&self, request: HistoryReadRequest) -> HistoryFuture<HistoryTranscript> {

@@ -108,6 +108,7 @@ export class BrowserPreviewTransport implements JamTransport {
       case 'providerHistory.list':
       case 'providerHistory.findInFolders':
       case 'providerHistory.sync':
+      case 'providerHistory.refresh':
       case 'providerHistory.associate':
       case 'providerHistory.ignore':
       case 'providerHistory.restore':

@@ -9,6 +9,7 @@
 //! itself started is linked to its conversation.
 mod folders;
 mod ignore;
+mod refresh;
 mod store;
 mod sync;
 
@@ -152,6 +153,7 @@ impl Runtime {
                 self.sync_history(&input.history_id, input.archive)
             }
             "providerHistory.associate" => self.associate_history(parse(params)?),
+            "providerHistory.refresh" => self.refresh_history(parse(params)?),
             "providerHistory.ignore" => {
                 let input: HistoryTarget = parse(params)?;
                 self.set_history_ignored(&input.history_id, true)

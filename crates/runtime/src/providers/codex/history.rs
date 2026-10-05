@@ -10,8 +10,8 @@ use crate::{
     error::JamError,
     protocol::MessageBlock,
     providers::{
-        HistoryFuture, HistoryItem, HistoryListRequest, HistoryMessage, HistoryPage,
-        HistoryReadRequest, HistoryTranscript, ProviderConfig, ProviderHistory,
+        HistoryFuture, HistoryItem, HistoryItemRequest, HistoryListRequest, HistoryMessage,
+        HistoryPage, HistoryReadRequest, HistoryTranscript, ProviderConfig, ProviderHistory,
     },
 };
 use serde_json::{Value, json};
@@ -76,6 +76,21 @@ impl ProviderHistory for CodexAdapter {
         })
     }
 
+    fn item(&self, request: HistoryItemRequest) -> HistoryFuture<Option<HistoryItem>> {
+        let adapter = self.clone();
+        Box::pin(async move {
+            let params = json!({ "threadId": request.native_id, "includeTurns": false });
+            match adapter
+                .history_request(&request.config, "thread/read", params)
+                .await
+            {
+                Ok(result) => Ok(result.get("thread").and_then(thread_item)),
+                Err(error) if error.code == "not_found" => Ok(None),
+                Err(error) => Err(error),
+            }
+        })
+    }
+
     fn read(&self, request: HistoryReadRequest) -> HistoryFuture<HistoryTranscript> {
         let adapter = self.clone();
         Box::pin(async move {
@@ -128,30 +143,33 @@ fn list_page(result: &Value) -> HistoryPage {
             thread.get("parentThreadId").is_none_or(Value::is_null)
                 && thread.get("ephemeral").and_then(Value::as_bool) != Some(true)
         })
-        .filter_map(|thread| {
-            Some(HistoryItem {
-                native_id: text(thread, "id")?.to_owned(),
-                // Codex shows a thread without a name by its first message.
-                title: text(thread, "name")
-                    .or_else(|| text(thread, "preview"))
-                    .map(str::to_owned),
-                preview: text(thread, "preview").map(str::to_owned),
-                created_at: unix(thread.get("createdAt")),
-                updated_at: unix(thread.get("updatedAt")),
-                revision: thread.get("updatedAt").map(Value::to_string),
-                cwd: text(thread, "cwd").map(str::to_owned),
-                branch: thread
-                    .pointer("/gitInfo/branch")
-                    .and_then(Value::as_str)
-                    .map(str::to_owned),
-                resumable: true,
-            })
-        })
+        .filter_map(thread_item)
         .collect();
     HistoryPage {
         items,
         next_page: text(result, "nextCursor").map(str::to_owned),
     }
+}
+
+/// One thread's listing metadata.
+fn thread_item(thread: &Value) -> Option<HistoryItem> {
+    Some(HistoryItem {
+        native_id: text(thread, "id")?.to_owned(),
+        // Codex shows a thread without a name by its first message.
+        title: text(thread, "name")
+            .or_else(|| text(thread, "preview"))
+            .map(str::to_owned),
+        preview: text(thread, "preview").map(str::to_owned),
+        created_at: unix(thread.get("createdAt")),
+        updated_at: unix(thread.get("updatedAt")),
+        revision: thread.get("updatedAt").map(Value::to_string),
+        cwd: text(thread, "cwd").map(str::to_owned),
+        branch: thread
+            .pointer("/gitInfo/branch")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        resumable: true,
+    })
 }
 
 /// A page of turns as JAM messages: each user message as its own, and what
