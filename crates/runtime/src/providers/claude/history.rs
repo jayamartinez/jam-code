@@ -14,8 +14,8 @@ use crate::{
     error::JamError,
     protocol::MessageBlock,
     providers::{
-        HistoryFuture, HistoryItem, HistoryListRequest, HistoryMessage, HistoryPage,
-        HistoryReadRequest, HistoryTranscript, ProviderHistory,
+        HistoryFuture, HistoryItem, HistoryItemRequest, HistoryListRequest, HistoryMessage,
+        HistoryPage, HistoryReadRequest, HistoryTranscript, ProviderHistory,
     },
 };
 use serde_json::Value;
@@ -79,6 +79,18 @@ impl ProviderHistory for ClaudeAdapter {
                 let root = projects_dir().ok_or_else(missing)?;
                 let path = transcript(&root, &request.native_id).ok_or_else(missing)?;
                 read(&path, request.page.as_deref(), request.limit)
+            })
+            .await
+            .map_err(|_| JamError::new("internal", "Claude Code's history could not be read."))?
+        })
+    }
+
+    fn item(&self, request: HistoryItemRequest) -> HistoryFuture<Option<HistoryItem>> {
+        Box::pin(async move {
+            tokio::task::spawn_blocking(move || {
+                Ok(projects_dir()
+                    .and_then(|root| transcript(&root, &request.native_id))
+                    .and_then(|path| item(&path)))
             })
             .await
             .map_err(|_| JamError::new("internal", "Claude Code's history could not be read."))?

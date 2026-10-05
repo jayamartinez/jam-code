@@ -102,6 +102,17 @@ export interface ProviderHistoryRequestMap {
     params: { historyId: string; archive?: boolean };
     result: { entry: HistoryEntry; resource: Resource; session: Session };
   };
+  /**
+   * Syncs the conversation a resource projects again when its provider record
+   * changed since the last sync (the reader kept using it outside JAM Code).
+   * Cheap when nothing changed. A resource that is no projection, is working,
+   * or was continued in JAM Code is left as it is. `refreshed` says whether it
+   * was read again.
+   */
+  'providerHistory.refresh': {
+    params: { resourceId: string };
+    result: { refreshed: boolean };
+  };
   /** Links an entry that is not synced yet to a project JAM already has. */
   'providerHistory.associate': {
     params: { historyId: string; projectId: string };

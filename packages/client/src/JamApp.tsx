@@ -110,6 +110,7 @@ import type { FileReference } from './markdown/file-refs';
 import { parseAddress } from './state/browser-address';
 import { ProjectEditor } from './components/ProjectEditor';
 import { pastChatDone } from './state/past-chats';
+import { useHistoryRefresh } from './state/use-history-refresh';
 import { FirstRun } from './components/FirstRun';
 import { AgentSetup } from './components/AgentSetup';
 import { isAgentReady } from './components/agent-setup-model';
@@ -268,6 +269,16 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     const sessionId = workspace?.resources.find((item) => item.id === pane.resourceId)?.sessionId;
     return sessionId ? [sessionId] : [];
   });
+  // Past chats on screen catch up with what happened to them outside JAM Code.
+  useHistoryRefresh(
+    transport,
+    leaves(activeTree(layout)).flatMap(({ resourceId }) =>
+      resourceId &&
+      workspace?.resources.some((item) => item.id === resourceId && item.kind === 'conversation')
+        ? [resourceId]
+        : [],
+    ),
+  );
   const [notifications] = useNotificationPrefs();
   // Seen means on screen while JAM is the window in use; away, every chat can want you.
   const windowFocused = useWindowFocused();

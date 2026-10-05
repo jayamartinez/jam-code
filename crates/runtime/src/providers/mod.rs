@@ -17,8 +17,8 @@ mod transcript;
 pub use claude::ClaudeAdapter;
 pub use codex::CodexAdapter;
 pub use history::{
-    HistoryFuture, HistoryItem, HistoryListRequest, HistoryMessage, HistoryPage,
-    HistoryReadRequest, HistoryTranscript, ProviderHistory,
+    HistoryFuture, HistoryItem, HistoryItemRequest, HistoryListRequest, HistoryMessage,
+    HistoryPage, HistoryReadRequest, HistoryTranscript, ProviderHistory,
 };
 pub use interactions::{Answer, Interactions};
 pub use manager::ProviderConfig;

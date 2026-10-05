@@ -32,6 +32,18 @@ pub trait ProviderHistory: Send + Sync {
     /// One page of one conversation's messages, oldest first. A conversation
     /// the provider no longer has is `not_found`.
     fn read(&self, request: HistoryReadRequest) -> HistoryFuture<HistoryTranscript>;
+
+    /// One conversation's current metadata, without its messages: cheap
+    /// enough to ask whenever the reader opens a synced conversation, so it
+    /// is read again only when it changed. `None` when the provider no
+    /// longer has it.
+    fn item(&self, request: HistoryItemRequest) -> HistoryFuture<Option<HistoryItem>>;
+}
+
+#[derive(Debug, Clone)]
+pub struct HistoryItemRequest {
+    pub native_id: String,
+    pub config: ProviderConfig,
 }
 
 #[derive(Debug, Clone)]

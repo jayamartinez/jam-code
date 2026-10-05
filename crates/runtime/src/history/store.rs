@@ -116,6 +116,18 @@ impl Store {
             .optional()?)
     }
 
+    /// The entry a JAM session projects, when it is a projection.
+    pub fn history_by_session(&self, session_id: &str) -> Result<Option<Entry>, JamError> {
+        Ok(self
+            .connection
+            .query_row(
+                &format!("SELECT {COLUMNS} FROM provider_history WHERE session_id=?1"),
+                [session_id],
+                entry,
+            )
+            .optional()?)
+    }
+
     pub fn save_history(&self, entry: &Entry) -> Result<(), JamError> {
         let sort_at = entry.updated_at.as_ref().unwrap_or(&entry.discovered_at);
         self.connection.execute(

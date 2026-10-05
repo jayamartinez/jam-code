@@ -113,6 +113,10 @@ Verified:
   agent continuing its own session when sent to. Chats on a merged or deleted
   branch, or idle longer than the idle-thread setting, came in archived (7 of
   29), and the chat on the checked-out branch stayed open.
+- Refreshing synced chats, in the same build: a Claude Code chat continued
+  with `claude -p --resume` and a Codex thread continued through its
+  app-server caught up in JAM Code (on regaining focus, and on request), and
+  an unchanged chat was checked in about 10 ms without being read again.
 
 Not verified:
 
