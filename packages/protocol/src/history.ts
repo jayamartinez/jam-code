@@ -1,4 +1,4 @@
-import type { ProviderId } from './types';
+import type { ProviderId, Resource, Session } from './types';
 
 /**
  * Who created a provider's conversation: JAM Code (`jam`), or anything else,
@@ -70,6 +70,15 @@ export interface ProviderHistoryRequestMap {
     params: { providerId?: ProviderId; ignored?: boolean; cursor?: string; limit?: number };
     result: { entries: HistoryEntry[]; cursor?: string };
   };
+  /**
+   * Reads one conversation into its JAM projection, creating it the first
+   * time. An unlinked entry is refused (`project_folder_required`) until it
+   * has a project; an ignored one (`conflict`) until it is restored.
+   */
+  'providerHistory.sync': {
+    params: { historyId: string };
+    result: { entry: HistoryEntry; resource: Resource; session: Session };
+  };
   /** Links an entry that is not synced yet to a project JAM already has. */
   'providerHistory.associate': {
     params: { historyId: string; projectId: string };
@@ -81,6 +90,6 @@ export interface ProviderHistoryRequestMap {
    * provider's history is kept.
    */
   'providerHistory.ignore': { params: { historyId: string }; result: { entry: HistoryEntry } };
-  /** Lists an ignored entry again. */
+  /** Lists an ignored entry again, so it can be synced. */
   'providerHistory.restore': { params: { historyId: string }; result: { entry: HistoryEntry } };
 }

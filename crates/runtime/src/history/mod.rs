@@ -10,6 +10,7 @@
 mod folders;
 mod ignore;
 mod store;
+mod sync;
 
 use crate::{
     commands::{parse, validate_provider},
@@ -127,6 +128,10 @@ impl Runtime {
                 )?)
             }
             "providerHistory.list" => self.list_history(parse(params)?),
+            "providerHistory.sync" => {
+                let input: HistoryTarget = parse(params)?;
+                self.sync_history(&input.history_id)
+            }
             "providerHistory.associate" => self.associate_history(parse(params)?),
             "providerHistory.ignore" => {
                 let input: HistoryTarget = parse(params)?;

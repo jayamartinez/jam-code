@@ -807,6 +807,7 @@ const params: Record<RequestMethod, Check> = {
         limit: range(1, HISTORY_LIST_LIMIT),
       },
     ),
+  'providerHistory.sync': historyTarget,
   'providerHistory.associate': (value) => shape(value, { historyId: id, projectId: id }),
   'providerHistory.ignore': historyTarget,
   'providerHistory.restore': historyTarget,
@@ -972,6 +973,7 @@ const responses: Record<RequestMethod, Check> = {
     }),
   'providerHistory.list': (value) =>
     shape(value, { entries: array(historyEntry, HISTORY_LIST_LIMIT) }, { cursor: text(512) }),
+  'providerHistory.sync': (value) => shape(value, { entry: historyEntry, resource, session }),
   'providerHistory.associate': historyEntryResult,
   'providerHistory.ignore': historyEntryResult,
   'providerHistory.restore': historyEntryResult,

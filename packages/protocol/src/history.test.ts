@@ -39,6 +39,7 @@ describe('Provider history contract', () => {
     expect(
       request('providerHistory.list', { providerId: 'claude', ignored: true, limit: 200 }),
     ).toBeTruthy();
+    expect(request('providerHistory.sync', { historyId: 'history-1' })).toBeTruthy();
     expect(
       request('providerHistory.associate', { historyId: 'history-1', projectId: 'project-jam' }),
     ).toBeTruthy();
@@ -46,6 +47,7 @@ describe('Provider history contract', () => {
       ['providerHistory.scan', { providerId: 'gemini' }],
       ['providerHistory.list', { limit: 0 }],
       ['providerHistory.list', { limit: 201 }],
+      ['providerHistory.sync', { nativeId: 'thread-1' }],
       // A folder is never how an entry is linked; a trusted project is.
       ['providerHistory.associate', { historyId: 'history-1', path: '/work/jam' }],
       ['providerHistory.ignore', {}],
