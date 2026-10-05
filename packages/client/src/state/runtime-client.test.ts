@@ -416,3 +416,35 @@ describe('the reported error', () => {
     expect(shown()).toBeNull();
   });
 });
+
+it('replaces a conversation’s queue with the runtime’s on every change', () => {
+  const h = harness();
+  const conversation = h.fixture.conversations[0]!;
+  const queued = [
+    {
+      id: 'queued-1',
+      resourceId: h.resourceId,
+      text: 'After this, run the tests.',
+      context: [],
+      createdAt: '2026-10-04T10:00:00Z',
+    },
+  ];
+  const next = applyEvent(conversation, {
+    protocolVersion: 1,
+    resourceId: h.resourceId,
+    cursor: { ...conversation.cursor, sequence: conversation.cursor.sequence + 1 },
+    type: 'queue.updated',
+    queued,
+  });
+  expect(next.queued).toEqual(queued);
+  // Every view reads the same projection, so a later empty queue clears it everywhere.
+  const cleared = applyEvent(next, {
+    protocolVersion: 1,
+    resourceId: h.resourceId,
+    cursor: { ...next.cursor, sequence: next.cursor.sequence + 1 },
+    type: 'queue.updated',
+    queued: [],
+  });
+  expect(cleared.queued).toEqual([]);
+  expect(cleared.messages).toBe(conversation.messages);
+});

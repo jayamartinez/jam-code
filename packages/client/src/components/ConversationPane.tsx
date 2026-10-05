@@ -5,6 +5,7 @@ import {
   File,
   FolderOpen,
   GitBranch,
+  ListPlus,
   Plus,
   Shield,
   Square,
@@ -40,7 +41,17 @@ import { unavailableReason } from '../state/chat-draft';
 import { ChoicePill } from './ChoicePill';
 import { ModelPicker } from './ModelPicker';
 import { CopyButton } from './CopyButton';
-import type { TimeFormat } from '../state/preferences';
+import type { FollowUp, TimeFormat } from '../state/preferences';
+import { QueuedTurns, type QueueActions } from './QueuedTurns';
+import {
+  followUpEffect,
+  followUpHint,
+  followUpPlan,
+  followUpVerb,
+  type FollowUpPlan,
+} from './follow-up-model';
+import { chordFor, useKeybindings, useShortcutHint } from '../state/keybindings';
+import { ALL_BINDINGS, chordFromEvent } from './settings/keybindings-data';
 import {
   copyText,
   dividerLabel,
@@ -88,6 +99,12 @@ interface ConversationProps extends Pick<
   onOptions(options: Record<string, string>): void;
   onDraft(text: string): void;
   onSend(): void;
+  /** What Send does while the agent works (Settings → General). */
+  followUp: FollowUp;
+  /** Queues or steers the draft while the agent works. */
+  onFollowUp(mode: FollowUp): void;
+  /** Edits, reorders, removes or sends a queued follow-up. */
+  queueActions: QueueActions;
   onStop(): void;
   onCompact(): Promise<void>;
   onOpenReview(): void;
@@ -133,6 +150,8 @@ export function ConversationPane(props: ConversationProps) {
   const sent = useMemo(() => sentAttachments(conversation?.messages ?? []), [conversation]);
   const actions = { ...props, attachments: sent };
   const statusText = session?.needsInput ? 'needs input' : (session?.status ?? 'idle');
+  const descriptor = props.providers.find((provider) => provider.id === session?.providerId);
+  const plan = followUpPlan(props.followUp, descriptor);
   return (
     <PaneChrome
       className="conversation-pane"
@@ -218,6 +237,15 @@ export function ConversationPane(props: ConversationProps) {
               Loading conversation…
             </div>
           )}
+          {conversation && (
+            <QueuedTurns
+              queued={conversation.queued ?? []}
+              session={session}
+              steerBlocked={plan.steerBlocked}
+              busy={props.busy}
+              actions={props.queueActions}
+            />
+          )}
         </div>
       </div>
       <Composer {...props} providerId={session?.providerId} />
@@ -254,6 +282,9 @@ type ComposerProps = Pick<
   presentation?: Presentation;
   /** New chats only: choose the agent before the first Send. */
   onProvider?(providerId: ProviderId): void;
+  /** What Send does while the agent works; a new chat never works yet. */
+  followUp?: FollowUp;
+  onFollowUp?(mode: FollowUp): void;
   /**
    * Where the chat works: a new chat's choice in place of the folder name,
    * or a started chat's workspace and branch, changed from its next Send.
@@ -289,6 +320,12 @@ export function Composer(props: ComposerProps) {
   };
   const mac = props.shortcut === '⌘';
   const altKey = mac ? '⌥' : 'Alt';
+  const plan = followUpPlan(props.followUp ?? 'queue', descriptor);
+  const { overrides } = useKeybindings(mac);
+  const otherKeys = useShortcutHint('follow-up-other', mac);
+  const otherChord = chordFor(OTHER_FOLLOW_UP, overrides, mac);
+  const followingUp = running && !!props.onFollowUp;
+  const enterKey = mac ? 'Return' : 'Enter';
   const switchable = props.isNew
     ? props.providers.filter((provider) => provider.enabled || provider.id === providerId)
     : [];
@@ -334,13 +371,17 @@ export function Composer(props: ComposerProps) {
         <textarea
           aria-label="Message"
           placeholder={
-            running
-              ? `Draft a follow-up while ${name} works…`
-              : props.isNew
-                ? 'Describe a task, paste an error, or add context…'
-                : demo
-                  ? 'Reply, or try /fail, /approval or /question…'
-                  : `Reply to ${name}…`
+            followingUp
+              ? plan.mode === 'steer'
+                ? `Steer ${name} while it works…`
+                : `Queue a follow-up for when ${name} finishes…`
+              : running
+                ? `Draft a follow-up while ${name} works…`
+                : props.isNew
+                  ? 'Describe a task, paste an error, or add context…'
+                  : demo
+                    ? 'Reply, or try /fail, /approval or /question…'
+                    : `Reply to ${name}…`
           }
           value={props.draft}
           onChange={(event) => props.onDraft(event.target.value)}
@@ -356,9 +397,22 @@ export function Composer(props: ComposerProps) {
           }}
           onKeyDown={(event) => {
             const { key, shiftKey, keyCode, nativeEvent } = event;
+            // While the agent works, the 'follow-up-other' keys do the other action.
+            if (
+              followingUp &&
+              otherChord &&
+              !nativeEvent.isComposing &&
+              chordFromEvent(nativeEvent, mac) === otherChord
+            ) {
+              event.preventDefault();
+              if (plan.other && !props.busy) props.onFollowUp?.(plan.other);
+              return;
+            }
             if (sendsMessage({ key, shiftKey, keyCode, isComposing: nativeEvent.isComposing })) {
               event.preventDefault();
-              if (!running && !props.busy && !blocked) props.onSend();
+              if (props.busy || blocked) return;
+              if (followingUp) props.onFollowUp?.(plan.mode);
+              else if (!running) props.onSend();
             }
           }}
         />
@@ -462,15 +516,29 @@ export function Composer(props: ComposerProps) {
             />
           )}
           {running ? (
-            <button
-              type="button"
-              className="send-button stop-button"
-              onClick={props.onStop}
-              aria-label={`Stop ${name}`}
-              title={`Stop this turn. The ${name} session stays resumable.`}
-            >
-              <Square size={9} fill="currentColor" />
-            </button>
+            <>
+              {followingUp && (
+                <FollowUpButton
+                  plan={plan}
+                  name={name}
+                  enter={enterKey}
+                  otherKeys={otherKeys}
+                  disabled={
+                    props.busy || !!blocked || (!props.draft.trim() && !props.context.length)
+                  }
+                  onFollowUp={(mode) => props.onFollowUp?.(mode)}
+                />
+              )}
+              <button
+                type="button"
+                className="send-button stop-button"
+                onClick={props.onStop}
+                aria-label={`Stop ${name}`}
+                title={`Stop this turn. The ${name} session stays resumable; queued messages wait.`}
+              >
+                <Square size={9} fill="currentColor" />
+              </button>
+            </>
           ) : (
             <button
               type="submit"
@@ -518,15 +586,65 @@ export function Composer(props: ComposerProps) {
             <SendHint mac={mac} />
           </div>
         )}
-        {!props.isNew && props.target && (
+        {!props.isNew && (props.target || followingUp) && (
           // A started chat keeps its workspace and branch in the same place;
-          // a change there applies when the next message is sent.
+          // a change there applies when the next message is sent. While the
+          // agent works, the right side says what Send does.
           <div className="new-run-target">
             <span className="new-run-choices">{props.target}</span>
+            {followingUp && (
+              <Shortcut>
+                <span title={plan.steerBlocked ?? undefined}>
+                  {followUpHint(plan, enterKey, otherKeys)}
+                </span>
+              </Shortcut>
+            )}
           </div>
         )}
       </form>
     </div>
+  );
+}
+
+/** The rebindable keys that queue instead of steering, or steer instead of queueing. */
+const OTHER_FOLLOW_UP = ALL_BINDINGS.find((binding) => binding.id === 'follow-up-other')!;
+
+/**
+ * Send while the agent works: queue or steer, as Settings → General says and
+ * the agent allows. The tooltip says what will happen and how to do the other.
+ */
+function FollowUpButton({
+  plan,
+  name,
+  enter,
+  otherKeys,
+  disabled,
+  onFollowUp,
+}: {
+  plan: FollowUpPlan;
+  name: string;
+  enter: string;
+  otherKeys: string;
+  disabled: boolean;
+  onFollowUp(mode: FollowUpPlan['mode']): void;
+}) {
+  const verb = followUpVerb(plan.mode);
+  const other = plan.other
+    ? otherKeys
+      ? ` ${otherKeys} to ${followUpVerb(plan.other).toLowerCase()} instead.`
+      : ''
+    : ` ${name} cannot be steered: ${plan.steerBlocked}`;
+  return (
+    <button
+      type="button"
+      className={`send-button follow-up-button ${plan.mode}`}
+      disabled={disabled}
+      aria-label={`${verb} message`}
+      title={`${verb}: ${followUpEffect(plan.mode, name)} (${enter}).${other}`}
+      onClick={() => onFollowUp(plan.mode)}
+    >
+      {plan.mode === 'queue' ? <ListPlus size={15} /> : <ArrowUp size={16} />}
+    </button>
   );
 }
 

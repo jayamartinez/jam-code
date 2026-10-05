@@ -2,7 +2,7 @@ import { AppWindow, Check, ChevronRight, Expand, Search, X } from 'lucide-react'
 import type { JamTransport, Project, ProviderDescriptor } from '@jam/protocol';
 import { Suspense, lazy, useEffect, useRef, useState, type ComponentType } from 'react';
 import type { DesktopServices } from '../desktop';
-import type { NewThreadWorkspace, TimeFormat } from '../state/preferences';
+import type { NewThreadWorkspace, FollowUp, TimeFormat } from '../state/preferences';
 import { useAppearance } from '../appearance/store';
 import { Brand, IconButton, TrafficLightInset, WindowControls } from './Controls';
 import { SettingsIcon, type SettingsIconName } from './settings-icons';
@@ -85,6 +85,8 @@ export function SettingsPanel({
   onStreamReplies,
   timeFormat,
   onTimeFormat,
+  followUp,
+  onFollowUp,
   newThreadWorkspace,
   onNewThreadWorkspace,
   onClose,
@@ -105,6 +107,8 @@ export function SettingsPanel({
   onStreamReplies(next: boolean): void;
   timeFormat: TimeFormat;
   onTimeFormat(next: TimeFormat): void;
+  followUp: FollowUp;
+  onFollowUp(next: FollowUp): void;
   newThreadWorkspace: NewThreadWorkspace;
   onNewThreadWorkspace(next: NewThreadWorkspace): void;
   onClose(): void;
@@ -240,6 +244,8 @@ export function SettingsPanel({
           onStreamReplies={onStreamReplies}
           timeFormat={timeFormat}
           onTimeFormat={onTimeFormat}
+          followUp={followUp}
+          onFollowUp={onFollowUp}
           newThreadWorkspace={newThreadWorkspace}
           onNewThreadWorkspace={onNewThreadWorkspace}
           onUpdateProject={onUpdateProject}

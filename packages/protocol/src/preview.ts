@@ -9,6 +9,7 @@ import type {
   JamRequest,
   JamTransport,
   Message,
+  QueuedTurn,
   RequestMap,
   RequestMethod,
   Resource,
@@ -42,6 +43,8 @@ export class BrowserPreviewTransport implements JamTransport {
   private readonly active = new Map<string, ActiveTurn>();
   private readonly asking = new Map<string, { interaction: Interaction; message: Message }>();
   private readonly receipts = new Map<string, Receipt>();
+  private readonly queueReceipts = new Map<string, RequestMap['queue.add']['result']>();
+  private readonly steerReceipts = new Map<string, RequestMap['turn.steer']['result']>();
   private readonly pendingEvents: JamEvent[] = [];
   private publishing = false;
   private nextId = 0;
@@ -147,6 +150,18 @@ export class BrowserPreviewTransport implements JamTransport {
         return this.startTurn(request.params);
       case 'turn.interrupt':
         return this.interrupt(request.params.sessionId);
+      case 'turn.steer':
+        return this.steer(request.params);
+      case 'queue.add':
+        return this.queueAdd(request.params);
+      case 'queue.update':
+        return this.queueUpdate(request.params);
+      case 'queue.remove':
+        return this.queueRemove(request.params);
+      case 'queue.move':
+        return this.queueMove(request.params);
+      case 'queue.send':
+        return this.queueSend(request.params);
       case 'directory.list':
         this.requireProject(request.params.projectId);
         return listPreviewDirectory(request.params.projectId, request.params.path);
@@ -416,12 +431,14 @@ export class BrowserPreviewTransport implements JamTransport {
       type: 'text',
       text: `The demo provider received: ${interaction.outcome}. No command ran.`,
     });
-    session.status = 'idle';
     session.needsInput = false;
     this.touch(session.resourceId);
-    this.updateRunningProvider();
     this.publish({ type: 'message.upserted', resourceId: session.resourceId, message });
-    this.publish({ type: 'session.updated', session });
+    if (!this.handOff(session)) {
+      session.status = 'idle';
+      this.updateRunningProvider();
+      this.publish({ type: 'session.updated', session });
+    }
     return { accepted: true };
   }
 
@@ -492,8 +509,196 @@ export class BrowserPreviewTransport implements JamTransport {
     return { resourceId };
   }
 
+  private queueOf(resourceId: string): QueuedTurn[] {
+    const conversation = this.getConversation(resourceId);
+    return (conversation.queued ??= []);
+  }
+
+  private publishQueue(resourceId: string) {
+    this.publish({ type: 'queue.updated', resourceId, queued: copy(this.queueOf(resourceId)) });
+  }
+
+  /** Whether the demo agent is working or waiting in this session. */
+  private busy(session: Session) {
+    return (
+      session.status === 'running' || this.active.has(session.id) || this.asking.has(session.id)
+    );
+  }
+
+  private queueAdd(params: RequestMap['queue.add']['params']): RequestMap['queue.add']['result'] {
+    const previous = this.queueReceipts.get(params.requestId);
+    if (previous) return previous;
+    const queue = this.queueOf(params.resourceId);
+    const session = this.getSession(this.getConversation(params.resourceId).sessionId);
+    if (queue.length >= 20)
+      throw new JamError('conflict', 'At most 20 messages can wait in one chat.');
+    const turn: QueuedTurn = {
+      id: this.makeId('queued'),
+      resourceId: params.resourceId,
+      text: params.text,
+      context: copy(params.context),
+      ...(params.options ? { options: copy(params.options) } : {}),
+      createdAt: now(),
+    };
+    queue.push(turn);
+    const result = {
+      accepted: true as const,
+      resourceId: params.resourceId,
+      queuedId: turn.id,
+      requestId: params.requestId,
+    };
+    this.queueReceipts.set(params.requestId, result);
+    this.publishQueue(params.resourceId);
+    // The turn it was meant to follow may already have finished.
+    if (session.status === 'idle' && !this.busy(session)) this.startQueued(turn, false);
+    return result;
+  }
+
+  private queued(resourceId: string, queuedId: string): QueuedTurn {
+    const turn = this.queueOf(resourceId).find((item) => item.id === queuedId);
+    if (!turn) throw new JamError('not_found', 'That queued message was already sent or removed.');
+    return turn;
+  }
+
+  private queueUpdate(
+    params: RequestMap['queue.update']['params'],
+  ): RequestMap['queue.update']['result'] {
+    const turn = this.queued(params.resourceId, params.queuedId);
+    if (!params.text.trim() && !turn.context.length)
+      throw new JamError('invalid_request', 'A queued message needs text or context.');
+    turn.text = params.text;
+    turn.updatedAt = now();
+    this.publishQueue(params.resourceId);
+    return { queued: this.queueOf(params.resourceId) };
+  }
+
+  private queueRemove(
+    params: RequestMap['queue.remove']['params'],
+  ): RequestMap['queue.remove']['result'] {
+    const queue = this.queueOf(params.resourceId);
+    const at = queue.findIndex((item) => item.id === params.queuedId);
+    if (at >= 0) queue.splice(at, 1);
+    this.publishQueue(params.resourceId);
+    return { queued: queue };
+  }
+
+  private queueMove(
+    params: RequestMap['queue.move']['params'],
+  ): RequestMap['queue.move']['result'] {
+    const turn = this.queued(params.resourceId, params.queuedId);
+    const queue = this.queueOf(params.resourceId);
+    queue.splice(queue.indexOf(turn), 1);
+    queue.splice(Math.min(params.position, queue.length), 0, turn);
+    this.publishQueue(params.resourceId);
+    return { queued: queue };
+  }
+
+  private queueSend(
+    params: RequestMap['queue.send']['params'],
+  ): RequestMap['queue.send']['result'] {
+    const turn = this.queued(params.resourceId, params.queuedId);
+    const session = this.getSession(this.getConversation(params.resourceId).sessionId);
+    if (this.busy(session)) {
+      const result = this.steer({
+        resourceId: turn.resourceId,
+        text: turn.text,
+        context: turn.context,
+        requestId: turn.id,
+      });
+      this.queueRemove(params);
+      return result;
+    }
+    return this.startQueued(turn, false);
+  }
+
+  /** Starts a queued follow-up; it leaves the queue as its turn begins. */
+  private startQueued(turn: QueuedTurn, handoff: boolean): RequestMap['turn.start']['result'] {
+    const queue = this.queueOf(turn.resourceId);
+    queue.splice(queue.indexOf(turn), 1);
+    const result = this.beginTurn(
+      { resourceId: turn.resourceId, text: turn.text, context: turn.context, requestId: turn.id },
+      handoff,
+    );
+    this.publishQueue(turn.resourceId);
+    return result;
+  }
+
+  /**
+   * A completed demo turn hands its session to the first follow-up, as the
+   * runtime does, so the chat never reports finishing in between.
+   */
+  private handOff(session: Session): boolean {
+    const next = this.queueOf(session.resourceId)[0];
+    if (!next || next.error) return false;
+    this.startQueued(next, true);
+    return true;
+  }
+
+  private steer(params: RequestMap['turn.steer']['params']): RequestMap['turn.steer']['result'] {
+    const previous = this.steerReceipts.get(params.requestId);
+    if (previous) return previous;
+    const conversation = this.getConversation(params.resourceId);
+    const session = this.getSession(conversation.sessionId);
+    const active = this.active.get(session.id);
+    if (!active)
+      throw new JamError(
+        this.asking.has(session.id) ? 'unavailable' : 'conflict',
+        this.asking.has(session.id)
+          ? 'The demo provider takes a steered message only while it streams. Queue it instead.'
+          : 'No turn is running to steer. Send the message instead.',
+      );
+    const user: Message = {
+      id: this.makeId('message'),
+      role: 'user',
+      createdAt: now(),
+      blocks: [
+        ...(params.text.trim() ? [{ type: 'text' as const, text: params.text }] : []),
+        ...(params.context.length
+          ? [{ type: 'context' as const, items: copy(params.context) }]
+          : []),
+      ],
+    };
+    // The reply continues below the steered message.
+    const reply: Message = {
+      id: this.makeId('message'),
+      role: 'assistant',
+      createdAt: now(),
+      blocks: [
+        {
+          type: 'text',
+          text: `Simulated steer received in this turn: “${params.text.trim().slice(0, 200)}”`,
+        },
+      ],
+    };
+    // The part of the reply before the steer ends there.
+    const before = active.message;
+    for (const block of before.blocks)
+      if (block.type === 'tool' && block.status === 'running') block.status = 'completed';
+    before.completedAt = now();
+    conversation.messages.push(user, reply);
+    active.message = reply;
+    this.publish({ type: 'message.upserted', resourceId: params.resourceId, message: before });
+    const result = {
+      accepted: true as const,
+      sessionId: session.id,
+      requestId: params.requestId,
+      steered: true as const,
+    };
+    this.steerReceipts.set(params.requestId, result);
+    this.publish({ type: 'message.upserted', resourceId: params.resourceId, message: user });
+    this.publish({ type: 'message.upserted', resourceId: params.resourceId, message: reply });
+    return result;
+  }
+
   private startTurn(
     params: RequestMap['turn.start']['params'],
+  ): RequestMap['turn.start']['result'] {
+    return this.beginTurn(params, false);
+  }
+
+  private beginTurn(
+    params: RequestMap['turn.start']['params'],
+    handoff: boolean,
   ): RequestMap['turn.start']['result'] {
     const signature = JSON.stringify({
       resourceId: params.resourceId,
@@ -514,7 +719,7 @@ export class BrowserPreviewTransport implements JamTransport {
     }
     const conversation = this.getConversation(params.resourceId);
     const session = this.getSession(conversation.sessionId);
-    if (session.status === 'running')
+    if (session.status === 'running' && !handoff)
       throw new JamError('conflict', 'This conversation is already running.');
     if (this.receipts.size >= 1000 || conversation.messages.length >= 9998) {
       throw new JamError(
@@ -652,15 +857,18 @@ export class BrowserPreviewTransport implements JamTransport {
           ? 'The demo provider returned a simulated failure. Your message is retained; send another message to continue.'
           : 'The runtime owns the session; a pane only displays it. Closing a view detaches that view while work continues. This was a simulated response, with no model call or repository changes.',
       });
-      session.status = active.fail ? 'failed' : 'idle';
+      message.completedAt = now();
       this.touch(session.resourceId);
       this.active.delete(sessionId);
-      this.updateRunningProvider();
     }
     this.publish({ type: 'message.upserted', resourceId: session.resourceId, message });
     if (step < 2 && this.active.get(sessionId) === active) {
       active.timer = setTimeout(() => this.advanceTurn(sessionId, step + 1), 500);
-    } else if (step >= 2) this.publish({ type: 'session.updated', session });
+    } else if (step >= 2 && (active.fail || !this.handOff(session))) {
+      session.status = active.fail ? 'failed' : 'idle';
+      this.updateRunningProvider();
+      this.publish({ type: 'session.updated', session });
+    }
   }
 
   private interrupt(sessionId: string): RequestMap['turn.interrupt']['result'] {
@@ -716,7 +924,8 @@ export class BrowserPreviewTransport implements JamTransport {
   private publish(
     update:
       | { type: 'session.updated'; session: Session }
-      | { type: 'message.upserted'; resourceId: string; message: Message },
+      | { type: 'message.upserted'; resourceId: string; message: Message }
+      | { type: 'queue.updated'; resourceId: string; queued: QueuedTurn[] },
   ) {
     this.workspace.sequence += 1;
     const resourceId =

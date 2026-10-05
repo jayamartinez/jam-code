@@ -493,6 +493,9 @@ export function applyEvent(conversation: Conversation, event: JamEvent): Convers
     event.cursor.sequence <= conversation.cursor.sequence
   )
     return conversation;
+  // The runtime sends the whole queue on every change; the latest replaces it.
+  if (event.type === 'queue.updated')
+    return { ...conversation, cursor: event.cursor, queued: event.queued };
   if (event.type !== 'message.upserted') return { ...conversation, cursor: event.cursor };
   const exists = conversation.messages.some((message) => message.id === event.message.id);
   return {
