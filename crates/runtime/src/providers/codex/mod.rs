@@ -4,6 +4,7 @@
 //! first turn, not at launch, and stops after it has been idle for a while or
 //! when JAM quits. Codex owns authentication, models and tool execution; JAM
 //! observes items and answers the approvals Codex asks for.
+mod history;
 mod items;
 mod rpc;
 
@@ -250,6 +251,10 @@ impl ProviderAdapter for CodexAdapter {
             adapter.schedule_idle_shutdown();
             result
         })
+    }
+
+    fn history(&self) -> Option<&dyn super::ProviderHistory> {
+        Some(self)
     }
 
     fn shutdown(&self) {

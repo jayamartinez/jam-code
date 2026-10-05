@@ -2,7 +2,7 @@
 
 Status: accepted as a foundation (2026-10-04). Uses ADR 0011's
 `provider_bindings` seam; extends ADR 0003's storage and search and ADR
-0013's trusted-folder rule. No real provider is scanned yet.
+0013's trusted-folder rule. Codex implements it (PROVIDERS.md).
 
 Implemented in stages, one pull request each: this contract and schema;
 scanning into the index; project folders; ignore and restore; sync

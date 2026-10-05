@@ -201,6 +201,7 @@ impl Runtime {
         for _ in 0..LIST_PAGES {
             let listed = block_on(history.list(HistoryListRequest {
                 page: page.clone(),
+                folders: Vec::new(),
                 limit: LIST_PAGE,
                 config: config.clone(),
             }))
