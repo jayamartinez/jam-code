@@ -70,4 +70,9 @@ export interface ProviderHistoryRequestMap {
     params: { providerId?: ProviderId; cursor?: string; limit?: number };
     result: { entries: HistoryEntry[]; cursor?: string };
   };
+  /** Links an entry that is not synced yet to a project JAM already has. */
+  'providerHistory.associate': {
+    params: { historyId: string; projectId: string };
+    result: { entry: HistoryEntry };
+  };
 }

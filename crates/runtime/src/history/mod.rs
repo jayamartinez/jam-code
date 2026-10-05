@@ -7,6 +7,7 @@
 //! and native ID. No transcript is read and no JAM conversation is created
 //! by a scan, and JAM's own metadata is never rewritten by one. A thread JAM
 //! itself started is linked to its conversation.
+mod folders;
 mod store;
 
 use crate::{
@@ -17,6 +18,7 @@ use crate::{
     runtime::{Runtime, new_id, now},
     storage::Store,
 };
+use folders::Folders;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{collections::HashSet, sync::Mutex};
@@ -115,6 +117,7 @@ impl Runtime {
                 )?)
             }
             "providerHistory.list" => self.list_history(parse(params)?),
+            "providerHistory.associate" => self.associate_history(parse(params)?),
             _ => Err(JamError::new(
                 "unknown_method",
                 "Unknown JAM request method.",
@@ -168,6 +171,9 @@ impl Runtime {
             provider_id: provider_id.to_owned(),
             ..ScanSummary::default()
         };
+        // The folders JAM trusts, read once: a project added during the scan
+        // is matched by the next one.
+        let folders = Folders::of(&self.lock()?.store)?;
         let mut page: Option<String> = None;
         for _ in 0..LIST_PAGES {
             let listed = block_on(history.list(HistoryListRequest {
@@ -185,6 +191,7 @@ impl Runtime {
                     for item in listed.items.into_iter().take(LIST_PAGE_LIMIT) {
                         reconcile(
                             &state.store,
+                            &folders,
                             provider_id,
                             &scan,
                             &seen_at,
@@ -264,6 +271,7 @@ impl Runtime {
 /// is linked to its existing session; any other is external.
 fn reconcile(
     store: &Store,
+    folders: &Folders,
     provider_id: &str,
     scan: &str,
     seen_at: &str,
@@ -301,6 +309,8 @@ fn reconcile(
     };
     let before = entry.clone();
     apply_item(&mut entry, item);
+    // A projection keeps the project it was given.
+    folders::associate(&mut entry, folders);
     // Listed again after a complete scan missed it.
     entry.missing_since = None;
     if known {

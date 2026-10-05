@@ -13,6 +13,9 @@ describe('Provider history contract', () => {
       validateResponse('providerHistory.list', { ...fixture, cursor: '2026-09-01T10:00:00Z|h' }),
     ).toBeTruthy();
     const [synced] = fixture.entries;
+    expect(validateResponse('providerHistory.associate', { entry: synced })).toEqual({
+      entry: synced,
+    });
     for (const bad of [
       { ...synced, origin: 'imported' },
       { ...synced, providerId: 'other' },
@@ -34,10 +37,15 @@ describe('Provider history contract', () => {
     expect(request('providerHistory.scan', { providerId: 'codex' })).toBeTruthy();
     expect(request('providerHistory.list', {})).toBeTruthy();
     expect(request('providerHistory.list', { providerId: 'claude', limit: 200 })).toBeTruthy();
+    expect(
+      request('providerHistory.associate', { historyId: 'history-1', projectId: 'project-jam' }),
+    ).toBeTruthy();
     for (const [method, params] of [
       ['providerHistory.scan', { providerId: 'gemini' }],
       ['providerHistory.list', { limit: 0 }],
       ['providerHistory.list', { limit: 201 }],
+      // A folder is never how an entry is linked; a trusted project is.
+      ['providerHistory.associate', { historyId: 'history-1', path: '/work/jam' }],
       ['providerHistory.list', { ignored: true }],
     ] as const) {
       expect(() => request(method, params)).toThrow();

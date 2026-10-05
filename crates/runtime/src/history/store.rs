@@ -83,6 +83,17 @@ pub(crate) struct ListFilter<'a> {
 }
 
 impl Store {
+    pub fn history_entry(&self, id: &str) -> Result<Entry, JamError> {
+        self.connection
+            .query_row(
+                &format!("SELECT {COLUMNS} FROM provider_history WHERE id=?1"),
+                [id],
+                entry,
+            )
+            .optional()?
+            .ok_or_else(|| JamError::new("not_found", "That history entry is not in JAM Code."))
+    }
+
     pub fn history_by_native(
         &self,
         provider_id: &str,
