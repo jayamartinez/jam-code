@@ -476,6 +476,26 @@ const block: Check = (value) => {
   }
 };
 
+/** What a Send carries: text or context, and the chat's options. */
+function submission(): Check {
+  return (value) => {
+    shape(
+      value,
+      {
+        resourceId: id,
+        text: text(20_000, true),
+        context: array(context, 16),
+        requestId: id,
+      },
+      { options: optionMap },
+    );
+    const record = object(value);
+    if (!(record.text as string).trim() && !(record.context as unknown[]).length) {
+      invalid('A turn needs text or staged context.');
+    }
+  };
+}
+
 const message: Check = (value) =>
   shape(
     value,
@@ -487,8 +507,26 @@ const message: Check = (value) =>
     },
     { completedAt: timestamp },
   );
+const queuedTurn: Check = (value) =>
+  shape(
+    value,
+    {
+      id,
+      resourceId: id,
+      text: text(20_000, true),
+      context: array(context, 16),
+      createdAt: timestamp,
+    },
+    { options: optionMap, updatedAt: timestamp, error: text(2_000) },
+  );
+/** At most the runtime's 20 follow-ups per conversation. */
+const queue = array(queuedTurn, 20);
 const conversation: Check = (value) =>
-  shape(value, { resourceId: id, sessionId: id, messages: array(message), cursor });
+  shape(
+    value,
+    { resourceId: id, sessionId: id, messages: array(message), cursor },
+    { queued: queue },
+  );
 const workspace: Check = (value) =>
   shape(
     value,
@@ -829,23 +867,14 @@ const params: Record<RequestMethod, Check> = {
     if ((record.choiceId === undefined) === (record.answers === undefined))
       invalid('Answer with a choice or with answers.');
   },
-  'turn.start': (value) => {
-    shape(
-      value,
-      {
-        resourceId: id,
-        text: text(20_000, true),
-        context: array(context, 16),
-        requestId: id,
-      },
-      { options: optionMap },
-    );
-    const record = object(value);
-    if (!(record.text as string).trim() && !(record.context as unknown[]).length) {
-      invalid('A turn needs text or staged context.');
-    }
-  },
+  'turn.start': submission(),
   'turn.interrupt': (value) => shape(value, { sessionId: id }),
+  'queue.add': submission(),
+  'queue.update': (value) =>
+    shape(value, { resourceId: id, queuedId: id, text: text(20_000, true) }),
+  'queue.remove': (value) => shape(value, { resourceId: id, queuedId: id }),
+  'queue.move': (value) => shape(value, { resourceId: id, queuedId: id, position: integer }),
+  'queue.send': (value) => shape(value, { resourceId: id, queuedId: id }),
   'directory.list': (value) =>
     shape(value, { projectId: id, path: listingPath }, { worktreeId: id }),
   'file.read': (value) => shape(value, { projectId: id, path: relativePath }, { worktreeId: id }),
@@ -961,6 +990,12 @@ const responses: Record<RequestMethod, Check> = {
   'provider.configure': (value) => shape(value, { providers: array(provider, 20) }),
   'interaction.respond': accepted,
   'turn.interrupt': (value) => shape(value, { sessionId: id, interrupted: boolean }),
+  'queue.add': (value) =>
+    shape(value, { accepted: oneOf(true), resourceId: id, queuedId: id, requestId: id }),
+  'queue.update': (value) => shape(value, { queued: queue }),
+  'queue.remove': (value) => shape(value, { queued: queue }),
+  'queue.move': (value) => shape(value, { queued: queue }),
+  'queue.send': (value) => shape(value, { accepted: oneOf(true), sessionId: id, requestId: id }),
   'directory.list': directoryListing,
   'file.read': fileContents,
   'file.reveal': (value) => shape(value, { revealed: oneOf(true) }),
@@ -1024,6 +1059,12 @@ export function validateEvent(value: unknown): JamEvent {
     } else if (record.type === 'session.updated') {
       shape(value, { ...envelope, type: oneOf('session.updated'), session });
       if (object(record.session).resourceId !== record.resourceId)
+        invalid('Mismatched event resource.');
+    } else if (record.type === 'queue.updated') {
+      shape(value, { ...envelope, type: oneOf('queue.updated'), queued: queue });
+      if (
+        (record.queued as { resourceId: string }[]).some((t) => t.resourceId !== record.resourceId)
+      )
         invalid('Mismatched event resource.');
     } else {
       invalid('Unknown JAM event.');

@@ -41,7 +41,7 @@ impl Runtime {
                 let _: Empty = parse(params)?;
                 let state = self.lock()?;
                 let mut stmt = state.store.connection.prepare(
-                    "SELECT data FROM snapshots WHERE sent=0 ORDER BY captured_at DESC LIMIT 500",
+                    "SELECT data FROM snapshots WHERE sent=0 AND queued_id IS NULL ORDER BY captured_at DESC LIMIT 500",
                 )?;
                 let records = stmt
                     .query_map([], |r| r.get::<_, String>(0))?
@@ -100,6 +100,16 @@ impl Runtime {
                 if snapshot.sent {
                     return Err(JamError::new("conflict", "This snapshot was already sent."));
                 }
+                if state
+                    .store
+                    .asset_queue("snapshots", &snapshot.id)?
+                    .is_some()
+                {
+                    return Err(JamError::new(
+                        "conflict",
+                        "This snapshot belongs to a queued message.",
+                    ));
+                }
                 snapshot.resource_id = input.resource_id;
                 snapshot.note = input.note;
                 snapshot.context.source.selection = if snapshot.note.is_empty() {
@@ -119,6 +129,16 @@ impl Runtime {
                     return Err(JamError::new(
                         "conflict",
                         "An attached snapshot belongs to conversation history.",
+                    ));
+                }
+                if state
+                    .store
+                    .asset_queue("snapshots", &snapshot.id)?
+                    .is_some()
+                {
+                    return Err(JamError::new(
+                        "conflict",
+                        "This snapshot belongs to a queued message.",
                     ));
                 }
                 self.snapshots.assets.delete(&input.id)?;
@@ -154,7 +174,7 @@ impl Runtime {
     pub fn next_snapshot_expiry(&self) -> Result<Option<std::time::Duration>, JamError> {
         let state = self.lock()?;
         let oldest: Option<i64> = state.store.connection.query_row(
-            "SELECT min(captured_at) FROM snapshots WHERE sent=0",
+            "SELECT min(captured_at) FROM snapshots WHERE sent=0 AND queued_id IS NULL",
             [],
             |r| r.get(0),
         )?;
@@ -174,7 +194,7 @@ impl Runtime {
         let mut stmt = state
             .store
             .connection
-            .prepare("SELECT id FROM snapshots WHERE sent=0 AND (?1 OR captured_at <= ?2)")?;
+            .prepare("SELECT id FROM snapshots WHERE sent=0 AND queued_id IS NULL AND (?1 OR captured_at <= ?2)")?;
         let ids = stmt
             .query_map(params![all, cutoff], |r| r.get::<_, String>(0))?
             .collect::<Result<Vec<_>, _>>()?;
