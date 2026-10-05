@@ -37,6 +37,10 @@ pub trait ProviderHistory: Send + Sync {
 #[derive(Debug, Clone)]
 pub struct HistoryListRequest {
     pub page: Option<String>,
+    /// Only conversations from these folders, when any are given. A hint: an
+    /// adapter that cannot filter returns everything, and the runtime matches
+    /// folders itself. A filtered listing marks nothing missing.
+    pub folders: Vec<String>,
     /// The most items the runtime wants in this page. A hint; the runtime
     /// bounds what it accepts.
     pub limit: usize,
@@ -69,6 +73,8 @@ pub struct HistoryItem {
     /// The folder the conversation worked in, as the provider reports it.
     /// Never trusted as access: it only matches an existing JAM project.
     pub cwd: Option<String>,
+    /// The Git branch it last worked on, as the provider reports it.
+    pub branch: Option<String>,
     /// Whether `run_turn` can continue it by `native_id`.
     pub resumable: bool,
 }

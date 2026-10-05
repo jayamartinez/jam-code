@@ -106,6 +106,7 @@ export class BrowserPreviewTransport implements JamTransport {
         throw new JamError('unavailable', 'Attaching files requires the desktop app.');
       case 'providerHistory.scan':
       case 'providerHistory.list':
+      case 'providerHistory.findInFolders':
       case 'providerHistory.sync':
       case 'providerHistory.associate':
       case 'providerHistory.ignore':

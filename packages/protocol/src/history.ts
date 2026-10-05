@@ -32,6 +32,13 @@ export interface HistoryEntry {
   worktreeId?: string;
   /** The folder the provider reported, for display only. It grants no access. */
   sourcePath?: string;
+  /** The Git branch it last worked on, as the provider reported it. */
+  branch?: string;
+  /**
+   * That branch's work is finished: merged into the default branch, or
+   * deleted. Only `providerHistory.findInFolders` says; absent is unknown.
+   */
+  merged?: boolean;
   /** A complete scan no longer listed it. */
   missingSince?: string;
   /** Removed from JAM Code; scans keep it hidden until it is restored. */
@@ -54,6 +61,8 @@ export interface HistoryScanSummary {
 }
 
 export const HISTORY_LIST_LIMIT = 200;
+/** The most entries one `providerHistory.findInFolders` returns. */
+export const HISTORY_FOUND_LIMIT = 500;
 
 export interface ProviderHistoryRequestMap {
   /**
@@ -62,6 +71,19 @@ export interface ProviderHistoryRequestMap {
    * history JAM cannot read; `conflict` while a scan of it runs.
    */
   'providerHistory.scan': { params: { providerId: ProviderId }; result: HistoryScanSummary };
+  /**
+   * The provider conversations that worked in exactly one of these folders
+   * and are not in JAM Code yet, newest first (at most
+   * `HISTORY_FOUND_LIMIT`; `total` counts them all): what the New project
+   * dialog offers to add. Each provider that can report its history is asked
+   * for those folders and indexed; one that cannot answer is left out. Asked
+   * once the project exists, the entries come back linked to it, ready to
+   * sync. Nothing is read beyond listing metadata.
+   */
+  'providerHistory.findInFolders': {
+    params: { paths: string[] };
+    result: { entries: HistoryEntry[]; total: number };
+  };
   /**
    * A page of the index, newest first. `ignored` lists tombstones instead.
    * `cursor` continues from the previous page's.
@@ -74,9 +96,10 @@ export interface ProviderHistoryRequestMap {
    * Reads one conversation into its JAM projection, creating it the first
    * time. An unlinked entry is refused (`project_folder_required`) until it
    * has a project; an ignored one (`conflict`) until it is restored.
+   * `archive` makes a projection this sync creates start archived.
    */
   'providerHistory.sync': {
-    params: { historyId: string };
+    params: { historyId: string; archive?: boolean };
     result: { entry: HistoryEntry; resource: Resource; session: Session };
   };
   /** Links an entry that is not synced yet to a project JAM already has. */

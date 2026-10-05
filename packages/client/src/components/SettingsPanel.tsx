@@ -85,6 +85,8 @@ export function SettingsPanel({
   onStreamReplies,
   timeFormat,
   onTimeFormat,
+  addPastChats,
+  onAddPastChats,
   newThreadWorkspace,
   onNewThreadWorkspace,
   onClose,
@@ -105,6 +107,8 @@ export function SettingsPanel({
   onStreamReplies(next: boolean): void;
   timeFormat: TimeFormat;
   onTimeFormat(next: TimeFormat): void;
+  addPastChats: boolean;
+  onAddPastChats(next: boolean): void;
   newThreadWorkspace: NewThreadWorkspace;
   onNewThreadWorkspace(next: NewThreadWorkspace): void;
   onClose(): void;
@@ -240,6 +244,8 @@ export function SettingsPanel({
           onStreamReplies={onStreamReplies}
           timeFormat={timeFormat}
           onTimeFormat={onTimeFormat}
+          addPastChats={addPastChats}
+          onAddPastChats={onAddPastChats}
           newThreadWorkspace={newThreadWorkspace}
           onNewThreadWorkspace={onNewThreadWorkspace}
           onUpdateProject={onUpdateProject}

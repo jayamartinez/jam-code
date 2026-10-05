@@ -40,6 +40,8 @@ describe('Provider history contract', () => {
       request('providerHistory.list', { providerId: 'claude', ignored: true, limit: 200 }),
     ).toBeTruthy();
     expect(request('providerHistory.sync', { historyId: 'history-1' })).toBeTruthy();
+    expect(request('providerHistory.sync', { historyId: 'history-1', archive: true })).toBeTruthy();
+    expect(() => request('providerHistory.sync', { historyId: 'history-1', archive: 1 })).toThrow();
     expect(
       request('providerHistory.associate', { historyId: 'history-1', projectId: 'project-jam' }),
     ).toBeTruthy();
@@ -54,6 +56,25 @@ describe('Provider history contract', () => {
     ] as const) {
       expect(() => request(method, params)).toThrow();
     }
+  });
+
+  it('finds past chats for the folders a project is being made from', () => {
+    expect(request('providerHistory.findInFolders', { paths: ['/work/jam'] })).toBeTruthy();
+    for (const params of [
+      { paths: [] },
+      { paths: ['relative/jam'] },
+      { paths: Array.from({ length: 17 }, (_, i) => `/work/${i}`) },
+      { folder: '/work/jam' },
+    ]) {
+      expect(() => request('providerHistory.findInFolders', params)).toThrow();
+    }
+    expect(
+      validateResponse('providerHistory.findInFolders', {
+        entries: [fixture.entries[0]],
+        total: 14,
+      }),
+    ).toBeTruthy();
+    expect(() => validateResponse('providerHistory.findInFolders', { entries: [] })).toThrow();
   });
 
   it('is unavailable in the browser preview', async () => {

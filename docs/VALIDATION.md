@@ -99,6 +99,20 @@ Verified:
   bottom edge and from the keyboard, the height kept across a reload, the
   double click that shows every chat, and the sidebar scrolling once its
   sections no longer fit.
+- Queued follow-ups and steering, in a development build with Claude Code
+  2.1.289 and codex-cli 0.160: Enter while either agent works queues the
+  message, which goes when the turn finishes; Ctrl+Enter steers it into the
+  running turn, which acts on it (Codex directly, Claude Code once its running
+  tools finish or as its next cycle of the same turn). The message box keeps
+  focus through Send, queue and steer, including a new chat's first Send.
+- Past chats when adding a project, in the same build against the
+  developer's own Claude Code and Codex history (read only): the New project
+  dialog counting the chats from the chosen folder, the switch shared with
+  Settings → General, Create bringing them in newest first (27 chats in
+  about four seconds), a synced transcript opening, and a synced chat of each
+  agent continuing its own session when sent to. Chats on a merged or deleted
+  branch, or idle longer than the idle-thread setting, came in archived (7 of
+  29), and the chat on the checked-out branch stayed open.
 
 Not verified:
 
@@ -164,9 +178,11 @@ attached file, PDF or image opened by the real Claude Code and Codex (Codex
 is given no folder grant and its read access to JAM Code's copies is untested); archiving and
 deleting a conversation; menus drawn in the overlay host over a blurred
 wallpaper and over a Browser page; the gutter between the sidebar and the
-workspace; and queued follow-ups and steering (queue order, handoff between
-turns, Stop and restart with a queue, attachments in a queued message, and a
-real Codex `turn/steer`).
+workspace; and, of queued follow-ups and steering, the order of several
+queued messages, Stop and restart with a queue, attachments in a queued
+message, and (on macOS) a real Codex `turn/steer`. Past chats were brought in
+on Windows only, from Claude Code transcripts written by the versions on
+one machine (up to 2.1.289).
 
 ## Release acceptance
 

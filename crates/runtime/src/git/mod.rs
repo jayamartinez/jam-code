@@ -316,6 +316,14 @@ impl GitManager {
         self.status_inner(target)
     }
 
+    /// Whether the work on `branch`, in the repository `folder` belongs to,
+    /// is finished: merged into the default branch, or deleted. `None` when
+    /// that cannot be told.
+    pub fn branch_finished(&self, folder: &Path, branch: &str) -> Option<bool> {
+        let _guard = self.gate().ok()?;
+        branches::finished(folder, branch)
+    }
+
     /// Local and remote-tracking branches of the target's checkout.
     pub fn branches(&self, target: &GitTarget) -> Result<BranchList, JamError> {
         let _guard = self.gate()?;

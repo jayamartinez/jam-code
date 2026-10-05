@@ -63,6 +63,9 @@ export interface SettingsPageProps {
   /** How message times and dividers read. */
   timeFormat: TimeFormat;
   onTimeFormat(next: TimeFormat): void;
+  /** Whether a new project brings in the chats agents had in its folders. */
+  addPastChats: boolean;
+  onAddPastChats(next: boolean): void;
   /** Where a new chat's workspace starts. */
   newThreadWorkspace: NewThreadWorkspace;
   onNewThreadWorkspace(next: NewThreadWorkspace): void;

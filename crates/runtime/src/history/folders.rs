@@ -72,6 +72,22 @@ impl Folders {
         Ok(Self { known })
     }
 
+    /// Folders the reader is choosing for a project that does not exist yet,
+    /// matched the way trusted folders are.
+    pub(super) fn from_paths(paths: &[String]) -> Self {
+        let known = paths
+            .iter()
+            .flat_map(|path| spellings(path))
+            .map(|folder| (folder, String::new(), None))
+            .collect();
+        Self { known }
+    }
+
+    /// Whether `cwd` is exactly one of these folders.
+    pub(super) fn contains(&self, cwd: Option<&str>) -> bool {
+        self.match_folder(cwd).is_some()
+    }
+
     /// The project (and worktree) whose folder is exactly `cwd`. A folder
     /// inside a project is not matched: an agent resumes in the folder it
     /// worked in, and JAM would run it in the project's.

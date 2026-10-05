@@ -2,7 +2,7 @@ import { JamError } from './errors';
 import { OPENABLE_KINDS, PROJECT_ICONS, PROVIDER_CAPABILITIES, SIDEBAR_SECTIONS } from './types';
 import { TERMINAL_LIMITS } from './terminal';
 import { SNAPSHOT_KEY_COMBINATIONS } from './snapshots';
-import { HISTORY_LIST_LIMIT } from './history';
+import { HISTORY_FOUND_LIMIT, HISTORY_LIST_LIMIT } from './history';
 import {
   APPEARANCE,
   APPEARANCE_RANGES,
@@ -824,6 +824,8 @@ const historyEntry: Check = (value) =>
       projectId: id,
       worktreeId: id,
       sourcePath: text(4096),
+      branch: text(512),
+      merged: boolean,
       missingSince: timestamp,
       ignoredAt: timestamp,
       changed: boolean,
@@ -845,7 +847,11 @@ const params: Record<RequestMethod, Check> = {
         limit: range(1, HISTORY_LIST_LIMIT),
       },
     ),
-  'providerHistory.sync': historyTarget,
+  'providerHistory.findInFolders': (value) => {
+    shape(value, { paths: array(projectPath, iconLimits.paths) });
+    if (!(value as { paths: unknown[] }).paths.length) invalid('Choose at least one folder.');
+  },
+  'providerHistory.sync': (value) => shape(value, { historyId: id }, { archive: boolean }),
   'providerHistory.associate': (value) => shape(value, { historyId: id, projectId: id }),
   'providerHistory.ignore': historyTarget,
   'providerHistory.restore': historyTarget,
@@ -1003,6 +1009,8 @@ const responses: Record<RequestMethod, Check> = {
     }),
   'providerHistory.list': (value) =>
     shape(value, { entries: array(historyEntry, HISTORY_LIST_LIMIT) }, { cursor: text(512) }),
+  'providerHistory.findInFolders': (value) =>
+    shape(value, { entries: array(historyEntry, HISTORY_FOUND_LIMIT), total: integer }),
   'providerHistory.sync': (value) => shape(value, { entry: historyEntry, resource, session }),
   'providerHistory.associate': historyEntryResult,
   'providerHistory.ignore': historyEntryResult,

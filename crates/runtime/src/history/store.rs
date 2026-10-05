@@ -21,6 +21,7 @@ pub(crate) struct Entry {
     pub title: Option<String>,
     pub preview: Option<String>,
     pub cwd: Option<String>,
+    pub branch: Option<String>,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
     pub revision: Option<String>,
@@ -43,7 +44,8 @@ impl Entry {
 
 const COLUMNS: &str = "id,provider_id,instance_id,native_id,origin,session_id,project_id,
     worktree_id,project_source,title,preview,cwd,created_at,updated_at,revision,resumable,
-    discovered_at,seen_scan,missing_since,synced_at,synced_revision,sync_checkpoint,ignored_at";
+    discovered_at,seen_scan,missing_since,synced_at,synced_revision,sync_checkpoint,ignored_at,
+    branch";
 
 fn entry(row: &Row<'_>) -> rusqlite::Result<Entry> {
     Ok(Entry {
@@ -70,6 +72,7 @@ fn entry(row: &Row<'_>) -> rusqlite::Result<Entry> {
         synced_revision: row.get(20)?,
         sync_checkpoint: row.get(21)?,
         ignored_at: row.get(22)?,
+        branch: row.get(23)?,
     })
 }
 
@@ -118,7 +121,7 @@ impl Store {
         self.connection.execute(
             &format!(
                 "INSERT INTO provider_history({COLUMNS},sort_at) VALUES
-                 (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24)
+                 (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25)
                  ON CONFLICT(id) DO UPDATE SET origin=excluded.origin,session_id=excluded.session_id,
                    project_id=excluded.project_id,worktree_id=excluded.worktree_id,
                    project_source=excluded.project_source,title=excluded.title,
@@ -128,7 +131,7 @@ impl Store {
                    missing_since=excluded.missing_since,synced_at=excluded.synced_at,
                    synced_revision=excluded.synced_revision,
                    sync_checkpoint=excluded.sync_checkpoint,ignored_at=excluded.ignored_at,
-                   sort_at=excluded.sort_at"
+                   branch=excluded.branch,sort_at=excluded.sort_at"
             ),
             params![
                 entry.id,
@@ -154,6 +157,7 @@ impl Store {
                 entry.synced_revision,
                 entry.sync_checkpoint,
                 entry.ignored_at,
+                entry.branch,
                 sort_at,
             ],
         )?;
@@ -284,6 +288,8 @@ impl Store {
             project_id,
             worktree_id,
             source_path: entry.cwd.clone(),
+            branch: entry.branch.clone(),
+            merged: None,
             missing_since: entry.missing_since.clone(),
             ignored_at: entry.ignored_at.clone(),
             changed,

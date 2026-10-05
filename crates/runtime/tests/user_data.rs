@@ -282,7 +282,7 @@ fn upgrading_a_pre_alpha_database_keeps_the_persons_work() {
     let version: i64 = db
         .pragma_query_value(None, "user_version", |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 11);
+    assert_eq!(version, 12);
     let binding: String = db
         .query_row(
             "SELECT native_id FROM provider_bindings WHERE session_id='session-real'",
