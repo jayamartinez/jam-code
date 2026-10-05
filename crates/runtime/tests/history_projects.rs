@@ -125,3 +125,44 @@ async fn a_chosen_project_outlasts_what_the_provider_reports() {
         Some(other.as_str())
     );
 }
+
+/// Makes `link` another path to `target`: a symlink, or on Windows a
+/// directory junction, which needs no administrator rights.
+fn link_folder(target: &str, link: &str) {
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(target, link).unwrap();
+    #[cfg(windows)]
+    {
+        let made = std::process::Command::new("cmd")
+            .args(["/C", "mklink", "/J", link, target])
+            .output()
+            .unwrap();
+        assert!(made.status.success(), "{made:?}");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_folder_spelled_another_way_still_links() {
+    let temp = Temp::new();
+    let linked = temp.folder("linked");
+    link_folder(&temp.folder("project"), &linked);
+    // The provider reports the folder through the link; JAM stores the
+    // project's folder as it resolves. They are the same folder.
+    let codex = Scripted::new(
+        "codex",
+        10,
+        vec![thread(
+            "through-link",
+            "Through a link",
+            Some(&linked),
+            &["l"],
+        )],
+    );
+    let rt = open(&temp, &[&codex]);
+    let project = add_project(&rt, &temp.folder("project")).await;
+    scan(&rt, "codex").await;
+    assert_eq!(
+        entry(&rt, "Through a link").await.project_id.as_deref(),
+        Some(project.as_str())
+    );
+}

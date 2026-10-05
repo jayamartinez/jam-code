@@ -82,10 +82,12 @@ until JAM offers renaming, when a renamed title must become JAM's. Its place
 in the inbox (`updatedAt`) is the provider's last activity.
 
 **A reported folder is metadata, never access.** An entry is linked to a
-project automatically only when its reported folder is, compared as text,
-exactly the folder of a project or recorded worktree JAM already has; the
-filesystem is not consulted for it, and `..` or relative paths match nothing.
-A folder inside a project is not matched, because agents resume in the folder
+project automatically only when its reported folder is exactly the folder of
+a project or recorded worktree JAM already has: compared as written, then as
+the folder it resolves to, the way project folders are stored (symlinks,
+Windows short names, macOS `/var` and `/private/var`). Nothing inside it is
+read, a network path is not resolved, and `..` or relative paths match
+nothing. A folder inside a project is not matched, because agents resume in the folder
 they worked in. Anything else stays unlinked: listed, but not synced, until
 the reader adds its folder through the normal project flow or links it to an
 existing project. A projection then belongs to that trusted project, which is
