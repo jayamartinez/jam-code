@@ -72,6 +72,7 @@ import {
   useStreamReplies,
   useTimeFormat,
   useFollowUp,
+  useAddPastChats,
   type FollowUp,
 } from './state/preferences';
 import { AppearanceContext, AppearanceStore } from './appearance/store';
@@ -220,6 +221,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   const [streamReplies, setStreamReplies] = useStreamReplies();
   const [timeFormat, setTimeFormat] = useTimeFormat();
   const [followUp, setFollowUp] = useFollowUp();
+  const [addPastChats, setAddPastChats] = useAddPastChats();
   const [newThreadWorkspace, setNewThreadWorkspace] = useNewThreadWorkspace();
   /**
    * Projects whose threads the sidebar lists. Any number can be open at once;
@@ -771,6 +773,45 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     newProjectDone.current?.(project);
     newProjectDone.current = null;
   }, []);
+  /**
+   * Past chats in some folders, asked one request at a time: the runtime
+   * reads each provider's history once at a time, so a second request while
+   * the first runs would miss that provider.
+   */
+  const pastChatsQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const findPastChats = useCallback(
+    (paths: string[]) => {
+      const found = pastChatsQueue.current.then(() =>
+        transport.request('providerHistory.findInFolders', { paths }),
+      );
+      pastChatsQueue.current = found.catch(() => undefined);
+      return found;
+    },
+    [transport],
+  );
+  const countPastChats = useCallback(
+    async (paths: string[]) => (await findPastChats(paths)).total,
+    [findPastChats],
+  );
+  /**
+   * Brings a new project's past chats in, one at a time, so each appears in
+   * its list as it is added. One that cannot be read is left out; the rest
+   * still come in.
+   */
+  const addPastChatsTo = useCallback(
+    async (projectId: string, paths: string[]) => {
+      const { entries } = await findPastChats(paths);
+      for (const entry of entries) {
+        if (entry.projectId !== projectId) continue;
+        try {
+          await transport.request('providerHistory.sync', { historyId: entry.id });
+        } catch {
+          // Left out of the project; the provider's record is untouched.
+        }
+      }
+    },
+    [findPastChats, transport],
+  );
   /** Errors stay in the dialog, beside the button that asked. */
   const createProject = useCallback(
     async (changes: { name: string; paths: string[]; icon: ProjectIcon }) => {
@@ -781,8 +822,9 @@ export function JamApp({ transport, desktop }: JamAppProps) {
         current && !current.includes(project.id) ? [...current, project.id] : current,
       );
       closeNewProject(project);
+      if (addPastChats) void addPastChatsTo(project.id, changes.paths).catch(() => undefined);
     },
-    [client, closeNewProject, transport],
+    [addPastChats, addPastChatsTo, client, closeNewProject, transport],
   );
 
   /** Forgets a project; its folder and history stay where they are. */
@@ -1547,6 +1589,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       onTimeFormat={setTimeFormat}
       followUp={followUp}
       onFollowUp={setFollowUp}
+      addPastChats={addPastChats}
+      onAddPastChats={setAddPastChats}
       newThreadWorkspace={newThreadWorkspace}
       onNewThreadWorkspace={setNewThreadWorkspace}
       onClose={() => setSettingsMode(null)}
@@ -2357,6 +2401,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
           <ProjectEditor
             projects={workspace.projects}
             {...(desktop.pickDirectory ? { onPickFolder: desktop.pickDirectory } : {})}
+            pastChats={{ add: addPastChats, onAdd: setAddPastChats, count: countPastChats }}
             onSave={createProject}
             onClose={() => closeNewProject(null)}
           />

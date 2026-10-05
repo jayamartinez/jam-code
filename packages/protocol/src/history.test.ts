@@ -56,6 +56,25 @@ describe('Provider history contract', () => {
     }
   });
 
+  it('finds past chats for the folders a project is being made from', () => {
+    expect(request('providerHistory.findInFolders', { paths: ['/work/jam'] })).toBeTruthy();
+    for (const params of [
+      { paths: [] },
+      { paths: ['relative/jam'] },
+      { paths: Array.from({ length: 17 }, (_, i) => `/work/${i}`) },
+      { folder: '/work/jam' },
+    ]) {
+      expect(() => request('providerHistory.findInFolders', params)).toThrow();
+    }
+    expect(
+      validateResponse('providerHistory.findInFolders', {
+        entries: [fixture.entries[0]],
+        total: 14,
+      }),
+    ).toBeTruthy();
+    expect(() => validateResponse('providerHistory.findInFolders', { entries: [] })).toThrow();
+  });
+
   it('is unavailable in the browser preview', async () => {
     const preview = new BrowserPreviewTransport();
     await expect(preview.request('providerHistory.scan', { providerId: 'codex' })).rejects.toThrow(

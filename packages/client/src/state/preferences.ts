@@ -53,6 +53,33 @@ export function useStreamReplies(): [boolean, (next: boolean) => void] {
   return [stream, update];
 }
 
+const ADD_PAST_CHATS_KEY = 'jam.addPastChats';
+
+/**
+ * Whether a new project brings in the chats agents already had in its
+ * folders (on by default). The New project dialog and Settings → General
+ * share it, so the last answer in either is remembered.
+ */
+export function useAddPastChats(): [boolean, (next: boolean) => void] {
+  const [add, setAdd] = useState(true);
+  useEffect(() => {
+    try {
+      setAdd(localStorage.getItem(ADD_PAST_CHATS_KEY) !== 'false');
+    } catch {
+      // Unreadable storage keeps the default.
+    }
+  }, []);
+  const update = useCallback((next: boolean) => {
+    setAdd(next);
+    try {
+      localStorage.setItem(ADD_PAST_CHATS_KEY, String(next));
+    } catch {
+      // Losing the preference only restores the default.
+    }
+  }, []);
+  return [add, update];
+}
+
 /** How message times and dividers read; `system` follows the computer's locale. */
 export type TimeFormat = 'system' | '12h' | '24h';
 export const TIME_FORMAT_OPTIONS: { value: TimeFormat; label: string }[] = [

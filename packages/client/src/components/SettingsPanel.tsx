@@ -87,6 +87,8 @@ export function SettingsPanel({
   onTimeFormat,
   followUp,
   onFollowUp,
+  addPastChats,
+  onAddPastChats,
   newThreadWorkspace,
   onNewThreadWorkspace,
   onClose,
@@ -109,6 +111,8 @@ export function SettingsPanel({
   onTimeFormat(next: TimeFormat): void;
   followUp: FollowUp;
   onFollowUp(next: FollowUp): void;
+  addPastChats: boolean;
+  onAddPastChats(next: boolean): void;
   newThreadWorkspace: NewThreadWorkspace;
   onNewThreadWorkspace(next: NewThreadWorkspace): void;
   onClose(): void;
@@ -246,6 +250,8 @@ export function SettingsPanel({
           onTimeFormat={onTimeFormat}
           followUp={followUp}
           onFollowUp={onFollowUp}
+          addPastChats={addPastChats}
+          onAddPastChats={onAddPastChats}
           newThreadWorkspace={newThreadWorkspace}
           onNewThreadWorkspace={onNewThreadWorkspace}
           onUpdateProject={onUpdateProject}

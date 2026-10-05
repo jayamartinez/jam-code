@@ -54,6 +54,8 @@ export interface HistoryScanSummary {
 }
 
 export const HISTORY_LIST_LIMIT = 200;
+/** The most entries one `providerHistory.findInFolders` returns. */
+export const HISTORY_FOUND_LIMIT = 500;
 
 export interface ProviderHistoryRequestMap {
   /**
@@ -62,6 +64,19 @@ export interface ProviderHistoryRequestMap {
    * history JAM cannot read; `conflict` while a scan of it runs.
    */
   'providerHistory.scan': { params: { providerId: ProviderId }; result: HistoryScanSummary };
+  /**
+   * The provider conversations that worked in exactly one of these folders
+   * and are not in JAM Code yet, newest first (at most
+   * `HISTORY_FOUND_LIMIT`; `total` counts them all): what the New project
+   * dialog offers to add. Each provider that can report its history is asked
+   * for those folders and indexed; one that cannot answer is left out. Asked
+   * once the project exists, the entries come back linked to it, ready to
+   * sync. Nothing is read beyond listing metadata.
+   */
+  'providerHistory.findInFolders': {
+    params: { paths: string[] };
+    result: { entries: HistoryEntry[]; total: number };
+  };
   /**
    * A page of the index, newest first. `ignored` lists tombstones instead.
    * `cursor` continues from the previous page's.
