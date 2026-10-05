@@ -634,13 +634,15 @@ async fn probe(mut d: ProviderDescriptor, config: ProviderConfig) -> ProviderDes
         &mut d,
         "steering",
         "unsupported",
-        Some("JAM does not send messages into a running Claude turn yet."),
+        Some(
+            "Claude Code reads a message sent mid-turn only after its running tools finish, and starts a new turn with it if the turn ends first, so JAM queues it instead.",
+        ),
     );
     set_capability(
         &mut d,
         "queue",
-        "unsupported",
-        Some("Send after the current turn finishes."),
+        "supported",
+        Some("JAM sends queued messages one at a time as each turn finishes."),
     );
     d
 }
@@ -759,10 +761,13 @@ struct ToolCall {
 }
 
 async fn run(adapter: &ClaudeAdapter, turn: ProviderTurn, io: TurnIo) -> Result<(), JamError> {
+    // Claude Code is not steered from JAM (see the `steering` capability):
+    // the receiver is dropped, so a steer is refused before it is sent.
     let TurnIo {
         updates,
         mut cancelled,
         interactions,
+        steering: _,
     } = io;
     let mut transcript = Transcript::new(updates);
     let Some(cwd) = turn.cwd.clone() else {

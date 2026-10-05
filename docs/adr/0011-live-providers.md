@@ -1,6 +1,6 @@
 # 0011 — Live Claude Code and Codex adapters
 
-Status: accepted for Providers V0 (2026-09-27). Supersedes the "live integrations deferred" part of ADR 0004.
+Status: accepted for Providers V0 (2026-09-27). Supersedes the "live integrations deferred" part of ADR 0004. Queueing is no longer deferred: see ADR 0015.
 
 JAM Code needs real agents without becoming an agent, a proxy or a terminal wrapper. Both providers offer a structured local interface to the CLI the user already installed and signed in to: `codex app-server` (JSON-RPC over stdio) and Claude Code's stream-json control protocol, which the official Agent SDK itself uses. The runtime speaks each directly from Rust. Bundling the proprietary Agent SDK would add a second runtime and a license question for no capability JAM Code needs; the CLI interface is documented and carries approvals, questions, interrupts and model discovery.
 

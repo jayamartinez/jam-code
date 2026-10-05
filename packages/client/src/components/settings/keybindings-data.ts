@@ -192,6 +192,17 @@ export const BINDING_GROUPS: BindingGroup[] = [
         evidence: '!event.shiftKey',
       },
       {
+        id: 'follow-up-other',
+        command: 'Queue or steer, the other way',
+        sub: 'While an agent works: steers when Send queues, queues when Send steers.',
+        context: 'Composer',
+        keys: same(['mod', 'enter']),
+        // Handled by the composer, not JamApp, but rebindable like a command.
+        editable: true,
+        source: 'components/ConversationPane.tsx',
+        evidence: "'follow-up-other'",
+      },
+      {
         id: 'pick-model',
         command: 'Choose a numbered model',
         sub: 'Favorites first, then current models, as numbered in the model picker.',
