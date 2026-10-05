@@ -41,13 +41,14 @@ import { unavailableReason } from '../state/chat-draft';
 import { ChoicePill } from './ChoicePill';
 import { ModelPicker } from './ModelPicker';
 import { CopyButton } from './CopyButton';
-import type { FollowUp, TimeFormat } from '../state/preferences';
+import type { TimeFormat } from '../state/preferences';
 import { QueuedTurns, type QueueActions } from './QueuedTurns';
 import {
   followUpEffect,
   followUpHint,
   followUpPlan,
   followUpVerb,
+  type FollowUp,
   type FollowUpPlan,
 } from './follow-up-model';
 import { chordFor, useKeybindings, useShortcutHint } from '../state/keybindings';
@@ -99,8 +100,6 @@ interface ConversationProps extends Pick<
   onOptions(options: Record<string, string>): void;
   onDraft(text: string): void;
   onSend(): void;
-  /** What Send does while the agent works (Settings → General). */
-  followUp: FollowUp;
   /** Queues or steers the draft while the agent works. */
   onFollowUp(mode: FollowUp): void;
   /** Edits, reorders, removes or sends a queued follow-up. */
@@ -151,7 +150,7 @@ export function ConversationPane(props: ConversationProps) {
   const actions = { ...props, attachments: sent };
   const statusText = session?.needsInput ? 'needs input' : (session?.status ?? 'idle');
   const descriptor = props.providers.find((provider) => provider.id === session?.providerId);
-  const plan = followUpPlan(props.followUp, descriptor);
+  const plan = followUpPlan(descriptor);
   return (
     <PaneChrome
       className="conversation-pane"
@@ -282,8 +281,7 @@ type ComposerProps = Pick<
   presentation?: Presentation;
   /** New chats only: choose the agent before the first Send. */
   onProvider?(providerId: ProviderId): void;
-  /** What Send does while the agent works; a new chat never works yet. */
-  followUp?: FollowUp;
+  /** Queues or steers the draft while the agent works; a new chat never works yet. */
   onFollowUp?(mode: FollowUp): void;
   /**
    * Where the chat works: a new chat's choice in place of the folder name,
@@ -320,7 +318,7 @@ export function Composer(props: ComposerProps) {
   };
   const mac = props.shortcut === '⌘';
   const altKey = mac ? '⌥' : 'Alt';
-  const plan = followUpPlan(props.followUp ?? 'queue', descriptor);
+  const plan = followUpPlan(descriptor);
   const { overrides } = useKeybindings(mac);
   const otherKeys = useShortcutHint('follow-up-other', mac);
   const otherChord = chordFor(OTHER_FOLLOW_UP, overrides, mac);
@@ -386,7 +384,9 @@ export function Composer(props: ComposerProps) {
           value={props.draft}
           onChange={(event) => props.onDraft(event.target.value)}
           rows={props.isNew ? 2 : 1}
-          disabled={props.busy}
+          // Read-only, not disabled, while a message goes: a disabled field
+          // drops focus, and the reader keeps typing the next one.
+          readOnly={props.busy}
           maxLength={20000}
           onPaste={(event) => {
             // A copied file or image becomes an attachment; text pastes as text.
@@ -544,6 +544,7 @@ export function Composer(props: ComposerProps) {
               type="submit"
               className="send-button"
               disabled={props.busy || !!blocked || (!props.draft.trim() && !props.context.length)}
+              onMouseDown={keepTyping}
               aria-label="Send message"
               title={blocked ?? `${mac ? 'Return' : 'Enter'} to send`}
             >
@@ -639,6 +640,7 @@ function FollowUpButton({
       type="button"
       className={`send-button follow-up-button ${plan.mode}`}
       disabled={disabled}
+      onMouseDown={keepTyping}
       aria-label={`${verb} message`}
       title={`${verb}: ${followUpEffect(plan.mode, name)} (${enter}).${other}`}
       onClick={() => onFollowUp(plan.mode)}
@@ -647,6 +649,9 @@ function FollowUpButton({
     </button>
   );
 }
+
+/** Leaves focus in the message box when a send button is clicked. */
+const keepTyping = (event: React.MouseEvent) => event.preventDefault();
 
 /** Effort, with a Speed section when the model offers a faster one. */
 function EffortPill({

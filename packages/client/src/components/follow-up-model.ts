@@ -1,5 +1,7 @@
 import type { ProviderDescriptor, QueuedTurn, Session } from '@jam/protocol';
-import type { FollowUp } from '../state/preferences';
+
+/** Queue a message for after the turn, or steer it into the running turn. */
+export type FollowUp = 'queue' | 'steer';
 
 /** What the composer does with a message while the agent works. */
 export interface FollowUpPlan {
@@ -12,16 +14,14 @@ export interface FollowUpPlan {
 }
 
 /**
- * The reader's preference, as far as the agent allows it. Steering needs the
- * provider's own mechanism (its `steering` capability); without one every
- * follow-up is queued, and the composer says why rather than pretending.
- * `conditional` may still be refused by the agent at the moment, and the
- * runtime says so then.
+ * Send (Enter) queues and the other shortcut steers (Paper, Core flows "29 ·
+ * Queue & steer on every agent"). Steering needs the provider's own
+ * mechanism (its `steering` capability); without one every follow-up is
+ * queued, and the composer says why rather than pretending. `conditional`
+ * may still be refused by the agent at the moment, and the runtime says so
+ * then.
  */
-export function followUpPlan(
-  preference: FollowUp,
-  descriptor: ProviderDescriptor | undefined,
-): FollowUpPlan {
+export function followUpPlan(descriptor: ProviderDescriptor | undefined): FollowUpPlan {
   const capability = descriptor?.capabilities?.steering;
   const steerable = capability?.status === 'supported' || capability?.status === 'conditional';
   if (!steerable)
@@ -31,11 +31,7 @@ export function followUpPlan(
       steerBlocked:
         capability?.reason ?? `${descriptor?.name ?? 'This agent'} cannot be steered from JAM.`,
     };
-  return {
-    mode: preference,
-    other: preference === 'queue' ? 'steer' : 'queue',
-    steerBlocked: null,
-  };
+  return { mode: 'queue', other: 'steer', steerBlocked: null };
 }
 
 /** The verb a follow-up action shows. */

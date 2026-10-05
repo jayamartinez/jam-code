@@ -100,10 +100,11 @@ Verified:
   double click that shows every chat, and the sidebar scrolling once its
   sections no longer fit.
 - Queued follow-ups and steering, in a development build with Claude Code
-  2.1.289 and codex-cli 0.160: a follow-up sent while either agent works
-  waits as Queued and goes when the turn finishes; with Follow-up behavior
-  set to Steer, a Codex message joins the running turn (one turn, which acts
-  on it) and a Claude Code one still queues.
+  2.1.289 and codex-cli 0.160: Enter while either agent works queues the
+  message, which goes when the turn finishes; Ctrl+Enter steers it into the
+  running turn, which acts on it (Codex directly, Claude Code once its running
+  tools finish or as its next cycle of the same turn). The message box keeps
+  focus through Send, queue and steer, including a new chat's first Send.
 - Past chats when adding a project, in the same build against the
   developer's own Claude Code and Codex history (read only): the New project
   dialog counting the chats from the chosen folder, the switch shared with

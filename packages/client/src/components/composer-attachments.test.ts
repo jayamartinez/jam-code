@@ -216,7 +216,6 @@ describe('attachments on a sent message', () => {
           onOptions: noop,
           onDraft: noop,
           onSend: noop,
-          followUp: 'queue',
           onFollowUp: noop,
           queueActions: { onEdit: async () => {}, onRemove: noop, onMove: noop, onSendNow: noop },
           onStop: noop,

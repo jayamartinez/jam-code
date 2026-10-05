@@ -6,7 +6,7 @@ import type {
   RequestMap,
 } from '@jam/protocol';
 import type { DesktopServices, SnapshotHost } from '../../desktop';
-import type { NewThreadWorkspace, FollowUp, TimeFormat } from '../../state/preferences';
+import type { NewThreadWorkspace, TimeFormat } from '../../state/preferences';
 
 export type SettingsPageId =
   | 'General'
@@ -63,9 +63,6 @@ export interface SettingsPageProps {
   /** How message times and dividers read. */
   timeFormat: TimeFormat;
   onTimeFormat(next: TimeFormat): void;
-  /** What Send does while an agent works. */
-  followUp: FollowUp;
-  onFollowUp(next: FollowUp): void;
   /** Whether a new project brings in the chats agents had in its folders. */
   addPastChats: boolean;
   onAddPastChats(next: boolean): void;
