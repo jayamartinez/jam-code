@@ -1,7 +1,11 @@
 import { useEffect, useRef } from 'react';
 import type { Project, ProviderId } from '@jam/protocol';
 import { ProviderIcon } from '../../icons';
-import { IDLE_THREAD_OPTIONS, TIME_FORMAT_OPTIONS } from '../../../state/preferences';
+import {
+  FOLLOW_UP_OPTIONS,
+  IDLE_THREAD_OPTIONS,
+  TIME_FORMAT_OPTIONS,
+} from '../../../state/preferences';
 import { ProjectBadge } from '../../ProjectBadge';
 import {
   Card,
@@ -41,6 +45,8 @@ export default function GeneralPage({
   onStreamReplies,
   timeFormat,
   onTimeFormat,
+  followUp,
+  onFollowUp,
   newThreadWorkspace,
   onNewThreadWorkspace,
   onNavigate,
@@ -161,6 +167,20 @@ export default function GeneralPage({
               value={timeFormat}
               options={TIME_FORMAT_OPTIONS}
               onChange={onTimeFormat}
+            />
+          </Row>
+          <Row
+            title="Follow-up behavior"
+            sub={
+              FOLLOW_UP_OPTIONS.find((option) => option.value === followUp)?.description +
+              ' An agent that cannot take a message mid-turn always queues it.'
+            }
+          >
+            <Segmented
+              label="Follow-up behavior"
+              value={followUp}
+              options={FOLLOW_UP_OPTIONS.map(({ value, label }) => ({ value, label }))}
+              onChange={onFollowUp}
             />
           </Row>
         </Card>

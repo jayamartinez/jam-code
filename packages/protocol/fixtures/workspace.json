@@ -416,12 +416,12 @@
             "reason": "Not implemented by the demo provider."
           },
           "steering": {
-            "status": "unsupported",
-            "reason": "Not implemented by the demo provider."
+            "status": "supported",
+            "reason": "Simulated: the demo turn acknowledges a steered message."
           },
           "queue": {
-            "status": "unsupported",
-            "reason": "Not implemented by the demo provider."
+            "status": "supported",
+            "reason": "JAM sends queued messages one at a time as each turn finishes."
           },
           "modelSelection": {
             "status": "unsupported",
