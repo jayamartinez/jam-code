@@ -1,6 +1,6 @@
 //! Provider history: JAM's index of conversations that live in a provider's
 //! own history, including ones created outside JAM (in Claude Code or Codex
-//! directly). The provider's record stays canonical (ADR 0015).
+//! directly). The provider's record stays canonical (ADR 0016).
 //!
 //! A scan lists it through the adapter (`ProviderHistory::list`) into the
 //! index, one row per provider conversation, keyed by its provider, instance
