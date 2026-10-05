@@ -10,6 +10,7 @@ mod error;
 mod events;
 mod files;
 pub mod git;
+mod history;
 mod native_files;
 mod new_chat;
 #[cfg(windows)]

@@ -2,6 +2,7 @@ import { JamError } from './errors';
 import { OPENABLE_KINDS, PROJECT_ICONS, PROVIDER_CAPABILITIES, SIDEBAR_SECTIONS } from './types';
 import { TERMINAL_LIMITS } from './terminal';
 import { SNAPSHOT_KEY_COMBINATIONS } from './snapshots';
+import { HISTORY_LIST_LIMIT } from './history';
 import {
   APPEARANCE,
   APPEARANCE_RANGES,
@@ -765,7 +766,44 @@ const wallpaper: Check = (value) => {
     invalid('A wallpaper must be inline JPEG, PNG or WebP data.');
 };
 
+const historyEntry: Check = (value) =>
+  shape(
+    value,
+    {
+      id,
+      providerId,
+      origin: oneOf('jam', 'external'),
+      discoveredAt: timestamp,
+      resumable: boolean,
+    },
+    {
+      title: text(256),
+      preview: text(512),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      syncedAt: timestamp,
+      resourceId: id,
+      projectId: id,
+      worktreeId: id,
+      sourcePath: text(4096),
+      missingSince: timestamp,
+      ignoredAt: timestamp,
+      changed: boolean,
+    },
+  );
+
 const params: Record<RequestMethod, Check> = {
+  'providerHistory.scan': (value) => shape(value, { providerId }),
+  'providerHistory.list': (value) =>
+    shape(
+      value,
+      {},
+      {
+        providerId,
+        cursor: text(512),
+        limit: range(1, HISTORY_LIST_LIMIT),
+      },
+    ),
   'git.status': (value) => shape(value, { projectId: id }, { worktreeId: id }),
   'git.branches': (value) => shape(value, { projectId: id }, { worktreeId: id }),
   'git.diff': (value) =>
@@ -916,6 +954,18 @@ const params: Record<RequestMethod, Check> = {
 };
 
 const responses: Record<RequestMethod, Check> = {
+  'providerHistory.scan': (value) =>
+    shape(value, {
+      providerId,
+      discovered: integer,
+      updated: integer,
+      unchanged: integer,
+      rejected: integer,
+      missing: integer,
+      complete: boolean,
+    }),
+  'providerHistory.list': (value) =>
+    shape(value, { entries: array(historyEntry, HISTORY_LIST_LIMIT) }, { cursor: text(512) }),
   'git.status': gitStatus,
   'git.branches': gitBranches,
   'git.diff': gitDiff,

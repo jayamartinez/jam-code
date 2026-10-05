@@ -32,7 +32,8 @@ node scripts/third-party-notices.mjs --check
   worktrees, snapshot storage, chat attachments (import, limits, cleanup,
   provider delivery), conversation archive and deletion, projects from folders,
   provider adapters
-  against scripted input, and the desktop host's browser navigation policy.
+  against scripted input, the provider-history contract against a scripted
+  history provider, and the desktop host's browser navigation policy.
 
 Opt-in tests, never run by CI:
 

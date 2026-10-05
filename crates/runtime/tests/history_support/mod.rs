@@ -2,6 +2,7 @@
 //! control: it lists and reads in small pages, can fail a listing page, and
 //! runs turns like a real adapter. Shared by the `history_*` test files.
 #![allow(dead_code, unused_imports)]
+mod requests;
 pub use jam_runtime::{
     Runtime,
     protocol::{
@@ -13,6 +14,7 @@ pub use jam_runtime::{
         ProviderConfig, ProviderFuture, ProviderHistory, ProviderTurn, ProviderUpdate, TurnIo,
     },
 };
+pub use requests::*;
 pub use serde_json::{Value, json};
 pub use std::{
     path::PathBuf,
