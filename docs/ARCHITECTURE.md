@@ -24,16 +24,17 @@ The dashed path is a reserved boundary, not implemented software. No server, Web
 
 ## Domain language
 
-| Concept       | Meaning                                                                                           | Lifetime                     |
-| ------------- | ------------------------------------------------------------------------------------------------- | ---------------------------- |
-| Project       | A folder (or several) on a machine, with a name and icon; Git is optional                         | Durable                      |
-| Resource      | Addressable conversation, terminal, browser, file, file browser, review or Settings               | Independent of presentation  |
-| View          | One visible presentation of a resource                                                            | Client-owned                 |
-| Layout        | Tabs, each tab's split tree of views, Single/Tiles and focus                                      | Client-owned presentation    |
-| Conversation  | Searchable transcript and context history                                                         | Durable                      |
-| Agent session | Runtime-owned execution state and the provider's session reference                                | Independent of views         |
-| Turn          | One explicit user submission and the agent activity that follows                                  | Durable outcome              |
-| Context item  | A file, selection, diff, browser annotation, terminal excerpt, message, snapshot or attached file | Staged, then explicitly sent |
+| Concept          | Meaning                                                                                           | Lifetime                      |
+| ---------------- | ------------------------------------------------------------------------------------------------- | ----------------------------- |
+| Project          | A folder (or several) on a machine, with a name and icon; Git is optional                         | Durable                       |
+| Resource         | Addressable conversation, terminal, browser, file, file browser, review or Settings               | Independent of presentation   |
+| View             | One visible presentation of a resource                                                            | Client-owned                  |
+| Layout           | Tabs, each tab's split tree of views, Single/Tiles and focus                                      | Client-owned presentation     |
+| Conversation     | Searchable transcript and context history                                                         | Durable                       |
+| Agent session    | Runtime-owned execution state and the provider's session reference                                | Independent of views          |
+| Turn             | One explicit user submission and the agent activity that follows                                  | Durable outcome               |
+| Queued follow-up | A submission sent while the agent works, waiting to become the next turn                          | Durable until sent or removed |
+| Context item     | A file, selection, diff, browser annotation, terminal excerpt, message, snapshot or attached file | Staged, then explicitly sent  |
 
 Visible and focused are different states, and closing a view leaves its resource available in history. A terminal is a resource with a real PTY, never the rendering mechanism for conversations.
 
@@ -46,6 +47,7 @@ Visible and focused are different states, and closing a view leaves its resource
 | Choosing files to attach (native picker)               | Desktop host     | `DesktopServices.attachFiles`           |
 | Attached files: copies, metadata, lifetime             | Runtime / files  | Address by attachment ID, never a path  |
 | Sessions, in-flight turns, task handles, subscribers   | Runtime          | Render normalized state                 |
+| Queued follow-ups, their order and owned assets        | Runtime / SQLite | Render `queue.updated`; never reorder   |
 | Provider installation/auth/capabilities                | Runtime adapters | Display unknown faithfully              |
 | Provider processes, pending approvals/questions        | Runtime adapters | Answer by JAM Code interaction ID       |
 | Provider session/thread IDs (`provider_bindings`)      | Runtime / SQLite | Never sees them                         |
@@ -166,7 +168,7 @@ must not collapse when a file opens beside it.
 
 Send commands carry a client-generated request ID. The runtime rejects conflicting in-flight work and deduplicates retried submissions; it must not double-run a turn after an acknowledgement is lost. An accepted receipt is separate from completion. Cancel/interrupt is distinct from closing, deleting history or rolling back files. Errors use stable codes and useful messages; unknown methods/versions fail before mutation.
 
-Commit accepted input and normalized updates before publishing events. Never hold a storage lock across provider waits or UI delivery. On restart, running records become interrupted and unanswered provider requests expire; a dead process is not reported as live. Provider adapters reconcile streamed deltas with authoritative items and record the CLI version they were tested with.
+Commit accepted input and normalized updates before publishing events. Never hold a storage lock across provider waits or UI delivery. On restart, running records become interrupted and unanswered provider requests expire; a dead process is not reported as live. Queued follow-ups survive a restart and wait; none starts at launch. Provider adapters reconcile streamed deltas with authoritative items and record the CLI version they were tested with.
 
 ## Lifecycle
 
@@ -174,12 +176,21 @@ Commit accepted input and normalized updates before publishing events. Never hol
 stateDiagram-v2
   [*] --> Idle
   Idle --> Running: explicit Send
-  Running --> Idle: complete
+  Running --> Idle: complete, nothing queued
+  Running --> Running: complete, next queued follow-up starts
   Running --> Interrupted: explicit interrupt or app shutdown
   Running --> Failed: provider failure
   Interrupted --> Running: new explicit submission
   Failed --> Running: new explicit submission
 ```
+
+### Queued follow-ups
+
+A message sent while the agent works can wait as a queued follow-up (ADR 0015). It is runtime state in `queued_turns`: text, context and the chat's options captured when it was queued, an explicit `position`, its creation time and any reason it could not be sent. `queue.add` is deduplicated by request ID like `turn.start`; `queue.update`, `queue.move`, `queue.remove` and `queue.send` change it, and every change publishes the conversation's whole queue as `queue.updated`. `conversation.get` returns it as `queued`. It is not a message or a search document until it is sent. At most 20 wait per conversation.
+
+Dispatch keeps one provider turn per session. A turn that finishes `completed` while a follow-up waits (and the first has not failed) leaves the session `running`; once its task has ended the runtime starts the first follow-up as a turn whose request ID is the follow-up's ID, removing it from the queue in the same transaction. The chat never reports finishing in between, so attention and notifications see one continuous run. A pending approval holds the queue (the turn has not finished); a failure, an interrupt, Stop during the handoff, a follow-up that could not start and a restart leave it waiting for the reader, who can send one now. JAM never starts agent work at launch.
+
+A follow-up owns the staged snapshots and attachments it carries (`queued_id`): staged expiry, the start-up cleanup, the snapshot inbox and retention skip them, and nothing else can send or remove them. Sending moves them into the conversation exactly as a Send does; removing the follow-up deletes its attachments' copies and returns its snapshots to the inbox. Deleting a conversation removes its queue the same way.
 
 The initial runtime lives in the Tauri core process, outside WebView and React lifetimes. The desktop single-instance guard runs before database setup: a second launch reopens the existing app instead of recovering its still-active sessions. Closing any pane detaches only presentation. Hiding/closing the main window keeps the process alive only when a working tray/reopen path exists. Tray Show reopens it; explicit Quit records interruptions and stops owned tasks under one two-second shutdown deadline before exit. Reloading or destroying the main WebView detaches its subscriptions without stopping sessions. macOS Dock/menu reopening is host behavior. A crash, application exit or OS shutdown does not preserve processes. Durable transcripts survive restart. There is no promise of daemon-level survival.
 

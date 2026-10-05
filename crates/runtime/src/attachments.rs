@@ -480,7 +480,7 @@ impl Runtime {
             let state = self.lock()?;
             state.store.expire_attachments(&self.attachments)?;
             let waiting: i64 = state.store.connection.query_row(
-                "SELECT count(*) FROM attachments WHERE sent=0",
+                "SELECT count(*) FROM attachments WHERE sent=0 AND queued_id IS NULL",
                 [],
                 |row| row.get(0),
             )?;
@@ -520,6 +520,16 @@ impl Runtime {
                     return Err(JamError::new(
                         "conflict",
                         "A sent attachment belongs to its conversation's history.",
+                    ));
+                }
+                if state
+                    .store
+                    .asset_queue("attachments", &attachment.id)?
+                    .is_some()
+                {
+                    return Err(JamError::new(
+                        "conflict",
+                        "This attachment belongs to a queued message. Remove the message instead.",
                     ));
                 }
                 state.store.delete_attachment(&attachment.id)?;
@@ -582,7 +592,10 @@ impl Runtime {
     /// without a record. Files and folders JAM did not name are left alone.
     pub(crate) fn recover_attachments(&self) -> Result<(), JamError> {
         let state = self.lock()?;
-        for attachment in state.store.attachments("sent=0", ())? {
+        for attachment in state
+            .store
+            .attachments("sent=0 AND queued_id IS NULL", ())?
+        {
             state.store.delete_attachment(&attachment.id)?;
             let _ = self.attachments.remove(&attachment);
         }
@@ -669,7 +682,9 @@ impl Store {
     /// so nothing polls.
     fn expire_attachments(&self, files: &AttachmentStore) -> Result<(), JamError> {
         let cutoff = timestamp_ms() - limits().unsent_hours * 3_600_000;
-        for attachment in self.attachments("sent=0 AND created_at<=?1", [cutoff])? {
+        for attachment in
+            self.attachments("sent=0 AND queued_id IS NULL AND created_at<=?1", [cutoff])?
+        {
             self.delete_attachment(&attachment.id)?;
             let _ = files.remove(&attachment);
         }
@@ -685,6 +700,7 @@ impl Store {
         context: &mut [ContextItem],
         resource_id: &str,
         commit: bool,
+        queued: Option<&str>,
     ) -> Result<Vec<Attachment>, JamError> {
         let limits = limits();
         let mut sent: Vec<Attachment> = Vec::new();
@@ -705,6 +721,12 @@ impl Store {
             if attachment.sent || sent.iter().any(|other| other.id == attachment.id) {
                 return Err(JamError::invalid(format!(
                     "{} was already sent. Attach it again to send it once more.",
+                    attachment.name
+                )));
+            }
+            if self.asset_queue("attachments", &attachment.id)?.as_deref() != queued {
+                return Err(JamError::invalid(format!(
+                    "{} belongs to a queued message.",
                     attachment.name
                 )));
             }

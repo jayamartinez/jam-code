@@ -71,6 +71,8 @@ import {
   useNewThreadWorkspace,
   useStreamReplies,
   useTimeFormat,
+  useFollowUp,
+  type FollowUp,
 } from './state/preferences';
 import { AppearanceContext, AppearanceStore } from './appearance/store';
 import { Brand, Dialog, IconButton } from './components/Controls';
@@ -217,6 +219,7 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   const [idleThreadDays, setIdleThreadDays] = useIdleThreadDays();
   const [streamReplies, setStreamReplies] = useStreamReplies();
   const [timeFormat, setTimeFormat] = useTimeFormat();
+  const [followUp, setFollowUp] = useFollowUp();
   const [newThreadWorkspace, setNewThreadWorkspace] = useNewThreadWorkspace();
   /**
    * Projects whose threads the sidebar lists. Any number can be open at once;
@@ -1017,7 +1020,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       // JAM's own commands run by chord, as bound in Settings → Keybindings.
       const chord = chordFromEvent(event, usesCommand);
       const command = chord ? commandFor(chord, keybindings, usesCommand) : null;
-      if (!command) return;
+      // The composer handles its own command; elsewhere the keys do what they did.
+      if (!command || command === 'follow-up-other') return;
       event.preventDefault();
       const busy = Boolean(overlay || launcher);
       if (command.startsWith('terminal-')) {
@@ -1228,6 +1232,87 @@ export function JamApp({ transport, desktop }: JamAppProps) {
   }
 
   /**
+   * Queue or steer the draft while the agent works. A queued message keeps
+   * what it carries and the options chosen for this chat now, so a later
+   * change in the composer does not change what it means; a steer joins the
+   * running turn as it is. The draft is cleared only once the runtime has it.
+   */
+  async function followUpSend(resourceId: string, mode: FollowUp) {
+    const text = layout.drafts[resourceId] ?? '';
+    const staged = contextFor(resourceId);
+    if ((!text.trim() && !staged.length) || busyRef.current.has(resourceId)) return;
+    if (staged.length > MAX_CONTEXT) {
+      client.reportError(
+        new Error(`Send at most ${MAX_CONTEXT} context items at once. Remove some first.`),
+        resourceId,
+      );
+      return;
+    }
+    // Moving a chat to another branch or folder changes where its running
+    // agent works, so it waits for an idle chat rather than riding along.
+    if (moveRequest(moves[resourceId] ?? noMove, text)) {
+      client.reportError(
+        new Error(
+          'Change where this chat works once the agent finishes. A queued or steered message cannot move it.',
+        ),
+        resourceId,
+      );
+      return;
+    }
+    busyRef.current.add(resourceId);
+    setBusy(new Set(busyRef.current));
+    try {
+      const options = mode === 'queue' ? pendingOptions[resourceId] : undefined;
+      const payload = JSON.stringify({ mode, text, context: staged, options });
+      const requestId = requestIdFor(`${mode}:${resourceId}`, payload);
+      if (mode === 'queue')
+        await transport.request('queue.add', {
+          resourceId,
+          text,
+          context: staged,
+          requestId,
+          ...(options ? { options } : {}),
+        });
+      else await transport.request('turn.steer', { resourceId, text, context: staged, requestId });
+      requests.current.delete(`${mode}:${resourceId}`);
+      snapshots.refresh();
+      dispatch({ type: 'draft', resourceId, text: '' });
+      setContext((current) => ({ ...current, [resourceId]: [] }));
+      client.settle(resourceId, resourceId);
+    } catch (cause) {
+      client.reportError(cause, resourceId);
+    } finally {
+      busyRef.current.delete(resourceId);
+      setBusy(new Set(busyRef.current));
+    }
+  }
+
+  /** Edits, reorders, removes and sends queued follow-ups; the runtime owns them. */
+  const queueActionsFor = (resourceId: string) => ({
+    onEdit: async (queuedId: string, text: string) => {
+      try {
+        await transport.request('queue.update', { resourceId, queuedId, text });
+      } catch (cause) {
+        client.reportError(cause, resourceId);
+        throw cause;
+      }
+    },
+    onRemove: (queuedId: string) =>
+      void transport
+        .request('queue.remove', { resourceId, queuedId })
+        .then(() => snapshots.refresh())
+        .catch((cause: unknown) => client.reportError(cause, resourceId)),
+    onMove: (queuedId: string, position: number) =>
+      void transport
+        .request('queue.move', { resourceId, queuedId, position: Math.max(0, position) })
+        .catch((cause: unknown) => client.reportError(cause, resourceId)),
+    onSendNow: (queuedId: string) =>
+      void transport
+        .request('queue.send', { resourceId, queuedId })
+        .catch((cause: unknown) => client.reportError(cause, resourceId)),
+  });
+
+  /**
    * Attach files: the host's own file chooser, which copies what was chosen
    * into the runtime and answers with staged context. Nothing is sent.
    */
@@ -1381,6 +1466,9 @@ export function JamApp({ transport, desktop }: JamAppProps) {
     },
     onDraft: (text: string) => dispatch({ type: 'draft', resourceId, text }),
     onSend: () => void send(resourceId),
+    followUp,
+    onFollowUp: (mode: FollowUp) => void followUpSend(resourceId, mode),
+    queueActions: queueActionsFor(resourceId),
     onStop: () => {
       if (sessionId)
         void transport.request('turn.interrupt', { sessionId }).catch(client.reportError);
@@ -1457,6 +1545,8 @@ export function JamApp({ transport, desktop }: JamAppProps) {
       onStreamReplies={setStreamReplies}
       timeFormat={timeFormat}
       onTimeFormat={setTimeFormat}
+      followUp={followUp}
+      onFollowUp={setFollowUp}
       newThreadWorkspace={newThreadWorkspace}
       onNewThreadWorkspace={setNewThreadWorkspace}
       onClose={() => setSettingsMode(null)}

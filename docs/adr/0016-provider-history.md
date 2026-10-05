@@ -1,4 +1,4 @@
-# 0015 — Provider history
+# 0016 — Provider history
 
 Status: accepted as a foundation (2026-10-04). Uses ADR 0011's
 `provider_bindings` seam; extends ADR 0003's storage and search and ADR
@@ -6,7 +6,7 @@ Status: accepted as a foundation (2026-10-04). Uses ADR 0011's
 
 Implemented in stages, one pull request each: this contract and schema;
 scanning into the index; project folders; ignore and restore; sync
-(projections and message identity, migration 10); tombstones on delete.
+(projections and message identity, migration 11); tombstones on delete.
 
 ## Context
 

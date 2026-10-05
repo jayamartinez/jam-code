@@ -34,6 +34,106 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/*
+ * Follow-ups waiting to be sent, after the thread. They are not messages yet,
+ * so no bubble: a dashed edge, a number and their actions always in reach.
+ */
+.queued-turns {
+  align-self: flex-end;
+  width: min(500px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.queued-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px 10px 14px;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: 14px 14px 4px 14px;
+  font-size: calc(13px * var(--ui-scale));
+  line-height: calc(21px * var(--ui-scale));
+  color: var(--color-text-secondary);
+}
+.queued-turn.failed {
+  border-color: var(--color-warning);
+}
+.queued-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 22px;
+}
+.queued-label {
+  font-size: calc(10.5px * var(--ui-scale));
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-text-subtle);
+}
+.queued-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.queued-actions .icon-button {
+  width: 22px;
+  height: 22px;
+  color: var(--color-text-muted);
+}
+.queued-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.queued-turn .sent-context {
+  margin-top: 0;
+}
+.queued-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.queued-edit textarea {
+  min-height: 64px;
+  max-height: 200px;
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  background: var(--color-fill);
+  border: 1px solid var(--color-accent-border);
+  color: var(--color-text-body);
+  font: inherit;
+  resize: vertical;
+}
+.queued-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.queued-button {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  font-size: calc(11.5px * var(--ui-scale));
+  color: var(--color-text-secondary);
+  background: var(--color-fill);
+}
+.queued-button.primary {
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+}
+.queued-error {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: calc(11.5px * var(--ui-scale));
+  color: var(--color-warning);
+}
+.queued-waiting {
+  align-self: flex-end;
+  font-size: calc(11px * var(--ui-scale));
+  color: var(--color-text-subtle);
+}
 /* A message's time and Copy show on hover or focus; the row keeps its space. */
 .message-actions {
   display: flex;

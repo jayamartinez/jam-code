@@ -4,7 +4,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use std::{path::Path, time::Duration};
 
-pub(crate) const SCHEMA_VERSION: i64 = 9;
+pub(crate) const SCHEMA_VERSION: i64 = 10;
 /// Projects that have not been removed from JAM.
 const ACTIVE_PROJECT: &str = "json_extract(data,'$.removedAt') IS NULL";
 /// The settings record holding the sidebar's project order.
@@ -320,6 +320,7 @@ impl Store {
             resource_id: resource_id.into(),
             session_id,
             messages,
+            queued: self.queued_turns(resource_id)?,
             cursor,
         })
     }
@@ -674,7 +675,7 @@ enum Migration {
     Code(fn(&rusqlite::Transaction<'_>) -> Result<(), JamError>),
 }
 
-const MIGRATIONS: [Migration; 9] = [
+const MIGRATIONS: [Migration; 10] = [
     Migration::Sql(include_str!("migrations/001-foundation.sql")),
     Migration::Sql(include_str!("migrations/002-file-edits.sql")),
     Migration::Sql(include_str!("migrations/003-settings.sql")),
@@ -683,7 +684,8 @@ const MIGRATIONS: [Migration; 9] = [
     Migration::Sql(include_str!("migrations/006-worktrees.sql")),
     Migration::Code(crate::demo_cleanup::remove_demo_seed),
     Migration::Sql(include_str!("migrations/008-attachments.sql")),
-    Migration::Sql(include_str!("migrations/009-provider-history.sql")),
+    Migration::Sql(include_str!("migrations/009-queued-turns.sql")),
+    Migration::Sql(include_str!("migrations/010-provider-history.sql")),
 ];
 
 /// A copy of the database as it was before an upgrade, beside it, so a
