@@ -648,6 +648,16 @@ export interface RequestMap
     params: { sessionId: string };
     result: { sessionId: string; interrupted: boolean };
   };
+  /**
+   * Sends a message into the running turn through the provider's own steering
+   * mechanism. Refused (`unsupported`) where the provider cannot be steered,
+   * (`conflict`) when no turn is running, and (`stale`) when the turn ended
+   * first; nothing is recorded then. A steer keeps the turn's options.
+   */
+  'turn.steer': {
+    params: { resourceId: string; text: string; context: ContextItem[]; requestId: string };
+    result: { accepted: true; sessionId: string; requestId: string; steered: true };
+  };
   /** Queues a follow-up; it starts when the running turn completes. */
   'queue.add': {
     params: {
@@ -674,13 +684,10 @@ export interface RequestMap
     params: { resourceId: string; queuedId: string; position: number };
     result: { queued: QueuedTurn[] };
   };
-  /**
-   * Sends a follow-up now as a new turn. Refused (`conflict`) while the agent
-   * works: it is sent when the turn finishes anyway.
-   */
+  /** Sends a follow-up now: a new turn when idle, steered in while the agent works. */
   'queue.send': {
     params: { resourceId: string; queuedId: string };
-    result: { accepted: true; sessionId: string; requestId: string };
+    result: { accepted: true; sessionId: string; requestId: string; steered?: true };
   };
   'directory.list': {
     params: { projectId: string; path: string; worktreeId?: string };

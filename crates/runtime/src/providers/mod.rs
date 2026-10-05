@@ -32,7 +32,7 @@ use crate::{
     protocol::{CAPABILITIES, CapabilitySupport, ProviderDescriptor, SessionStatus, SessionUsage},
 };
 use std::{collections::BTreeMap, future::Future, path::PathBuf, pin::Pin, sync::Arc};
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{mpsc, oneshot, watch};
 
 /// An image the reader explicitly sent, resolved by the runtime.
 #[derive(Clone)]
@@ -85,12 +85,25 @@ pub enum ProviderUpdate {
     Finished(SessionStatus),
 }
 
+/// A message the reader sends into the running turn. The adapter delivers it
+/// through its provider's own steering mechanism and answers `reply` once the
+/// provider accepted or refused it. An adapter whose provider cannot steer
+/// drops the receiver; the runtime then refuses the steer as unsupported.
+pub struct SteerInput {
+    /// The reader's words plus any text context, already composed.
+    pub text: String,
+    pub images: Vec<ImageInput>,
+    pub reply: oneshot::Sender<Result<(), JamError>>,
+}
+
 /// The channels a turn is driven through.
 pub struct TurnIo {
     pub updates: mpsc::Sender<ProviderUpdate>,
     /// Becomes true on an explicit interrupt or JAM shutdown.
     pub cancelled: watch::Receiver<bool>,
     pub interactions: Interactions,
+    /// Messages steered into this turn, in the order the reader sent them.
+    pub steering: mpsc::Receiver<SteerInput>,
 }
 
 pub type ProviderFuture = Pin<Box<dyn Future<Output = Result<(), JamError>> + Send>>;

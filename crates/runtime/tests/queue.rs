@@ -1,4 +1,4 @@
-//! Queued follow-ups, driven through the runtime's requests with
+//! Queued follow-ups and steering, driven through the runtime's requests with
 //! a gated adapter: each turn waits until the test lets it finish, so what
 //! happens while an agent works can be observed exactly.
 use jam_runtime::{
@@ -57,18 +57,23 @@ async fn call(runtime: &Arc<Runtime>, method: &str, params: Value) -> Result<Val
 }
 
 /// A provider whose turns finish only when the test releases them. A turn
-/// whose text contains `fail` fails, and one with `ask` waits for an approval
-/// first.
+/// whose text contains `fail` fails, one with `ask` waits for an approval
+/// first, and steered messages are recorded when `steers` is on.
 struct Gated {
+    steers: bool,
     /// Every turn's text, in the order the provider received them.
     turns: Arc<Mutex<Vec<String>>>,
+    /// Every steered message's text.
+    steered: Arc<Mutex<Vec<String>>>,
     release: Arc<Semaphore>,
 }
 
 impl Gated {
-    fn new() -> Arc<Self> {
+    fn new(steers: bool) -> Arc<Self> {
         Arc::new(Self {
+            steers,
             turns: Arc::default(),
+            steered: Arc::default(),
             release: Arc::new(Semaphore::new(0)),
         })
     }
@@ -85,10 +90,20 @@ impl ProviderAdapter for Gated {
         "claude"
     }
     fn unchecked(&self, _config: &ProviderConfig) -> ProviderDescriptor {
-        let capabilities = jam_runtime::protocol::CAPABILITIES
-            .iter()
-            .map(|key| (key.to_string(), CapabilitySupport::supported()))
-            .collect();
+        let mut capabilities: std::collections::BTreeMap<String, CapabilitySupport> =
+            jam_runtime::protocol::CAPABILITIES
+                .iter()
+                .map(|key| (key.to_string(), CapabilitySupport::supported()))
+                .collect();
+        if !self.steers {
+            capabilities.insert(
+                "steering".into(),
+                CapabilitySupport {
+                    status: "unsupported".into(),
+                    reason: Some("Gated cannot be steered.".into()),
+                },
+            );
+        }
         ProviderDescriptor {
             id: "claude".into(),
             name: "Gated".into(),
@@ -119,13 +134,20 @@ impl ProviderAdapter for Gated {
     }
     fn run_turn(&self, turn: ProviderTurn, io: TurnIo) -> ProviderFuture {
         let turns = Arc::clone(&self.turns);
+        let steered = Arc::clone(&self.steered);
         let release = Arc::clone(&self.release);
+        let steers = self.steers;
         Box::pin(async move {
             let TurnIo {
                 updates,
                 mut cancelled,
                 interactions,
+                mut steering,
             } = io;
+            if !steers {
+                drop(steering);
+                steering = tokio::sync::mpsc::channel(1).1;
+            }
             turns.lock().unwrap().push(turn.text.clone());
             let mut blocks = vec![MessageBlock::Text {
                 text: format!("working on {}", turn.text),
@@ -165,9 +187,22 @@ impl ProviderAdapter for Gated {
                 });
                 let _ = updates.send(ProviderUpdate::Blocks(blocks.clone())).await;
             }
-            tokio::select! {
-                permit = release.acquire() => permit.unwrap().forget(),
-                _ = cancelled.changed() => return Ok(()),
+            loop {
+                tokio::select! {
+                    permit = release.acquire() => {
+                        permit.unwrap().forget();
+                        break;
+                    }
+                    Some(steer) = steering.recv() => {
+                        steered.lock().unwrap().push(steer.text.clone());
+                        blocks.push(MessageBlock::Text { text: format!("read {}", steer.text) });
+                        let _ = steer.reply.send(Ok(()));
+                        // A provider reads it at its next step, not at once.
+                        tokio::time::sleep(Duration::from_millis(150)).await;
+                        let _ = updates.send(ProviderUpdate::Blocks(blocks.clone())).await;
+                    }
+                    _ = cancelled.changed() => return Ok(()),
+                }
             }
             let status = if turn.text.contains("fail") {
                 SessionStatus::Failed
@@ -300,7 +335,7 @@ where
 #[tokio::test(flavor = "multi_thread")]
 async fn follow_ups_wait_in_order_and_go_one_turn_at_a_time() {
     let temp = Temp::new();
-    let gated = Gated::new();
+    let gated = Gated::new(false);
     let chat = chat(&temp, Arc::clone(&gated)).await;
     let mut events = chat
         .runtime
@@ -374,7 +409,7 @@ async fn follow_ups_wait_in_order_and_go_one_turn_at_a_time() {
 #[tokio::test(flavor = "multi_thread")]
 async fn an_unanswered_approval_holds_the_queue() {
     let temp = Temp::new();
-    let gated = Gated::new();
+    let gated = Gated::new(false);
     let chat = chat(&temp, Arc::clone(&gated)).await;
     chat.send("ask first", "t1").await.unwrap();
     until("the approval is waiting", || async {
@@ -418,7 +453,7 @@ async fn an_unanswered_approval_holds_the_queue() {
 #[tokio::test(flavor = "multi_thread")]
 async fn failure_and_stop_leave_the_queue_waiting() {
     let temp = Temp::new();
-    let gated = Gated::new();
+    let gated = Gated::new(false);
     let chat = chat(&temp, Arc::clone(&gated)).await;
 
     chat.send("this will fail", "t1").await.unwrap();
@@ -469,7 +504,7 @@ async fn failure_and_stop_leave_the_queue_waiting() {
 #[tokio::test(flavor = "multi_thread")]
 async fn follow_ups_can_be_edited_reordered_and_removed() {
     let temp = Temp::new();
-    let gated = Gated::new();
+    let gated = Gated::new(false);
     let chat = chat(&temp, Arc::clone(&gated)).await;
     chat.send("first", "t1").await.unwrap();
     until("running", || async { gated.turns().len() == 1 }).await;
@@ -526,7 +561,7 @@ async fn follow_ups_can_be_edited_reordered_and_removed() {
 async fn a_restart_keeps_follow_ups_without_starting_them() {
     let temp = Temp::new();
     {
-        let gated = Gated::new();
+        let gated = Gated::new(false);
         let chat = chat(&temp, Arc::clone(&gated)).await;
         chat.send("first", "t1").await.unwrap();
         until("running", || async { gated.turns().len() == 1 }).await;
@@ -534,7 +569,7 @@ async fn a_restart_keeps_follow_ups_without_starting_them() {
         // The app goes away with the turn still running.
         chat.runtime.shutdown().await.unwrap();
     }
-    let gated = Gated::new();
+    let gated = Gated::new(false);
     let runtime = Runtime::open_with(temp.db(), vec![gated.clone()]).unwrap();
     let workspace = call(&runtime, "workspace.get", json!({})).await.unwrap();
     let session = workspace["sessions"]
@@ -560,7 +595,7 @@ async fn a_restart_keeps_follow_ups_without_starting_them() {
 #[tokio::test(flavor = "multi_thread")]
 async fn queued_attachments_survive_until_sent_or_removed() {
     let temp = Temp::new();
-    let gated = Gated::new();
+    let gated = Gated::new(false);
     let chat = chat(&temp, Arc::clone(&gated)).await;
     let kept = chat
         .runtime
@@ -684,9 +719,105 @@ async fn queued_attachments_survive_until_sent_or_removed() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_steer_joins_the_running_turn_once() {
+    let temp = Temp::new();
+    let gated = Gated::new(true);
+    let chat = chat(&temp, Arc::clone(&gated)).await;
+    // Nothing is running yet: there is no turn to steer.
+    let idle = chat
+        .call(
+            "turn.steer",
+            json!({"resourceId": chat.resource, "text": "early", "context": [], "requestId": "s0"}),
+        )
+        .await
+        .unwrap_err();
+    assert!(idle.starts_with("conflict"), "{idle}");
+
+    chat.send("first", "t1").await.unwrap();
+    until("running", || async { gated.turns().len() == 1 }).await;
+    let steer =
+        json!({"resourceId": chat.resource, "text": "use tabs", "context": [], "requestId": "s1"});
+    chat.call("turn.steer", steer.clone()).await.unwrap();
+    // A retry after a lost answer is not delivered twice.
+    chat.call("turn.steer", steer).await.unwrap();
+    assert_eq!(*gated.steered.lock().unwrap(), ["use tabs"]);
+    assert_eq!(gated.turns().len(), 1, "a steer starts no turn");
+
+    // A queued follow-up can be steered in too, and leaves the queue.
+    chat.queue("and add tests", "q1").await.unwrap();
+    let id = chat.queued_ids().await.remove(0);
+    chat.call(
+        "queue.send",
+        json!({"resourceId": chat.resource, "queuedId": id}),
+    )
+    .await
+    .unwrap();
+    assert!(chat.queued().await.is_empty());
+    assert_eq!(gated.steered.lock().unwrap().len(), 2);
+
+    // The reply continues below each steered message.
+    until("the reply continues", || async {
+        let conversation = chat.conversation().await;
+        let roles: Vec<String> = conversation["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|m| m["role"].as_str().unwrap().to_string())
+            .collect();
+        roles
+            == [
+                "user",
+                "assistant",
+                "user",
+                "assistant",
+                "user",
+                "assistant",
+            ]
+    })
+    .await;
+    gated.finish_one();
+    until("idle", || async { chat.status().await == "idle" }).await;
+    assert_eq!(chat.sent().await, ["first", "use tabs", "and add tests"]);
+    assert_eq!(gated.turns().len(), 1);
+
+    // Once the turn is over, a steer is refused rather than starting one.
+    let late = chat
+        .call(
+            "turn.steer",
+            json!({"resourceId": chat.resource, "text": "late", "context": [], "requestId": "s2"}),
+        )
+        .await
+        .unwrap_err();
+    assert!(late.starts_with("conflict"), "{late}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_provider_that_cannot_steer_says_so() {
+    let temp = Temp::new();
+    let gated = Gated::new(false);
+    let chat = chat(&temp, Arc::clone(&gated)).await;
+    chat.send("first", "t1").await.unwrap();
+    until("running", || async { gated.turns().len() == 1 }).await;
+    let refused = chat
+        .call(
+            "turn.steer",
+            json!({"resourceId": chat.resource, "text": "use tabs", "context": [], "requestId": "s1"}),
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(refused, "unsupported: Gated cannot be steered.");
+    // Nothing was recorded; queueing still works.
+    assert_eq!(chat.sent().await, ["first"]);
+    chat.queue("use tabs", "q1").await.unwrap();
+    gated.finish_one();
+    until("the follow-up runs", || async { gated.turns().len() == 2 }).await;
+    gated.finish_one();
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn deleting_a_chat_takes_its_queue() {
     let temp = Temp::new();
-    let gated = Gated::new();
+    let gated = Gated::new(false);
     let chat = chat(&temp, Arc::clone(&gated)).await;
     let file = chat
         .runtime

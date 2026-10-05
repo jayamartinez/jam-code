@@ -133,7 +133,8 @@ impl Runtime {
                 self.publish_queue(&mut state, &input.resource_id);
                 Ok(json!({ "queued": state.store.queued_turns(&input.resource_id)? }))
             }
-            // Sends one follow-up now, whatever its place, as a new turn.
+            // Sends one follow-up now, whatever its place: as a new turn when
+            // the chat is idle, or steered into the running turn.
             "queue.send" => {
                 let input: QueuedRef = parse(params)?;
                 validate_id(&input.resource_id)?;
@@ -294,20 +295,18 @@ impl Runtime {
         result
     }
 
-    /// Sends one follow-up now, as a new turn. While the agent works it
-    /// waits instead: it would start only after the running turn anyway. A
-    /// retry after it was sent answers with the same receipt.
+    /// Sends one follow-up now: a new turn when the chat is idle, steered
+    /// into the running turn otherwise. A retry after it was sent answers
+    /// with the same receipt.
     fn send_queued(
         self: &Arc<Self>,
         resource_id: &str,
         queued_id: &str,
     ) -> Result<Value, JamError> {
-        let turn = {
+        let fingerprint = queued_fingerprint(queued_id);
+        let (turn, running) = {
             let state = self.lock()?;
-            if let Some(receipt) = state
-                .store
-                .receipt(queued_id, &queued_fingerprint(queued_id))?
-            {
+            if let Some(receipt) = state.store.receipt(queued_id, &fingerprint)? {
                 return Ok(receipt);
             }
             let turn = queued_in(&state, resource_id, queued_id)?;
@@ -316,20 +315,29 @@ impl Runtime {
                 .session_id
                 .ok_or_else(|| JamError::invalid("This resource is not a conversation."))?;
             let session = state.store.session(&session_id)?;
-            if session.status == SessionStatus::Running
+            let running = session.status == SessionStatus::Running
                 || state
                     .tasks
                     .values()
-                    .any(|task| task.session_id == session_id)
-            {
-                return Err(JamError::new(
-                    "conflict",
-                    "The agent is working. This message is sent when its turn finishes.",
-                ));
-            }
-            turn
+                    .any(|task| task.session_id == session_id);
+            (turn, running)
         };
-        self.start_queued(turn, false)
+        if running {
+            // A steer joins the running turn as it is: its options stay.
+            self.steer(
+                StartTurn {
+                    resource_id: turn.resource_id,
+                    text: turn.text,
+                    context: turn.context,
+                    request_id: turn.id.clone(),
+                    options: None,
+                },
+                fingerprint,
+                Some(turn.id),
+            )
+        } else {
+            self.start_queued(turn, false)
+        }
     }
 
     fn mark_queued_failed(&self, resource_id: &str, queued_id: &str, reason: &str) {

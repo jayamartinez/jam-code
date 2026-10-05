@@ -150,12 +150,14 @@ describe('JAM wire boundary', () => {
     );
   });
 
-  it('validates queued follow-ups at the boundary', () => {
+  it('validates queued follow-ups and steering at the boundary', () => {
     const request = (method: string, params: unknown) =>
       validateRequest({ protocolVersion: 1, method, params });
     const send = { resourceId: 'conv-1', text: 'run tests', context: [], requestId: 'r1' };
     expect(() => request('queue.add', { ...send, options: { model: 'gpt-5.5' } })).not.toThrow();
-    expect(() => request('queue.add', { ...send, text: ' ' })).toThrow(JamError);
+    // A steer joins the running turn as it is: it carries no options.
+    expect(() => request('turn.steer', { ...send, options: { model: 'x' } })).toThrow(JamError);
+    expect(() => request('turn.steer', { ...send, text: ' ' })).toThrow(JamError);
     expect(() =>
       request('queue.move', { resourceId: 'conv-1', queuedId: 'q1', position: -1 }),
     ).toThrow(JamError);
@@ -179,7 +181,12 @@ describe('JAM wire boundary', () => {
       validateEvent({ ...event, queued: [{ ...queued, resourceId: 'conv-2' }] }),
     ).toThrow(JamError);
     expect(() =>
-      validateResponse('queue.send', { accepted: true, sessionId: 's', requestId: 'q1' }),
+      validateResponse('queue.send', {
+        accepted: true,
+        sessionId: 's',
+        requestId: 'q1',
+        steered: true,
+      }),
     ).not.toThrow();
   });
 });

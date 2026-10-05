@@ -32,6 +32,12 @@ impl ProviderAdapter for MockProvider {
         }
         set_capability(
             &mut descriptor,
+            "steering",
+            "supported",
+            Some("Simulated: the demo turn acknowledges a steered message."),
+        );
+        set_capability(
+            &mut descriptor,
             "queue",
             "supported",
             Some("JAM sends queued messages one at a time as each turn finishes."),
@@ -58,6 +64,7 @@ impl ProviderAdapter for MockProvider {
                 updates,
                 mut cancelled,
                 interactions,
+                mut steering,
             } = io;
             let prompt = turn.text.trim();
             if prompt == "/approval" || prompt == "/question" {
@@ -71,11 +78,21 @@ impl ProviderAdapter for MockProvider {
                 .await;
             }
             let fail = prompt == "/fail";
+            // Steered messages, acknowledged at the end of the reply.
+            let mut steered: Vec<String> = Vec::new();
             for index in 0..4 {
-                tokio::select! {
-                    biased;
-                    _ = cancelled.changed() => return Ok(()),
-                    _ = tokio::time::sleep(Duration::from_millis(350)) => {}
+                let pause = tokio::time::sleep(Duration::from_millis(350));
+                tokio::pin!(pause);
+                loop {
+                    tokio::select! {
+                        biased;
+                        _ = cancelled.changed() => return Ok(()),
+                        Some(steer) = steering.recv() => {
+                            steered.push(steer.text.chars().take(200).collect());
+                            let _ = steer.reply.send(Ok(()));
+                        }
+                        _ = &mut pause => break,
+                    }
                 }
                 let mut blocks = vec![MessageBlock::Text { text: "I'll trace the resource and session boundaries, then summarize the result. This is a simulated provider turn.".into() }];
                 if index >= 1 {
@@ -101,6 +118,11 @@ impl ProviderAdapter for MockProvider {
                 } else {
                     "The runtime owns the session; a pane only presents its resource. Detaching a view leaves work available in history. This mock turn is complete, and the transcript is saved locally. No commands ran and no repository files changed."
                 }.into() });
+                    for text in &steered {
+                        blocks.push(MessageBlock::Text {
+                            text: format!("Simulated steer received in this turn: “{text}”"),
+                        });
+                    }
                 }
                 if updates.send(ProviderUpdate::Blocks(blocks)).await.is_err() {
                     return Ok(());

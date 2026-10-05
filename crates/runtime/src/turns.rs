@@ -9,7 +9,10 @@ use crate::{
 use serde_json::{Value, json};
 use std::{
     collections::BTreeMap,
-    sync::{Arc, atomic::Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
     time::Duration,
 };
 use tokio::sync::{mpsc, watch};
@@ -97,6 +100,12 @@ impl Runtime {
         let adapter = self.providers.adapter(&provider_id).ok_or_else(|| {
             JamError::new("provider_unavailable", "That provider is not available.")
         })?;
+        // Whether this turn can be steered, decided once, when it starts.
+        let steering = match &descriptor {
+            Some(descriptor) => descriptor.clone(),
+            None => adapter.unchecked(&Default::default()),
+        };
+        let steer_refusal = steer_refusal(&steering);
 
         let mut state = self.lock()?;
         if self.shutting_down.load(Ordering::Acquire) {
@@ -278,6 +287,8 @@ impl Runtime {
         let version = descriptor.as_ref().and_then(|d| d.version.clone());
         let (cancel, cancelled) = watch::channel(false);
         let (finished_tx, finished) = watch::channel(());
+        let (steer, steering) = mpsc::channel(4);
+        let steered = Arc::new(AtomicU64::new(0));
         // An interrupted turn may still be stopping inside its provider. The
         // new turn is accepted now, but its provider work waits for that.
         let previous: Vec<watch::Receiver<()>> = state
@@ -293,6 +304,7 @@ impl Runtime {
             session,
             request_id: request_id.clone(),
             version,
+            steered: Arc::clone(&steered),
         };
         let handle = executor.spawn(async move {
             let _finished = finished_tx;
@@ -302,7 +314,9 @@ impl Runtime {
                 }
             })
             .await;
-            runtime.run_turn(supervised, adapter, turn, cancelled).await;
+            runtime
+                .run_turn(supervised, adapter, turn, cancelled, steering)
+                .await;
         });
         state.tasks.insert(
             request_id,
@@ -311,6 +325,13 @@ impl Runtime {
                 cancel,
                 handle,
                 finished,
+                steer,
+                steer_refusal: if compact {
+                    Some("A compaction cannot be steered. Queue the message instead.".into())
+                } else {
+                    steer_refusal
+                },
+                steered,
             },
         );
         Ok(receipt)
@@ -443,12 +464,14 @@ impl Runtime {
         adapter: Arc<dyn crate::providers::ProviderAdapter>,
         turn: ProviderTurn,
         mut cancelled: watch::Receiver<bool>,
+        steering: mpsc::Receiver<crate::providers::SteerInput>,
     ) {
         let Supervised {
             resource,
             session,
             request_id,
             version,
+            steered,
         } = supervised;
         let (sender, mut receiver) = mpsc::channel(64);
         // The provider future is owned by this supervisor, never by a view.
@@ -458,6 +481,7 @@ impl Runtime {
                 updates: sender,
                 cancelled: cancelled.clone(),
                 interactions: self.interactions.clone(),
+                steering,
             },
         );
         tokio::pin!(provider);
@@ -466,8 +490,8 @@ impl Runtime {
         // The previous turn ended and a queued follow-up goes next.
         let mut handoff = false;
         let mut failure: Option<String> = None;
-        let message_id = new_id("message");
-        let created_at = now();
+        let mut reply = Reply::new();
+        let mut seen_steers = 0;
         let mut last_blocks: Vec<MessageBlock> = Vec::new();
         loop {
             tokio::select! {
@@ -480,10 +504,17 @@ impl Runtime {
                     if *cancelled.borrow() { break; }
                     let Ok(mut current) = state.store.session(&session.id) else { break; };
                     if current.status != SessionStatus::Running { break; }
+                    // A message steered in since the last update starts a new
+                    // reply below it; what came before stays above it.
+                    let steers = steered.load(Ordering::Acquire);
+                    if steers != seen_steers {
+                        seen_steers = steers;
+                        reply.split(last_blocks.len());
+                    }
                     match update {
                         ProviderUpdate::Blocks(blocks) => {
                             last_blocks = blocks.clone();
-                            let messages = reply(&message_id, &created_at, &blocks, None);
+                            let messages = reply.messages(&blocks, None);
                             let waiting = waiting_for_reader(&blocks);
                             let session_changed = waiting != current.needs_input;
                             current.needs_input = waiting;
@@ -534,7 +565,7 @@ impl Runtime {
                             current.status = if handoff { SessionStatus::Running } else { status };
                             current.needs_input = false;
                             // The reply records when its turn ended.
-                            let messages = reply(&message_id, &created_at, &last_blocks, Some(now()));
+                            let messages = reply.messages(&last_blocks, Some(&now()));
                             let saved = state.store.transaction(|| {
                                 for message in &messages {
                                     state.store.save_message(&resource, message)?;
@@ -597,7 +628,7 @@ impl Runtime {
                     tone: "error".into(),
                     text,
                 });
-                let messages = reply(&message_id, &created_at, &blocks, Some(now()));
+                let messages = reply.messages(&blocks, Some(&now()));
                 current.status = SessionStatus::Failed;
                 current.needs_input = false;
                 let saved = state.store.transaction(|| {
@@ -686,26 +717,103 @@ struct Supervised {
     session: Session,
     request_id: String,
     version: Option<String>,
+    /// Counts messages steered into this turn.
+    steered: Arc<AtomicU64>,
 }
 
-/// The turn's reply as its transcript message, once it has any blocks.
-/// `completed` records when its turn ended.
-fn reply(
-    id: &str,
-    created_at: &str,
-    blocks: &[MessageBlock],
-    completed: Option<String>,
-) -> Vec<Message> {
-    if blocks.is_empty() {
-        return Vec::new();
+/// A turn's reply as transcript messages. An adapter reports the whole turn's
+/// blocks each time; a message steered into the turn splits them, so the
+/// reply continues in a new message below the steered one.
+struct Reply {
+    segments: Vec<Segment>,
+}
+
+struct Segment {
+    id: String,
+    created_at: String,
+    /// The first of the turn's blocks this message holds.
+    start: usize,
+    /// When a later steer ended this part of the reply.
+    completed_at: Option<String>,
+    /// What was last saved, so unchanged parts are not saved again.
+    saved: Option<Message>,
+}
+
+impl Segment {
+    fn new(start: usize) -> Self {
+        Self {
+            id: new_id("message"),
+            created_at: now(),
+            start,
+            completed_at: None,
+            saved: None,
+        }
     }
-    vec![Message {
-        id: id.to_owned(),
-        role: "assistant".into(),
-        created_at: created_at.to_owned(),
-        blocks: blocks.to_vec(),
-        completed_at: completed,
-    }]
+}
+
+impl Reply {
+    fn new() -> Self {
+        Self {
+            segments: vec![Segment::new(0)],
+        }
+    }
+
+    /// Starts a new message at block `at`. Nothing before it is shown yet
+    /// when the current message is still empty, so that one simply continues.
+    fn split(&mut self, at: usize) {
+        let last = self.segments.last_mut().expect("a reply has a message");
+        if at <= last.start {
+            return;
+        }
+        last.completed_at = Some(now());
+        self.segments.push(Segment::new(at));
+    }
+
+    /// The messages whose content changed. `completed` ends the turn.
+    fn messages(&mut self, blocks: &[MessageBlock], completed: Option<&str>) -> Vec<Message> {
+        let starts: Vec<usize> = self.segments.iter().map(|s| s.start).collect();
+        let mut changed = Vec::new();
+        for (index, segment) in self.segments.iter_mut().enumerate() {
+            let start = segment.start.min(blocks.len());
+            let end = starts
+                .get(index + 1)
+                .copied()
+                .unwrap_or(blocks.len())
+                .clamp(start, blocks.len());
+            let part = &blocks[start..end];
+            if part.is_empty() {
+                continue;
+            }
+            let message = Message {
+                id: segment.id.clone(),
+                role: "assistant".into(),
+                created_at: segment.created_at.clone(),
+                blocks: part.to_vec(),
+                completed_at: segment
+                    .completed_at
+                    .clone()
+                    .or_else(|| completed.map(str::to_owned)),
+            };
+            if segment.saved.as_ref() != Some(&message) {
+                segment.saved = Some(message.clone());
+                changed.push(message);
+            }
+        }
+        changed
+    }
+}
+
+/// Why a turn on this provider cannot be steered, or None when it can.
+fn steer_refusal(descriptor: &ProviderDescriptor) -> Option<String> {
+    let capability = descriptor.capabilities.get("steering");
+    match capability.map(|c| c.status.as_str()) {
+        Some("supported" | "conditional") => None,
+        _ => Some(
+            capability
+                .and_then(|c| c.reason.clone())
+                .unwrap_or_else(|| format!("{} cannot be steered from JAM.", descriptor.name)),
+        ),
+    }
 }
 
 /// The transcript message for what the reader sent.
@@ -816,6 +924,42 @@ pub(crate) fn compose(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn text(value: &str) -> MessageBlock {
+        MessageBlock::Text { text: value.into() }
+    }
+
+    #[test]
+    fn a_steer_continues_the_reply_in_a_new_message() {
+        let mut reply = Reply::new();
+        let first = reply.messages(&[text("a")], None);
+        assert_eq!(first.len(), 1);
+        // Unchanged blocks are not saved again.
+        assert!(reply.messages(&[text("a")], None).is_empty());
+        reply.split(1);
+        let next = reply.messages(&[text("a"), text("b")], None);
+        // The earlier part is re-saved once, now ended by the steer.
+        assert_eq!(next.len(), 2);
+        assert_eq!(next[0].id, first[0].id);
+        assert!(next[0].completed_at.is_some());
+        assert_eq!(next[1].blocks, vec![text("b")]);
+        assert_ne!(next[1].id, first[0].id);
+        let done = reply.messages(&[text("a"), text("b")], Some("2026-10-04T00:00:00Z"));
+        assert_eq!(done.len(), 1);
+        assert_eq!(
+            done[0].completed_at.as_deref(),
+            Some("2026-10-04T00:00:00Z")
+        );
+    }
+
+    #[test]
+    fn a_steer_before_any_reply_keeps_one_message() {
+        let mut reply = Reply::new();
+        reply.split(0);
+        let messages = reply.messages(&[text("a")], None);
+        assert_eq!(messages.len(), 1);
+        assert_eq!(reply.segments.len(), 1);
+    }
 
     #[test]
     fn context_is_composed_with_provenance() {

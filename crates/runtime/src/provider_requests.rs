@@ -15,7 +15,7 @@ use std::{collections::BTreeMap, future::Future, sync::Arc};
 /// Runs provider I/O from a synchronous request. The request already runs
 /// off the async workers (the host uses a blocking thread), and a scoped
 /// thread keeps this safe even when a caller is inside an async context.
-fn block_on<F: Future + Send>(future: F) -> Option<F::Output>
+pub(crate) fn block_on<F: Future + Send>(future: F) -> Option<F::Output>
 where
     F::Output: Send,
 {

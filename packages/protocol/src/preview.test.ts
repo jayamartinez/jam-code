@@ -280,13 +280,25 @@ describe('explicit browser preview runtime', () => {
     expect(sessions.filter((status) => status === 'idle')).toHaveLength(1);
   });
 
-  it('keeps the queue after Stop', async () => {
+  it('keeps the queue after Stop and steers a streaming demo turn', async () => {
     const runtime = new BrowserPreviewTransport();
     await runtime.request('turn.start', turn());
     await runtime.request('queue.add', { resourceId, text: 'later', context: [], requestId: 'q1' });
+    await runtime.request('turn.steer', {
+      resourceId,
+      text: 'use tabs',
+      context: [],
+      requestId: 's1',
+    });
+    const steered = await runtime.request('conversation.get', { resourceId });
+    expect(steered.messages.at(-2)?.role).toBe('user');
+    expect(steered.messages.at(-1)?.role).toBe('assistant');
     await runtime.request('turn.interrupt', { sessionId });
     await vi.runAllTimersAsync();
     const stopped = await runtime.request('conversation.get', { resourceId });
     expect(stopped.queued?.map((item) => item.text)).toEqual(['later']);
+    await expect(
+      runtime.request('turn.steer', { resourceId, text: 'late', context: [], requestId: 's2' }),
+    ).rejects.toMatchObject({ code: 'conflict' });
   });
 });
